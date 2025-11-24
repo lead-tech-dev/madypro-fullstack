@@ -8,9 +8,7 @@ async function bootstrap() {
   const defaultOrigins = [
     'http://localhost:5173',
     'http://localhost:4173',
-    'https://madypro-fullstack.vercel.app',
-    'https://madypro-fullstack-git-main-eric-maximans-projects.vercel.app',
-    'https://madypro-fullstack-i81cn5h4q-eric-maximans-projects.vercel.app',
+    'https://madypro-fullstack.vercel.app'
   ];
   const allowedOrigins = Array.from(new Set([...envOrigins, ...defaultOrigins]));
   app.enableCors({
