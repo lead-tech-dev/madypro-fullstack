@@ -88,7 +88,7 @@ export const ClientsPage: React.FC = () => {
   };
 
   return (
-    <div className="page-container" style={{ maxWidth: '100%', width: '100%' }}>
+    <div className="page-container clients-page" style={{ maxWidth: '100%', width: '100%' }}>
       <div className="page-hero">
         <div className="page-hero__content">
           <span className="pill">Portefeuille clients</span>

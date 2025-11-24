@@ -53,7 +53,7 @@ export const AuditPage: React.FC = () => {
   }, [token, filters.startDate, filters.endDate, filters.actorId, filters.action, page, pageSize]);
 
   return (
-    <div>
+    <div className="audit-page">
       <div className="page-header">
         <span className="pill">Audit</span>
         <h2>Historique des actions sensibles</h2>

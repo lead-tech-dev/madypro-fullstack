@@ -314,7 +314,7 @@ export const AttendanceListPage: React.FC = () => {
     typeof duration === 'number' ? `${Math.floor(duration / 60)}h${(duration % 60).toString().padStart(2, '0')}` : '—';
 
   return (
-    <div>
+    <div className="attendance-page">
       <div className="page-hero">
         <div className="page-hero__content">
           <span className="pill">Suivi des pointages</span>

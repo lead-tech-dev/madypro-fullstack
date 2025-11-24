@@ -165,6 +165,228 @@
   margin-top: 2rem;
 }
 
+/* Interventions - responsive */
+.interventions-page .table-wrapper {
+  overflow-x: auto;
+}
+
+.interventions-page .table-actions {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.interventions-page .table td,
+.interventions-page .table th {
+  white-space: nowrap;
+}
+
+.interventions-page .page-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+}
+
+.interventions-page .filter-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .interventions-page .page-hero {
+    grid-template-columns: 1fr;
+  }
+  .interventions-page .filter-grid {
+    grid-template-columns: 1fr;
+  }
+  .interventions-page .table td,
+  .interventions-page .table th {
+    white-space: normal;
+  }
+  .interventions-page .table-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Attendance - responsive */
+.attendance-page .table-wrapper {
+  overflow-x: auto;
+}
+
+.attendance-page .table td,
+.attendance-page .table th {
+  white-space: nowrap;
+}
+
+.attendance-page .form-row {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+@media (max-width: 900px) {
+  .attendance-page .page-hero {
+    grid-template-columns: 1fr;
+  }
+  .attendance-page .filter-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+  .attendance-page .table td,
+  .attendance-page .table th {
+    white-space: normal;
+  }
+  .attendance-page .table-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Sites - responsive */
+.sites-page .table {
+  overflow-x: auto;
+}
+
+.sites-page .table-head,
+.sites-page .table-row {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.sites-page .page-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 340px);
+}
+
+@media (max-width: 900px) {
+  .sites-page .page-hero {
+    grid-template-columns: 1fr;
+  }
+  .sites-page .table-head,
+  .sites-page .table-row {
+    grid-template-columns: 1fr;
+  }
+  .sites-page .table {
+    display: block;
+  }
+  .sites-page .table-row {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+
+/* Clients - responsive */
+.clients-page .table {
+  overflow-x: auto;
+}
+
+.clients-page .table-head,
+.clients-page .table-row {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.clients-page .table-actions {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+@media (max-width: 900px) {
+  .clients-page .page-hero {
+    grid-template-columns: 1fr;
+  }
+  .clients-page .table-head,
+  .clients-page .table-row {
+    grid-template-columns: 1fr;
+  }
+  .clients-page .table {
+    display: block;
+  }
+  .clients-page .table-row {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .clients-page .table-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Audit - responsive */
+.audit-page .table-wrapper {
+  overflow-x: auto;
+}
+
+.audit-page .table td,
+.audit-page .table th {
+  white-space: nowrap;
+}
+
+.audit-page .filter-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+@media (max-width: 900px) {
+  .audit-page .filter-grid {
+    grid-template-columns: 1fr;
+  }
+  .audit-page .table td,
+  .audit-page .table th {
+    white-space: normal;
+  }
+}
+
+/* Absences - responsive */
+.absences-page .table-wrapper {
+  overflow-x: auto;
+}
+
+.absences-page .filter-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.absences-page .table td,
+.absences-page .table th {
+  white-space: nowrap;
+}
+
+.absences-page .table-actions {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+@media (max-width: 900px) {
+  .absences-page .page-hero {
+    grid-template-columns: 1fr;
+  }
+  .absences-page .table td,
+  .absences-page .table th {
+    white-space: normal;
+  }
+  .absences-page .table-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Notifications - responsive */
+.notifications-page .table-wrapper {
+  overflow-x: auto;
+}
+
+.notifications-page .table td,
+.notifications-page .table th {
+  white-space: nowrap;
+}
+
+.notifications-page .page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .notifications-page .page-header {
+    grid-template-columns: 1fr;
+  }
+  .notifications-page .table td,
+  .notifications-page .table th {
+    white-space: normal;
+  }
+}
+
 .feature span {
   font-size: 0.78rem;
   letter-spacing: 0.08em;

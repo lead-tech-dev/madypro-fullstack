@@ -149,7 +149,7 @@ export const SitesListPage: React.FC = () => {
   }, [formValues.address, mapboxToken]);
 
   return (
-    <div className="page-container" style={{ maxWidth: '100%', width: '100%' }}>
+    <div className="page-container sites-page" style={{ maxWidth: '100%', width: '100%' }}>
       <div className="page-hero">
         <div className="page-hero__content">
           <span className="pill">Gestion des sites & clients</span>

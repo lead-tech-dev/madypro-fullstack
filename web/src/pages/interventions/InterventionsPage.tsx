@@ -363,7 +363,7 @@ export const InterventionsPage: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className="interventions-page">
       <div className="page-header">
         <span className="pill">Interventions</span>
         <h2>Vue terrain concrète</h2>

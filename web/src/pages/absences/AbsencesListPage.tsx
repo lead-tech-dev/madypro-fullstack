@@ -198,7 +198,7 @@ export const AbsencesListPage: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className="absences-page">
       <div className="page-hero">
         <div className="page-hero__content">
           <span className="pill">Absences & congés</span>

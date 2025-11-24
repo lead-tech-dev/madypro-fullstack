@@ -132,7 +132,7 @@ export const NotificationsPage: React.FC = () => {
   }, [form.audience, form.targetId, sites, users]);
 
   return (
-    <div>
+    <div className="notifications-page">
       <div className="page-header">
         <span className="pill">Notifications</span>
         <h2>Informez vos équipes en temps réel</h2>
