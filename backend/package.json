@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node dist/main.js",
     "start:prod": "node dist/main.js",
-    "start:dev": "nest start --watch",
+    "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "build": "nest build",
     "test": "jest",
     "prisma:generate": "prisma generate",
