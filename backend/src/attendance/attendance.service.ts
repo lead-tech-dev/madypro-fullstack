@@ -22,6 +22,8 @@ type AttendanceFilters = {
   siteId?: string;
   clientId?: string;
   status?: AttendanceStatus | 'all';
+  page?: number;
+  pageSize?: number;
 };
 
 type AttendanceView = {

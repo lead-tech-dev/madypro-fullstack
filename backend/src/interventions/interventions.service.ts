@@ -26,6 +26,8 @@ export type InterventionFilters = {
   subType?: string;
   agentId?: string;
   status?: InterventionStatus | 'all';
+  page?: number;
+  pageSize?: number;
 };
 
 export type InterventionView = InterventionEntity & {
