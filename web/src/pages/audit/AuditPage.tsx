@@ -169,6 +169,30 @@ export const AuditPage: React.FC = () => {
           </div>
         )}
       </section>
+
+      <div className="pagination" style={{ marginTop: '1rem' }}>
+        <button
+          className="btn btn--ghost"
+          type="button"
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page === 1}
+        >
+          Précédent
+        </button>
+        <span className="card__meta">Page {page}</span>
+        <button
+          className="btn btn--ghost"
+          type="button"
+          onClick={() => {
+            const maxPage = Math.ceil(pageData.total / pageSize) || 1;
+            setPage((p) => (p < maxPage ? p + 1 : p));
+          }}
+          disabled={page * pageSize >= pageData.total}
+        >
+          Suivant
+        </button>
+        <span className="card__meta">{pageData.total} résultats</span>
+      </div>
     </div>
   );
 };

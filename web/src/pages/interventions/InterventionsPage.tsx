@@ -723,6 +723,24 @@ export const InterventionsPage: React.FC = () => {
           </div>
         )}
       </section>
+      <div className="pagination" style={{ marginTop: '1rem' }}>
+        <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+          Précédent
+        </Button>
+        <span className="card__meta">Page {page}</span>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            const maxPage = Math.ceil(total / pageSize) || 1;
+            setPage((p) => (p < maxPage ? p + 1 : p));
+          }}
+          disabled={page * pageSize >= total}
+        >
+          Suivant
+        </Button>
+        <span className="card__meta">{total} résultats</span>
+      </div>
 
       {viewing && (
         <div
