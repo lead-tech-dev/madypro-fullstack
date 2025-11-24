@@ -132,13 +132,27 @@ export const InterventionsPage: React.FC = () => {
     if (!token) return;
     Promise.all([listSites(token), listClients(token), listUsers(token, { role: 'AGENT', status: 'active' })])
       .then(([sitePage, clientData, userData]) => {
-        setSites(sitePage.items ?? (sitePage as any));
-        setClients(clientData);
-        const agentItems = userData.items ?? (userData as any);
+        const siteItems = Array.isArray((sitePage as any)?.items)
+          ? (sitePage as any).items
+          : Array.isArray(sitePage as any)
+          ? (sitePage as any)
+          : [];
+        const clientItems = Array.isArray((clientData as any)?.items)
+          ? (clientData as any).items
+          : Array.isArray(clientData as any)
+          ? (clientData as any)
+          : [];
+        const agentItems = Array.isArray((userData as any)?.items)
+          ? (userData as any).items
+          : Array.isArray(userData as any)
+          ? (userData as any)
+          : [];
+        setSites(siteItems);
+        setClients(clientItems);
         setUsers(agentItems);
         setForm((prev) => ({
           ...prev,
-          siteId: prev.siteId || sitePage.items?.[0]?.id || (sitePage as any)[0]?.id || '',
+          siteId: prev.siteId || siteItems[0]?.id || '',
           agentIds: prev.agentIds.length ? prev.agentIds : agentItems[0] ? [agentItems[0].id] : [],
         }));
       })
