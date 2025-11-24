@@ -1,0 +1,43 @@
+Dependencies
+
+node_modules/
+apps/mobile/node_modules/
+apps/web/node_modules/
+backend/node_modules/
+
+Expo
+
+.expo/
+.expo-shared/
+dist/
+build/
+android/
+ios/
+
+Cache / OS / Editor
+
+.DS_Store
+.log
+npm-debug.log
+yarn-error.log*
+tmp/
+.cache/
+
+Local system junk (the source of your EAS error)
+
+.config/
+Windsurf/
+*.ldb
+*.log
+
+Docker
+
+postgres_data/
+
+Env files
+
+.env
+.env.*
+.env.local
+.env.development
+.env.production

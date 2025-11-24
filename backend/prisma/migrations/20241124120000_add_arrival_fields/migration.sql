@@ -1,0 +1,4 @@
+ALTER TABLE "Attendance"
+ADD COLUMN "arrivalTime" TIMESTAMP(3),
+ADD COLUMN "arrivalLatitude" DOUBLE PRECISION,
+ADD COLUMN "arrivalLongitude" DOUBLE PRECISION;

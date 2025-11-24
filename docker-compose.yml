@@ -1,0 +1,55 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: madypro
+      POSTGRES_PASSWORD: madypro
+      POSTGRES_DB: madypro_clean
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U madypro -d madypro_clean']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    env_file: []
+    environment:
+      DATABASE_URL: postgresql://madypro:madypro@db:5432/madypro_clean?schema=public
+      PORT: 3000
+    ports:
+      - '3000:3000'
+    depends_on:
+      - db
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://api:3000
+    ports:
+      - '4173:4173'
+    depends_on:
+      - api
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_LISTEN_PORT: 5050
+    ports:
+      - '5050:5050'
+    depends_on:
+      - db
+
+volumes:
+  db-data:

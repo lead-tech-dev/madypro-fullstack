@@ -1,0 +1,48 @@
+@use './layout.scss';
+@use './components.scss';
+
+:root {
+  font-family: 'Cabin', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: #f8f4ed;
+  color: #020912;
+  --font-body: 'Cabin', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-heading: 'Fjalla One', 'Cabin', sans-serif;
+  --color-ink: #020912;
+  --color-muted: #565656;
+  --color-cream: #f8f4ed;
+  --color-shell: #fdfbf5;
+  --color-sage: #dbe9e0;
+  --color-border: #e3e1da;
+  --shadow-soft: 0 25px 45px rgba(2, 9, 18, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  line-height: 1.5;
+  background: radial-gradient(circle at top, #fff 0%, var(--color-cream) 55%, #efe4d0 100%);
+  color: var(--color-ink);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+p {
+  margin-top: 0;
+  color: var(--color-muted);
+}
+
+a {
+  color: inherit;
+}
