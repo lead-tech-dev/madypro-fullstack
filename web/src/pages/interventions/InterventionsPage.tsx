@@ -162,8 +162,13 @@ export const InterventionsPage: React.FC = () => {
     };
     listInterventions(token, query)
       .then((data) => {
-        setInterventions(data.items);
-        setTotal(data.total);
+        const items = Array.isArray((data as any)?.items)
+          ? (data as any).items
+          : Array.isArray(data)
+          ? (data as any)
+          : [];
+        setInterventions(items);
+        setTotal((data as any)?.total ?? items.length);
       })
       .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger les interventions', 'error'))
       .finally(() => setLoading(false));
