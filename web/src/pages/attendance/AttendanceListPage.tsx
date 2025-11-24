@@ -102,9 +102,21 @@ export const AttendanceListPage: React.FC = () => {
       }),
     ])
       .then(([agentsPage, sitePage, clients, interventionsPage]) => {
-        const agents = (agentsPage as any)?.items ?? (agentsPage as any) ?? [];
-        const sites = (sitePage as any)?.items ?? (sitePage as any) ?? [];
-        const interventions = (interventionsPage as any)?.items ?? (interventionsPage as any) ?? [];
+        const agents = Array.isArray((agentsPage as any)?.items)
+          ? (agentsPage as any).items
+          : Array.isArray(agentsPage as any)
+          ? (agentsPage as any)
+          : [];
+        const sites = Array.isArray((sitePage as any)?.items)
+          ? (sitePage as any).items
+          : Array.isArray(sitePage as any)
+          ? (sitePage as any)
+          : [];
+        const interventions = Array.isArray((interventionsPage as any)?.items)
+          ? (interventionsPage as any).items
+          : Array.isArray(interventionsPage as any)
+          ? (interventionsPage as any)
+          : [];
         setOptions({ agents, sites, clients, interventions });
         const firstIntervention = interventions[0];
         setManualForm((prev) => ({
