@@ -4,8 +4,16 @@ import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const envOrigins = process.env.CORS_ORIGIN?.split(',').filter(Boolean) ?? [];
+  const defaultOrigins = [
+    'http://localhost:5173',
+    'http://localhost:4173',
+    'https://madypro-fullstack.vercel.app',
+    'https://madypro-fullstack-git-main-eric-maximans-projects.vercel.app',
+  ];
+  const allowedOrigins = Array.from(new Set([...envOrigins, ...defaultOrigins]));
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:5173'],
+    origin: allowedOrigins,
     credentials: true,
   });
   const config = app.get(ConfigService);
