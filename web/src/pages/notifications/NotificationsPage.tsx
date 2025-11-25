@@ -133,19 +133,21 @@ export const NotificationsPage: React.FC = () => {
 
   return (
     <div className="notifications-page">
-      <div className="page-header">
-        <span className="pill">Notifications</span>
-        <h2>Informez vos équipes en temps réel</h2>
-        <p>Consultez l’historique et envoyez des push ciblés aux agents et superviseurs.</p>
-        <Button
-          type="button"
-          onClick={() => {
-            setForm({ title: '', message: '', audience: 'ALL_AGENTS' });
-            setFormVisible(true);
-          }}
-        >
-          Envoyer une notification
-        </Button>
+      <div className="page-hero">
+        <div className="page-hero__content">
+          <span className="pill">Notifications</span>
+          <h2>Informez vos équipes en temps réel</h2>
+          <p>Consultez l’historique et envoyez des push ciblés aux agents et superviseurs.</p>
+          <Button
+            type="button"
+            onClick={() => {
+              setForm({ title: '', message: '', audience: 'ALL_AGENTS' });
+              setFormVisible(true);
+            }}
+          >
+            Envoyer une notification
+          </Button>
+        </div>
       </div>
 
       {formVisible && (

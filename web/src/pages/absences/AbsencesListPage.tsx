@@ -272,24 +272,6 @@ export const AbsencesListPage: React.FC = () => {
             ))}
           </select>
         </label>
-        <div className="pagination">
-          <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
-            Précédent
-          </Button>
-          <span className="card__meta">Page {page}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              const maxPage = Math.ceil(pageData.total / pageSize) || 1;
-              setPage((p) => (p < maxPage ? p + 1 : p));
-            }}
-            disabled={page * pageSize >= pageData.total}
-          >
-            Suivant
-          </Button>
-          <span className="card__meta">{pageData.total} résultats</span>
-        </div>
       </div>
 
       {manualOpen && (
