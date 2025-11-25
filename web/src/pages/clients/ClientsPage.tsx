@@ -155,18 +155,48 @@ export const ClientsPage: React.FC = () => {
       )}
 
       {formOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <div className="modal-header">
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '16px',
+              padding: '1.5rem',
+              width: '100%',
+              maxWidth: '640px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
+              border: '1px solid var(--color-border)',
+              display: 'grid',
+              gap: '1rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
               <div>
                 <span className="pill">Client</span>
-                <h3>{editing ? 'Modifier un client' : 'Nouveau client'}</h3>
+                <h3 style={{ margin: 0 }}>{editing ? 'Modifier un client' : 'Nouveau client'}</h3>
               </div>
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>
                 Fermer
               </Button>
             </div>
-            <form className="form-card" onSubmit={handleSubmit}>
+
+            <form
+              className="form-card"
+              onSubmit={handleSubmit}
+              style={{ boxShadow: 'none', padding: 0, gap: '1rem' }}
+            >
               <Input
                 name="name"
                 label="Nom"
@@ -174,26 +204,28 @@ export const ClientsPage: React.FC = () => {
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                 required
               />
-              <Input
-                name="contactName"
-                label="Contact"
-                value={form.contactName}
-                onChange={(e) => setForm((prev) => ({ ...prev, contactName: e.target.value }))}
-              />
-              <Input
-                name="contactEmail"
-                label="Email"
-                type="email"
-                value={form.contactEmail}
-                onChange={(e) => setForm((prev) => ({ ...prev, contactEmail: e.target.value }))}
-              />
+              <div className="form-row">
+                <Input
+                  name="contactName"
+                  label="Contact"
+                  value={form.contactName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, contactName: e.target.value }))}
+                />
+                <Input
+                  name="contactEmail"
+                  label="Email"
+                  type="email"
+                  value={form.contactEmail}
+                  onChange={(e) => setForm((prev) => ({ ...prev, contactEmail: e.target.value }))}
+                />
+              </div>
               <Input
                 name="contactPhone"
                 label="Téléphone"
                 value={form.contactPhone}
                 onChange={(e) => setForm((prev) => ({ ...prev, contactPhone: e.target.value }))}
               />
-              <div className="form-actions">
+              <div className="form-actions" style={{ justifyContent: 'flex-end', gap: '0.5rem' }}>
                 <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>
                   Annuler
                 </Button>
