@@ -68,6 +68,14 @@ export class InterventionsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Patch(':id/status')
+  updateStatus(@Param('id') id: string, @Body('status') status: string, @Req() req: Request) {
+    const user = req.user as any;
+    return this.service.updateStatus(id, status as any, { id: user.sub, role: user.role });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Post(':id/duplicate')
   duplicate(@Param('id') id: string, @Body() dto: DuplicateInterventionDto) {

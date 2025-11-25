@@ -1,4 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   InterventionEntity,
@@ -329,6 +336,39 @@ export class InterventionsService implements OnModuleInit {
     this.notifyAssignedAgents(view, 'updated').catch((err) =>
       this.logger.warn(`Notification agents échouée: ${err.message}`),
     );
+    return view;
+  }
+
+  async updateStatus(id: string, status: InterventionStatus, viewer: { id: string; role: string }) {
+    const record = await this.prisma.intervention.findUnique({
+      where: { id },
+      include: { assignments: true, trucks: true },
+    });
+    if (!record) {
+      throw new NotFoundException('Intervention introuvable');
+    }
+    const allowedForAgent: InterventionStatus[] = ['IN_PROGRESS', 'COMPLETED', 'NO_SHOW', 'NEEDS_REVIEW'];
+    if (viewer.role === 'AGENT') {
+      const assigned = record.assignments.some((a) => a.userId === viewer.id);
+      if (!assigned) {
+        throw new ForbiddenException('Accès refusé');
+      }
+      if (!allowedForAgent.includes(status)) {
+        throw new BadRequestException('Statut non autorisé');
+      }
+    }
+    const updated = await this.prisma.intervention.update({
+      where: { id },
+      data: { status },
+      include: { assignments: true, trucks: true },
+    });
+    const view = this.present(this.toEntity(updated));
+    this.realtime.broadcast('intervention.status', {
+      id: view.id,
+      siteId: view.siteId,
+      status: view.status,
+      observation: view.observation,
+    });
     return view;
   }
 
