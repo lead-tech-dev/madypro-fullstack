@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../../context/AuthContext';
 
-const MENU_ITEMS: Array<
+type NavItem =
   | { type: 'link'; to: string; label: string }
-  | { type: 'group'; label: string; children: { to: string; label: string }[] }
-> = [
+  | { type: 'group'; label: string; children: { to: string; label: string }[] };
+
+const ADMIN_MENU: NavItem[] = [
   { type: 'link', to: '/dashboard', label: 'Tableau de bord' },
   {
     type: 'group',
@@ -25,15 +26,27 @@ const MENU_ITEMS: Array<
   { type: 'link', to: '/audit', label: 'Audit' },
 ];
 
+const SUPERVISOR_MENU: NavItem[] = [
+  { type: 'link', to: '/supervision/dashboard', label: 'Tableau de bord' },
+  { type: 'link', to: '/supervision/sites', label: 'Mes sites' },
+  { type: 'link', to: '/supervision/presence', label: 'Présence temps réel' },
+  { type: 'link', to: '/supervision/planning', label: 'Planning équipes' },
+  { type: 'link', to: '/supervision/interventions', label: 'Interventions' },
+  { type: 'link', to: '/supervision/absences', label: 'Absences' },
+];
+
 type SidebarProps = {
   isOpen: boolean;
   onClose: () => void;
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { logout } = useAuthContext();
+  const { logout, user } = useAuthContext();
   const navigate = useNavigate();
   const [portfolioOpen, setPortfolioOpen] = useState(false);
+  const isSupervisor = user?.role?.toUpperCase() === 'SUPERVISOR';
+  const menuItems = isSupervisor ? SUPERVISOR_MENU : ADMIN_MENU;
+  const subtitle = isSupervisor ? 'Superviseur' : 'Admin';
 
   const handleLogout = () => {
     logout();
@@ -47,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <span className="sidebar__logo">MC</span>
         <div>
           <p className="sidebar__title">Madypro Clean</p>
-          <p className="sidebar__subtitle">Admin</p>
+          <p className="sidebar__subtitle">{subtitle}</p>
         </div>
       </div>
       <nav
@@ -57,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           setPortfolioOpen(false);
         }}
       >
-        {MENU_ITEMS.map((item) => {
+        {menuItems.map((item) => {
           if (item.type === 'link') {
             return (
               <NavLink

@@ -12,14 +12,22 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  const targetRoute = React.useMemo(() => {
+    const role = user?.role?.toUpperCase();
+    if (role === 'SUPERVISOR') return '/supervision/dashboard';
+    if (role === 'ADMIN') return '/dashboard';
+    return '/dashboard';
+  }, [user?.role]);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await authenticate(email, password);
-    navigate('/dashboard');
+    const result = await authenticate(email, password);
+    const role = result?.user.role?.toUpperCase();
+    navigate(role === 'SUPERVISOR' ? '/supervision/dashboard' : '/dashboard');
   };
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={targetRoute} replace />;
   }
 
   return (

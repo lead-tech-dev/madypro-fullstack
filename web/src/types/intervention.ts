@@ -16,6 +16,7 @@ export type Intervention = {
   agentIds: string[];
   truckLabels: string[];
   observation?: string;
+  photos?: string[];
   status: InterventionStatus;
 };
 

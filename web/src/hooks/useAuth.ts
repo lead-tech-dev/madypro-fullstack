@@ -14,6 +14,7 @@ export const useAuth = () => {
       const result = await loginRequest({ email, password });
       login(result.user, result.token);
       notify('Connexion réussie');
+      return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connexion impossible';
       setError(message);
