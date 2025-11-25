@@ -66,10 +66,25 @@ export const SitesListPage: React.FC = () => {
       listUsers(token, { role: 'SUPERVISOR', status: 'active' }),
     ])
       .then(([sitePage, clientData, supervisorData]) => {
-        setSites(sitePage.items);
-        setTotal(sitePage.total);
-        setClients(clientData);
-        setSupervisors(supervisorData.items ?? (supervisorData as any));
+        const siteItems = Array.isArray((sitePage as any)?.items)
+          ? (sitePage as any).items
+          : Array.isArray(sitePage as any)
+          ? (sitePage as any)
+          : [];
+        const clientItems = Array.isArray((clientData as any)?.items)
+          ? (clientData as any).items
+          : Array.isArray(clientData as any)
+          ? (clientData as any)
+          : [];
+        const supervisorItems = Array.isArray((supervisorData as any)?.items)
+          ? (supervisorData as any).items
+          : Array.isArray(supervisorData as any)
+          ? (supervisorData as any)
+          : [];
+        setSites(siteItems);
+        setTotal((sitePage as any)?.total ?? siteItems.length);
+        setClients(clientItems);
+        setSupervisors(supervisorItems);
         setError(null);
       })
       .catch((err) => {
