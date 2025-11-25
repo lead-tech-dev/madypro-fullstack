@@ -195,7 +195,7 @@ export const ClientsPage: React.FC = () => {
             <form
               className="form-card"
               onSubmit={handleSubmit}
-              style={{ boxShadow: 'none', padding: 0, gap: '1rem' }}
+              style={{ boxShadow: 'none', padding: '0.75rem', gap: '1rem' }}
             >
               <Input
                 name="name"
