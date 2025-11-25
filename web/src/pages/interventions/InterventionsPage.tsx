@@ -23,6 +23,7 @@ import { Button } from '../../components/ui/Button';
 import { listAttendance } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
 import { Anomaly } from '../../types/anomaly';
+import { formatDateTime } from '../../utils/datetime';
 
 const STATUS_OPTIONS: { value: InterventionStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'Tous statuts' },
@@ -938,7 +939,7 @@ export const InterventionsPage: React.FC = () => {
                     {anomaly.title && <div style={{ fontWeight: 600 }}>{anomaly.title}</div>}
                     <div style={{ color: 'var(--color-muted)' }}>{anomaly.description}</div>
                     <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
-                      {anomaly.user?.name ?? '—'} · {new Date(anomaly.createdAt).toLocaleString('fr-FR')}
+                      {anomaly.user?.name ?? '—'} · {formatDateTime(anomaly.createdAt)}
                     </div>
                     {anomaly.photos?.length ? (
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '0.25rem' }}>

@@ -3,6 +3,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { AuditLog, AuditAction } from '../../types/audit';
 import { listAuditLogs, AuditPage as AuditPageType } from '../../services/api/audit.api';
 import { Input } from '../../components/ui/Input';
+import { formatDateTime } from '../../utils/datetime';
 
 const ACTION_OPTIONS: { value: AuditAction | 'all'; label: string }[] = [
   { value: 'all', label: 'Toutes les actions' },
@@ -154,7 +155,7 @@ export const AuditPage: React.FC = () => {
               <tbody>
                 {pageData.items.map((log) => (
                   <tr key={log.id}>
-                    <td>{new Date(log.createdAt).toLocaleString()}</td>
+                    <td>{formatDateTime(log.createdAt)}</td>
                     <td>{log.actorId}</td>
                     <td>{log.action}</td>
                     <td>

@@ -8,6 +8,7 @@ import { User } from '../../types/user';
 import { Site } from '../../types/site';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { formatDateTime } from '../../utils/datetime';
 
 const audienceOptions: { value: NotificationAudience; label: string }[] = [
   { value: 'ALL_AGENTS', label: 'Tous les agents' },
@@ -264,7 +265,7 @@ export const NotificationsPage: React.FC = () => {
               <tbody>
                 {pageData.items.map((notification) => (
                   <tr key={notification.id}>
-                    <td>{new Date(notification.createdAt).toLocaleString()}</td>
+                    <td>{formatDateTime(notification.createdAt)}</td>
                     <td>{notification.title}</td>
                     <td>{notification.message}</td>
                     <td>
