@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "mj-planning-mobile",
+    "slug": "mj-planning-mobile",
+    "scheme": "mjplanning",
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "17de6227-dae4-4b36-b6c2-88433b7e1a0a"
+      }
+    },
+    "android": {
+      "package": "com.maximan81.mjplanningmobile"
+    },
+    "ios": {
+      "bundleIdentifier": "com.maximan81.mjplanningmobile"
+    }
+  }
+}

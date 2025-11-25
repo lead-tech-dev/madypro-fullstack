@@ -1,0 +1,12 @@
+export type Site = {
+  id: string;
+  name: string;
+  clientId: string;
+  clientName: string;
+  address: string;
+  latitude?: number;
+  longitude?: number;
+  timeWindow?: string;
+  active: boolean;
+  supervisors: { id: string; name: string }[];
+};
