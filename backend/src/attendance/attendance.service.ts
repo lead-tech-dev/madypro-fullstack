@@ -55,6 +55,9 @@ type AttendanceRecord = Prisma.AttendanceGetPayload<{
 export class AttendanceService implements OnModuleInit {
   private readonly MAX_DISTANCE_METERS = 100;
   private readonly OUTSIDE_GRACE_MS = 5 * 60 * 1000;
+  private readonly TZ_OFFSET_MINUTES = Number.isFinite(Number(process.env.TIMEZONE_OFFSET_MINUTES))
+    ? Number(process.env.TIMEZONE_OFFSET_MINUTES)
+    : 120; // default Europe/Paris (UTC+1/+2)
 
   constructor(
     private readonly prisma: PrismaService,
@@ -310,7 +313,9 @@ export class AttendanceService implements OnModuleInit {
   async checkIn(dto: CheckInDto) {
     const site = this.sitesService.findOne(dto.siteId);
     const now = new Date();
-    const intervention = await this.ensureWithinInterventionWindow(dto.userId, dto.siteId, now);
+    const intervention = await this.ensureWithinInterventionWindow(dto.userId, dto.siteId, now, {
+      allowBeforeStart: true,
+    });
     if (site.latitude == null || site.longitude == null) {
       throw new BadRequestException("Les coordonnées du site sont manquantes.");
     }
@@ -639,8 +644,8 @@ export class AttendanceService implements OnModuleInit {
         intervention.date instanceof Date
           ? intervention.date.toISOString().slice(0, 10)
           : new Date(intervention.date as any).toISOString().slice(0, 10);
-      const plannedStart = this.combineFromParts(dateStr, intervention.startTime);
-      const plannedEnd = this.combineFromParts(dateStr, intervention.endTime);
+      const plannedStart = this.combineFromParts(dateStr, intervention.startTime, this.TZ_OFFSET_MINUTES);
+      const plannedEnd = this.combineFromParts(dateStr, intervention.endTime, this.TZ_OFFSET_MINUTES);
       const windowStart = new Date(
         plannedStart.getTime() - (options.allowBeforeStart ? 30 * 60 * 1000 : 0),
       );
@@ -669,11 +674,13 @@ export class AttendanceService implements OnModuleInit {
     throw new BadRequestException("Aucune intervention en cours pour ce créneau.");
   }
 
-  private combineFromParts(dateStr: string, time: string) {
+  private combineFromParts(dateStr: string, time: string, offsetMinutes = 0) {
     const [hours, minutes] = time.split(':').map((v) => parseInt(v, 10) || 0);
-    return new Date(`${dateStr}T${hours.toString().padStart(2, '0')}:${minutes
-      .toString()
-      .padStart(2, '0')}:00`);
+    const localDate = new Date(
+      `${dateStr}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`,
+    );
+    // If schedules are expressed in a local timezone (e.g., Europe/Paris), shift them back to UTC for comparisons
+    return new Date(localDate.getTime() - offsetMinutes * 60 * 1000);
   }
 
   private combine(date: string, time: string) {
