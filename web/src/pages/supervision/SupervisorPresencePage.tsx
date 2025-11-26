@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import { listAttendance } from '../../services/api/attendance.api';
 import { listSites } from '../../services/api/sites.api';
+import { listInterventions } from '../../services/api/interventions.api';
 import { Attendance } from '../../types/attendance';
 import { Site } from '../../types/site';
+import { Intervention } from '../../types/intervention';
 import { Input } from '../../components/ui/Input';
 import { formatDateTime } from '../../utils/datetime';
 
@@ -18,6 +20,7 @@ export const SupervisorPresencePage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [filters, setFilters] = useState<{ siteId: string; date: string; search: string }>({
     siteId: 'all',
     date: today,
@@ -32,9 +35,13 @@ export const SupervisorPresencePage: React.FC = () => {
       Promise.all([
         listAttendance(token, { startDate: filters.date, endDate: filters.date, pageSize: 200 }).catch(() => [] as Attendance[]),
         listSites(token, { pageSize: 200 }).catch(() => ({ items: [] as Site[] })),
+        listInterventions(token, { startDate: filters.date, endDate: filters.date, pageSize: 500 }).catch(() => ({ items: [] as Intervention[] })),
       ])
-        .then(([attendanceRes, sitesRes]) => {
-          setAttendance(Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes as any).items ?? []);
+        .then(([attendanceRes, sitesRes, interventionsRes]) => {
+          const items = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes as any).items ?? [];
+          const interventionsList = (interventionsRes as any).items ?? (Array.isArray(interventionsRes) ? interventionsRes : []);
+          setInterventions(interventionsList);
+          setAttendance(items.map((att) => mergePlannedFromIntervention(att, interventionsList)));
           setSites((sitesRes as any).items ?? (sitesRes as Site[]));
         })
         .catch((err) => {
@@ -65,6 +72,21 @@ export const SupervisorPresencePage: React.FC = () => {
       return true;
     });
   }, [attendance, filters.search, filters.siteId, supervisedSiteIds]);
+
+  const mergePlannedFromIntervention = (att: Attendance, ints: Intervention[]) => {
+    const match = ints.find(
+      (intervention) =>
+        intervention.siteId === att.site.id &&
+        intervention.date === filters.date &&
+        intervention.agents?.some((a) => a.id === att.agent.id),
+    );
+    if (!match) return att;
+    return {
+      ...att,
+      plannedStart: att.plannedStart ?? match.startTime,
+      plannedEnd: att.plannedEnd ?? match.endTime,
+    };
+  };
 
   return (
     <div className="page">
