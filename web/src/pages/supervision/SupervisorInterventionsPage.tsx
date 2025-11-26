@@ -9,6 +9,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
+import { ImageSlider } from '../../components/ui/ImageSlider';
 
 const todayLocal = () => {
   const d = new Date();
@@ -375,9 +376,9 @@ export const SupervisorInterventionsPage: React.FC = () => {
               </table>
             </div>
 
-            <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-              <table className="table" aria-label="pointages intervention">
-                <thead>
+          <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+            <table className="table" aria-label="pointages intervention">
+              <thead>
                   <tr>
                     <th>Agent</th>
                     <th>Début</th>
@@ -399,44 +400,15 @@ export const SupervisorInterventionsPage: React.FC = () => {
                       </td>
                     </tr>
                   )}
-                </tbody>
-              </table>
-            </div>
+              </tbody>
+            </table>
+          </div>
 
           <div style={{ marginTop: '1rem', display: 'grid', gap: '0.5rem' }}>
             <p className="card__meta">Photos</p>
             <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
             {photoDraft.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                {photoDraft.map((uri, idx) => (
-                  <div key={uri + idx} style={{ position: 'relative' }}>
-                    <img
-                      src={uri}
-                      alt={`photo-${idx + 1}`}
-                      style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb' }}
-                    />
-                    <button
-                      type="button"
-                      aria-label="Supprimer la photo"
-                      onClick={() => setPhotoDraft((prev) => prev.filter((p) => p !== uri))}
-                      style={{
-                        position: 'absolute',
-                        top: -6,
-                        right: -6,
-                        borderRadius: '50%',
-                        border: 'none',
-                        background: '#000',
-                        color: '#fff',
-                        width: 22,
-                        height: 22,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <ImageSlider images={photoDraft} />
             )}
           </div>
 

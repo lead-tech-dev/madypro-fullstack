@@ -13,7 +13,6 @@ import {
 import { listSites } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
 import { listClients } from '../../services/api/clients.api';
-import { listAnomalies, createAnomaly, updateAnomalyStatus } from '../../services/api/anomalies.api';
 import { Site } from '../../types/site';
 import { User } from '../../types/user';
 import { Client } from '../../types/client';
@@ -21,9 +20,9 @@ import { Select } from '../../components/ui/Select';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
+import { ImageSlider } from '../../components/ui/ImageSlider';
 import { listAttendance } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
-import { Anomaly } from '../../types/anomaly';
 import { formatDateTime } from '../../utils/datetime';
 
 const STATUS_OPTIONS: { value: InterventionStatus | 'all'; label: string }[] = [
@@ -96,11 +95,9 @@ export const InterventionsPage: React.FC = () => {
   const [formVisible, setFormVisible] = useState(false);
   const [viewing, setViewing] = useState<Intervention | null>(null);
   const [modalObservation, setModalObservation] = useState('');
+  const [photoDraft, setPhotoDraft] = useState<string[]>([]);
   const [savingObservation, setSavingObservation] = useState(false);
   const [viewAttendances, setViewAttendances] = useState<Attendance[]>([]);
-  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
-  const [anomalyForm, setAnomalyForm] = useState({ type: '', title: '', description: '' });
-  const [savingAnomaly, setSavingAnomaly] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -207,10 +204,7 @@ export const InterventionsPage: React.FC = () => {
         setViewAttendances(items);
       })
       .catch(() => setViewAttendances([]));
-
-    listAnomalies(token, viewing.id)
-      .then(setAnomalies)
-      .catch(() => setAnomalies([]));
+    setPhotoDraft(viewing.photos ?? []);
   }, [token, viewing]);
 
   const siteOptions = useMemo(() => [{ value: 'all', label: 'Tous les sites' }].concat(sites.map((site) => ({ value: site.id, label: site.name }))), [sites]);
@@ -235,40 +229,20 @@ export const InterventionsPage: React.FC = () => {
     }
   };
 
-  const submitAnomaly = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!token || !viewing) return;
-    if (!anomalyForm.type.trim() || !anomalyForm.description.trim()) {
-      notify('Type et description obligatoires', 'error');
-      return;
-    }
-    setSavingAnomaly(true);
-    try {
-      const created = await createAnomaly(token, {
-        interventionId: viewing.id,
-        type: anomalyForm.type.trim(),
-        title: anomalyForm.title.trim() || undefined,
-        description: anomalyForm.description.trim(),
-      });
-      setAnomalies((prev) => [created, ...prev]);
-      setAnomalyForm({ type: '', title: '', description: '' });
-      notify('Anomalie ajoutée', 'success');
-    } catch (err) {
-      notify(err instanceof Error ? err.message : "Impossible d'ajouter l'anomalie", 'error');
-    } finally {
-      setSavingAnomaly(false);
-    }
-  };
-
-  const resolveAnomaly = async (id: string) => {
-    if (!token) return;
-    try {
-      const updated = await updateAnomalyStatus(token, id, 'RESOLVED');
-      setAnomalies((prev) => prev.map((a) => (a.id === id ? updated : a)));
-      notify('Anomalie résolue', 'success');
-    } catch (err) {
-      notify(err instanceof Error ? err.message : 'Impossible de mettre à jour', 'error');
-    }
+  const handlePhotoUpload = (files: FileList | null) => {
+    if (!files || !files.length) return;
+    const tasks = Array.from(files).map(
+      (file) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error('Lecture fichier impossible'));
+          reader.readAsDataURL(file);
+        }),
+    );
+    Promise.all(tasks)
+      .then((base64) => setPhotoDraft((prev) => [...prev, ...base64]))
+      .catch(() => notify('Impossible de charger les photos', 'error'));
   };
 
   const submitForm = async (event: React.FormEvent) => {
@@ -688,6 +662,7 @@ export const InterventionsPage: React.FC = () => {
                           onClick={() => {
                             setViewing(intervention);
                             setModalObservation(intervention.observation ?? '');
+                            setPhotoDraft(intervention.photos ?? []);
                           }}
                         >
                           Visualiser
@@ -856,34 +831,19 @@ export const InterventionsPage: React.FC = () => {
                 </div>
               </div>
 
-            <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>
-              {['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(viewing.status) ? (
-                <div style={{ display: 'grid', gap: '0.5rem' }}>
-                  <h4>Observation superviseur / admin</h4>
-                  <div
-                    style={{
-                      border: '1px solid var(--color-border, #e5e7eb)',
-                      borderRadius: '12px',
-                      background: '#fafbfc',
-                      padding: '0.75rem',
-                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.03)',
-                    }}
-                  >
-                    <textarea
+              <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>
+                {['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(viewing.status) ? (
+                  <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    <h4>Observation superviseur / admin</h4>
+                    <RichTextEditor
                       value={modalObservation}
-                      onChange={(e) => setModalObservation(e.target.value)}
+                      onChange={(value) => setModalObservation(value)}
                       placeholder="Ajouter une observation"
-                      rows={4}
-                      style={{
-                        width: '100%',
-                        border: 'none',
-                        outline: 'none',
-                        background: 'transparent',
-                        resize: 'vertical',
-                        fontSize: '0.95rem',
-                        color: 'var(--color-text, #111827)',
-                      }}
                     />
+                  <div style={{ display: 'grid', gap: '0.35rem' }}>
+                    <p className="card__meta">Photos</p>
+                    <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
+                    {photoDraft.length > 0 && <ImageSlider images={photoDraft} />}
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                     <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
@@ -895,8 +855,12 @@ export const InterventionsPage: React.FC = () => {
                         if (!token || !viewing) return;
                         setSavingObservation(true);
                         try {
-                          await updateIntervention(token, viewing.id, { observation: modalObservation });
-                          setViewing({ ...viewing, observation: modalObservation });
+                          const updated = await updateIntervention(token, viewing.id, {
+                            observation: modalObservation,
+                            photos: photoDraft,
+                          });
+                          setViewing(updated);
+                          setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
                         } finally {
                           setSavingObservation(false);
                         }
@@ -908,105 +872,21 @@ export const InterventionsPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {photoDraft.length > 0 ? (
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ marginBottom: '0.5rem' }}>Photos</h4>
+                      <ImageSlider images={photoDraft} />
+                    </div>
+                  ) : (
+                    <div />
+                  )}
                   <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
                     Fermer
                   </Button>
                 </div>
               )}
 
-              <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '1rem', display: 'grid', gap: '0.75rem' }}>
-                <h4>Anomalies</h4>
-                {anomalies.length === 0 && <p style={{ color: 'var(--color-muted)' }}>Aucune anomalie.</p>}
-                {anomalies.map((anomaly) => (
-                  <div
-                    key={anomaly.id}
-                    style={{
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '10px',
-                      padding: '0.75rem',
-                      background: '#fafbfc',
-                      display: 'grid',
-                      gap: '0.25rem',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong>{anomaly.type}</strong>
-                      <span
-                        className="pill"
-                        style={{
-                          background: anomaly.status === 'NEW' ? '#fff4e6' : '#e7f8ef',
-                          color: anomaly.status === 'NEW' ? '#b15b00' : '#0b874b',
-                        }}
-                      >
-                        {anomaly.status === 'NEW' ? 'Nouveau' : 'Résolu'}
-                      </span>
-                    </div>
-                    {anomaly.title && <div style={{ fontWeight: 600 }}>{anomaly.title}</div>}
-                    <div style={{ color: 'var(--color-muted)' }}>{anomaly.description}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
-                      {anomaly.user?.name ?? '—'} · {formatDateTime(anomaly.createdAt)}
-                    </div>
-                    {anomaly.photos?.length ? (
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '0.25rem' }}>
-                        {anomaly.photos.map((uri) => (
-                          <img
-                            key={uri}
-                            src={uri}
-                            alt={anomaly.title ?? anomaly.type}
-                            style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb' }}
-                          />
-                        ))}
-                      </div>
-                    ) : null}
-                    {anomaly.status === 'NEW' && (
-                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                        <Button type="button" variant="ghost" onClick={() => resolveAnomaly(anomaly.id)}>
-                          Marquer résolu
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                <form onSubmit={submitAnomaly} style={{ display: 'grid', gap: '0.5rem' }}>
-                  <h5 style={{ margin: 0 }}>Ajouter une anomalie</h5>
-                  <Input
-                    name="type"
-                    label="Type"
-                    value={anomalyForm.type}
-                    onChange={(e) => setAnomalyForm((prev) => ({ ...prev, type: e.target.value }))}
-                    required
-                  />
-                  <Input
-                    name="title"
-                    label="Titre (optionnel)"
-                    value={anomalyForm.title}
-                    onChange={(e) => setAnomalyForm((prev) => ({ ...prev, title: e.target.value }))}
-                  />
-                  <label style={{ display: 'grid', gap: '0.25rem' }}>
-                    <span>Description</span>
-                    <textarea
-                      name="description"
-                      value={anomalyForm.description}
-                      onChange={(e) => setAnomalyForm((prev) => ({ ...prev, description: e.target.value }))}
-                      rows={3}
-                      required
-                      style={{
-                        width: '100%',
-                        borderRadius: 8,
-                        border: '1px solid #e5e7eb',
-                        padding: '0.5rem',
-                      }}
-                    />
-                  </label>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                    <Button type="submit" disabled={savingAnomaly}>
-                      {savingAnomaly ? 'Ajout...' : 'Ajouter'}
-                    </Button>
-                  </div>
-                </form>
-              </div>
             </div>
           </div>
         </div>
