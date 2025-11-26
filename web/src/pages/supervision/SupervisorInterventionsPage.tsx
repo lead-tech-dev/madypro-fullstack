@@ -115,6 +115,17 @@ export const SupervisorInterventionsPage: React.FC = () => {
               checkOutTime: att.checkOutTime || existing?.checkOutTime,
             });
           });
+          // ensure each agent has at least planned times
+          current.agents.forEach((agent) => {
+            const key = agent.id;
+            if (!key || map.has(key)) return;
+            map.set(key, {
+              id: key,
+              agent,
+              plannedStart: `${current.date}T${current.startTime}:00`,
+              plannedEnd: `${current.date}T${current.endTime}:00`,
+            });
+          });
           setAttendance(Array.from(map.values()));
         })
         .catch(() => setAttendance([]));
@@ -404,42 +415,55 @@ export const SupervisorInterventionsPage: React.FC = () => {
             </table>
           </div>
 
-          <div style={{ marginTop: '1rem', display: 'grid', gap: '0.5rem' }}>
-            <p className="card__meta">Photos</p>
-            <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
-            {photoDraft.length > 0 && (
-              <ImageSlider images={photoDraft} />
-            )}
-          </div>
-
-          <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-            <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-              Fermer
-            </Button>
-            <Button
-              type="button"
-              onClick={async () => {
-                if (!token || !viewing) return;
-                try {
-                  const payload: any = {
-                    observation: observationDraft,
-                  };
-                  if (photoDraft && photoDraft.length > 0) {
-                    payload.photos = photoDraft;
-                  }
-                  const updated = await updateIntervention(token, viewing.id, payload);
-                  setInterventions((prev) => prev.map((i) => (i.id === viewing.id ? updated : i)));
-                  setViewing(updated);
-                  notify('Observation mise à jour');
-                } catch (err) {
-                  const message = err instanceof Error ? err.message : 'Mise à jour impossible';
-                  notify(message, 'error');
-                }
-              }}
-            >
-              Enregistrer
-            </Button>
-          </div>
+          {['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(viewing.status) ? (
+            <div style={{ marginTop: '1rem', display: 'grid', gap: '0.5rem' }}>
+              <p className="card__meta">Photos</p>
+              <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
+              {photoDraft.length > 0 && <ImageSlider images={photoDraft} />}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
+                  Fermer
+                </Button>
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    if (!token || !viewing) return;
+                    try {
+                      const payload: any = {
+                        observation: observationDraft,
+                      };
+                      if (photoDraft && photoDraft.length > 0) {
+                        payload.photos = photoDraft;
+                      }
+                      const updated = await updateIntervention(token, viewing.id, payload);
+                      setInterventions((prev) => prev.map((i) => (i.id === viewing.id ? updated : i)));
+                      setViewing(updated);
+                      notify('Observation mise à jour');
+                    } catch (err) {
+                      const message = err instanceof Error ? err.message : 'Mise à jour impossible';
+                      notify(message, 'error');
+                    }
+                  }}
+                >
+                  Enregistrer
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {photoDraft.length > 0 ? (
+                <div style={{ flex: 1 }}>
+                  <h4 style={{ marginBottom: '0.5rem' }}>Photos</h4>
+                  <ImageSlider images={photoDraft} />
+                </div>
+              ) : (
+                <div />
+              )}
+              <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
+                Fermer
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     )}
