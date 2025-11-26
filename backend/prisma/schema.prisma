@@ -135,6 +135,7 @@ model Intervention {
   type                InterventionType
   subType             String?
   label               String?
+  photos              String[]               @default([])
   status              InterventionStatus       @default(PLANNED)
   observation         String?
   createdAt           DateTime                 @default(now())

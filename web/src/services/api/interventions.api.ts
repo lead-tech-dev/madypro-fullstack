@@ -26,6 +26,7 @@ export type CreateInterventionPayload = {
   agentIds: string[];
   truckLabels?: string[];
   observation?: string;
+  photos?: string[];
 };
 
 export type UpdateInterventionPayload = Partial<CreateInterventionPayload> & {

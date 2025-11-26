@@ -22,3 +22,6 @@ ALTER TABLE "Anomaly" ADD CONSTRAINT "Anomaly_interventionId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "Anomaly" ADD CONSTRAINT "Anomaly_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Added: photos on Intervention
+ALTER TABLE "Intervention" ADD COLUMN IF NOT EXISTS "photos" TEXT[] DEFAULT ARRAY[]::TEXT[];

@@ -38,6 +38,11 @@ export class CreateInterventionDto {
   observation?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  photos?: string[];
+
+  @IsOptional()
   @IsString()
   generatedFromRuleId?: string;
 }

@@ -13,6 +13,7 @@ export class InterventionEntity {
   agentIds: string[] = [];
   truckLabels: string[] = [];
   observation?: string;
+  photos: string[] = [];
   status: InterventionStatus = 'PLANNED';
   createdAt!: Date;
   updatedAt!: Date;
