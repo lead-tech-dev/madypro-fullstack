@@ -552,6 +552,7 @@ export const InterventionsPage: React.FC = () => {
                   type="date"
                   value={form.date}
                   onChange={handleFormChange}
+                  lang="fr-FR"
                   disabled={observationOnly}
                 />
                 <Input
@@ -561,6 +562,9 @@ export const InterventionsPage: React.FC = () => {
                   type="time"
                   value={form.startTime}
                   onChange={handleFormChange}
+                  lang="fr-FR"
+                  inputMode="numeric"
+                  placeholder="14:00"
                   disabled={observationOnly}
                 />
                 <Input
@@ -570,6 +574,9 @@ export const InterventionsPage: React.FC = () => {
                   type="time"
                   value={form.endTime}
                   onChange={handleFormChange}
+                  lang="fr-FR"
+                  inputMode="numeric"
+                  placeholder="16:00"
                   disabled={observationOnly}
                 />
               </div>
@@ -693,8 +700,7 @@ export const InterventionsPage: React.FC = () => {
                           disabled={
                             intervention.status === 'COMPLETED' ||
                             intervention.status === 'CANCELLED' ||
-                            intervention.status === 'NO_SHOW' ||
-                            hasStarted(intervention)
+                            intervention.status === 'NO_SHOW'
                           }
                         >
                           Éditer

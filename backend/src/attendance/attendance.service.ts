@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AttendanceEntity, AttendanceStatus } from './entities/attendance.entity';
 import { CheckInDto } from './dto/check-in.dto';
@@ -53,6 +53,7 @@ type AttendanceRecord = Prisma.AttendanceGetPayload<{
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {
+  private readonly logger = new Logger(AttendanceService.name);
   private readonly MAX_DISTANCE_METERS = 100;
   private readonly OUTSIDE_GRACE_MS = 5 * 60 * 1000;
   private readonly TZ_OFFSET_MINUTES = Number.isFinite(Number(process.env.TIMEZONE_OFFSET_MINUTES))
@@ -625,6 +626,12 @@ export class AttendanceService implements OnModuleInit {
       },
       orderBy: { startTime: 'asc' },
     });
+
+    if (!interventions.length) {
+      this.logger.warn(
+        `ensureWithinInterventionWindow: aucune intervention (site=${siteId}, user=${userId}, date=${now.toISOString().slice(0,10)})`,
+      );
+    }
 
     if (!interventions.length) {
       throw new BadRequestException("Aucune intervention planifiée pour ce site aujourd'hui.");
