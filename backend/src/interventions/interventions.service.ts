@@ -262,10 +262,10 @@ export class InterventionsService implements OnModuleInit {
               create: dto.truckLabels.map((label) => ({ label })),
             }
           : undefined,
-      },
+      } as any,
       include: { assignments: true, trucks: true },
     });
-    const view = this.present(this.toEntity(record));
+    const view = this.present(this.toEntity(record as any));
     this.realtime.broadcast('intervention.created', {
       id: view.id,
       siteId: view.siteId,
