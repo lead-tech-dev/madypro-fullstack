@@ -100,15 +100,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         shouldSetBadge: false,
       }),
     });
-    registerForPushNotificationsAsync()
-      .then((value) => setExpoPushToken(value))
-      .catch((err) => {
-        console.warn('Permissions push refusées', err);
+    registerForPushNotificationsAsync().then((value) => {
+      if (!value) {
         Alert.alert(
           'Notifications désactivées',
-          "Activez les notifications pour être informé en temps réel des interventions.",
+          "Activez les notifications pour être informé en temps réel des interventions. Vérifiez les autorisations système et utilisez un appareil physique.",
         );
-      });
+        return;
+      }
+      setExpoPushToken(value);
+    });
 
     const receiveSub = Notifications.addNotificationReceivedListener((notification) => {
       const content = notification.request.content;

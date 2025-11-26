@@ -10,6 +10,10 @@
         "backgroundColor": "#ffffff"
       }
     },
+    "ios": {
+      "bundleIdentifier": "com.maximan81.mjplanningmobile",
+      "supportsTablet": false
+    },
     "extra": {
       "eas": {
         "projectId": "17de6227-dae4-4b36-b6c2-88433b7e1a0a"
