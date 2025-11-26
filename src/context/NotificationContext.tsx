@@ -1,11 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { useRouter } from 'expo-router';
 import { registerForPushNotificationsAsync } from '../services/notifications';
 import { NotificationItem } from '../types/notification';
 import { useAuthContext } from '../context/AuthContext';
 import { listNotifications, registerNotificationToken } from '../services/api/notifications.api';
+import { navigationRef } from '../navigation/navigationRef';
+import { AgentTabParamList } from '../navigation/types';
 
 type NotificationContextValue = {
   notifications: NotificationItem[];
@@ -18,8 +19,7 @@ type NotificationContextValue = {
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const router = useRouter();
-  const { token, user } = useAuthContext();
+  const { token } = useAuthContext();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
@@ -27,32 +27,30 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setItems((prev) => [notification, ...prev]);
   }, []);
 
+  const navigateToAgentTab = useCallback((screen?: keyof AgentTabParamList) => {
+    if (!navigationRef.isReady()) return;
+    navigationRef.navigate('Agent', {
+      screen: 'AgentTabs',
+      params: { screen: screen ?? 'AgentHome' },
+    });
+  }, []);
+
   const navigateFromPayload = useCallback(
     (data: unknown) => {
-      if (!data || typeof data !== 'object') {
+      if (!navigationRef.isReady() || !data || typeof data !== 'object') {
         return;
       }
-      const payload = data as { path?: string; interventionId?: string; anomalyId?: string };
+      const payload = data as { path?: string; interventionId?: string | number; anomalyId?: string };
       if (payload.path) {
-        router.push(payload.path);
+        navigateToAgentTab('AgentHome');
         return;
       }
       if (payload.interventionId) {
-        const supPath = '/(supervisor)/intervention/[id]';
-        const agentPath = '/(agent)/intervention/[id]';
-        const pathname = user?.role === 'SUPERVISOR' ? supPath : agentPath;
-        router.push({ pathname, params: { id: String(payload.interventionId) } });
-        return;
-      }
-      if (payload.anomalyId && payload.interventionId) {
-        // pas d'écran anomalie dédié : on ouvre l'intervention correspondante
-        const supPath = '/(supervisor)/intervention/[id]';
-        const agentPath = '/(agent)/intervention/[id]';
-        const pathname = user?.role === 'SUPERVISOR' ? supPath : agentPath;
-        router.push({ pathname, params: { id: String(payload.interventionId) } });
+        const targetId = String(payload.interventionId);
+        navigationRef.navigate('Agent', { screen: 'AgentIntervention', params: { id: targetId } });
       }
     },
-    [router, user?.role],
+    [navigateToAgentTab],
   );
 
   const fetchNotifications = useCallback(async () => {
@@ -141,7 +139,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       receiveSub.remove();
       responseSub.remove();
     };
-  }, [addNotification, router]);
+  }, [addNotification, navigateFromPayload]);
 
   const markAsRead = useCallback((id: string) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));

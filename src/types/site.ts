@@ -8,5 +8,4 @@ export type Site = {
   longitude?: number;
   timeWindow?: string;
   active: boolean;
-  supervisors: { id: string; name: string }[];
 };

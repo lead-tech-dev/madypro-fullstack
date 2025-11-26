@@ -93,8 +93,11 @@ const styles = StyleSheet.create({
     height: 56,
   },
   iconWrapper: {
-    padding: 10,
-    borderRadius: 999,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'transparent',
   },
   iconWrapperActive: {

@@ -7,6 +7,9 @@
       "@/components/*": ["src/components/*"],
       "@/hooks/*": ["src/hooks/*"],
       "@/services/*": ["src/services/*"],
+      "@/screens/*": ["src/screens/*"],
+      "@/navigation/*": ["src/navigation/*"],
+      "@/context/*": ["src/context/*"],
       "@/types/*": ["src/types/*"],
       "@/config/*": ["src/config/*"],
       "@/utils/*": ["src/utils/*"]

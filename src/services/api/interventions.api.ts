@@ -13,22 +13,27 @@ export type InterventionFilters = {
   status?: InterventionStatus | 'all';
 };
 
-const formatDate = (date: Date) => date.toISOString().slice(0, 10);
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const rangeToFilters = (range: 'today' | 'week' | 'past'): Pick<InterventionFilters, 'startDate' | 'endDate'> => {
   const today = new Date();
   if (range === 'today') {
-    const iso = formatDate(today);
+    const iso = formatLocalDate(today);
     return { startDate: iso, endDate: iso };
   }
   if (range === 'week') {
     const end = new Date(today);
     end.setDate(end.getDate() + 6);
-    return { startDate: formatDate(today), endDate: formatDate(end) };
+    return { startDate: formatLocalDate(today), endDate: formatLocalDate(end) };
   }
   const start = new Date(today);
   start.setDate(start.getDate() - 28);
-  return { startDate: formatDate(start), endDate: formatDate(today) };
+  return { startDate: formatLocalDate(start), endDate: formatLocalDate(today) };
 };
 
 export async function fetchInterventions(token: string, filters: InterventionFilters = {}) {
@@ -39,13 +44,28 @@ export async function fetchInterventions(token: string, filters: InterventionFil
   if (filters.clientId) params.set('clientId', filters.clientId);
   if (filters.type && filters.type !== 'all') params.set('type', filters.type);
   if (filters.subType) params.set('subType', filters.subType);
-  if (filters.agentId) params.set('agentId', filters.agentId);
+  if (filters.agentId) {
+    params.set('agentId', String(filters.agentId));
+    // certains backends attendent userId pour filtrer les interventions agent
+    params.set('userId', String(filters.agentId));
+  }
   if (filters.status && filters.status !== 'all') params.set('status', filters.status);
   const query = params.toString();
   const path = query ? `/interventions?${query}` : '/interventions';
-  const response = await apiFetch<Array<ApiIntervention>>({ path, token });
+  const response = await apiFetch<Array<ApiIntervention> | { data?: ApiIntervention[] } | null>({
+    path,
+    token,
+  });
 
-  return response.map((intervention) => mapIntervention(intervention));
+  const list = (() => {
+    if (Array.isArray(response)) return response;
+    if (response && Array.isArray((response as any).data)) return (response as any).data;
+    if (response && Array.isArray((response as any).items)) return (response as any).items;
+    if (response && Array.isArray((response as any).results)) return (response as any).results;
+    return [];
+  })();
+
+  return list.map((intervention) => mapIntervention(intervention));
 }
 
 export async function listInterventionsByRange(
@@ -54,7 +74,13 @@ export async function listInterventionsByRange(
   agentId?: string,
 ) {
   const filters = rangeToFilters(range);
-  return fetchInterventions(token, { ...filters, agentId });
+  const primary = await fetchInterventions(token, { ...filters, agentId });
+  if (agentId && primary.length === 0) {
+    // fallback: certains backends ignorent agentId, on réessaie sans filtre
+    const fallback = await fetchInterventions(token, filters);
+    return fallback;
+  }
+  return primary;
 }
 
 export async function getInterventionById(token: string, id: string): Promise<Intervention | null> {
@@ -77,6 +103,28 @@ export async function getInterventionById(token: string, id: string): Promise<In
     console.error('Failed to load intervention', error);
     return null;
   }
+}
+
+export async function updateInterventionStatus(token: string, id: string, status: InterventionStatus) {
+  return apiFetch<Intervention>({
+    path: `/interventions/${id}/status`,
+    token,
+    options: {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    },
+  });
+}
+
+export async function patchIntervention(token: string, id: string, payload: Partial<Pick<Intervention, 'status'>>) {
+  return apiFetch<Intervention>({
+    path: `/interventions/${id}`,
+    token,
+    options: {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  });
 }
 
 function mapIntervention(intervention: ApiIntervention): Intervention {

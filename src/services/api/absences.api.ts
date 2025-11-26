@@ -8,7 +8,15 @@ export async function listAbsences(token: string, filters: Partial<{ status: Abs
   if (filters.agentId) params.set('agentId', filters.agentId);
   const query = params.toString();
   const path = query ? `/absences?${query}` : '/absences';
-  return apiFetch<Absence[]>({ path, token });
+  const response = await apiFetch<Absence[] | { data?: Absence[]; items?: Absence[]; results?: Absence[] } | null>({
+    path,
+    token,
+  });
+  if (Array.isArray(response)) return response;
+  if (response?.data && Array.isArray(response.data)) return response.data;
+  if (response?.items && Array.isArray(response.items)) return response.items;
+  if (response?.results && Array.isArray(response.results)) return response.results;
+  return [];
 }
 
 type CreateAbsenceRequestPayload = {

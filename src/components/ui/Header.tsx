@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '../../config/theme';
 
 export type HeaderProps = {
@@ -11,19 +11,14 @@ export type HeaderProps = {
 
 export const Header: React.FC<HeaderProps> = ({ title, subtitle, accent, trailing }) => {
   return (
-    <ImageBackground
-      source={require('../../../assets/images/header-texture.png')}
-      resizeMode="cover"
-      style={styles.container}
-      imageStyle={styles.image}
-    >
+    <View style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.accent}>{accent ?? 'Madypro Clean'}</Text>
         <Text style={styles.title}>{title}</Text>
         {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
       {trailing}
-    </ImageBackground>
+    </View>
   );
 };
 
@@ -31,12 +26,8 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     borderRadius: 28,
-    overflow: 'hidden',
     backgroundColor: theme.colors.primarySoft,
     marginBottom: 0,
-  },
-  image: {
-    opacity: 0.12,
   },
   content: {
     gap: 4,

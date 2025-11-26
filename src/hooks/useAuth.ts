@@ -12,6 +12,11 @@ export const useAuth = () => {
       setLoading(true);
       setError(null);
       const response = await loginRequest(email, password);
+      if (response.user.role !== 'AGENT') {
+        const message = "Cet espace mobile est réservé aux agents. Merci d'utiliser la version web.";
+        setError(message);
+        throw new Error('ROLE_NOT_ALLOWED');
+      }
       login(response.user, response.token);
       return response;
     } catch (err) {

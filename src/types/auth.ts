@@ -1,7 +1,7 @@
 export type AuthUser = {
   id: string;
   name: string;
-  role: 'AGENT' | 'SUPERVISOR';
+  role: string;
   email: string;
   phone?: string;
 };

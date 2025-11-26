@@ -2,6 +2,6 @@ export type User = {
   id: string;
   name: string;
   email: string;
-  role: 'AGENT' | 'SUPERVISOR';
+  role: string;
   phone: string;
 };

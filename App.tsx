@@ -1,0 +1,31 @@
+import React from 'react';
+import 'react-native-gesture-handler';
+import { StatusBar } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useFonts } from 'expo-font';
+import { AppNavigator } from './src/navigation/AppNavigator';
+import { AuthProvider } from './src/context/AuthContext';
+import { SyncProvider } from './src/context/SyncContext';
+import { NotificationProvider } from './src/context/NotificationContext';
+
+export default function App() {
+  const [fontsLoaded] = useFonts(Ionicons.font);
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
+  return (
+    <SafeAreaProvider>
+      <AuthProvider>
+        <SyncProvider>
+          <NotificationProvider>
+            <StatusBar barStyle="dark-content" />
+            <AppNavigator />
+          </NotificationProvider>
+        </SyncProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
+  );
+}
