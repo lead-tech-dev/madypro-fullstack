@@ -53,6 +53,8 @@ const PONCTUAL_SUBTYPES = [
   'Manutention',
 ];
 
+const TRUCK_OPTIONS = ['Camion (Drissa)', 'Camion (Cissé)', 'Camion (Samassa)'];
+
 const today = new Date();
 const formatDate = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -223,7 +225,8 @@ export const InterventionsPage: React.FC = () => {
       const selected = Array.from((event.target as HTMLSelectElement).selectedOptions).map((option) => option.value);
       setForm((prev) => ({ ...prev, agentIds: selected }));
     } else if (name === 'truckLabels') {
-      setForm((prev) => ({ ...prev, truckLabels: value.split(',').map((item) => item.trim()).filter(Boolean) }));
+      const selected = Array.from((event.target as HTMLSelectElement).selectedOptions).map((option) => option.value);
+      setForm((prev) => ({ ...prev, truckLabels: selected }));
     } else {
       setForm((prev) => ({ ...prev, [name]: value }));
     }
@@ -572,15 +575,23 @@ export const InterventionsPage: React.FC = () => {
                 </select>
               </label>
               {form.type === 'PONCTUAL' && (
-                <Input
-                  id="truckLabels"
-                  name="truckLabels"
-                  label="Camions"
-                  placeholder="Camion 01, Camion 02"
-                  value={form.truckLabels?.join(', ') ?? ''}
-                  onChange={handleFormChange}
-                  disabled={observationOnly}
-                />
+                <label className="form-field" htmlFor="truckLabels">
+                  <span>Camions</span>
+                  <select
+                    id="truckLabels"
+                    name="truckLabels"
+                    multiple
+                    value={form.truckLabels ?? []}
+                    onChange={handleFormChange}
+                    disabled={observationOnly}
+                  >
+                    {TRUCK_OPTIONS.map((truck) => (
+                      <option key={truck} value={truck}>
+                        {truck}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               )}
               <label className="form-field" htmlFor="observation">
                 <span>Observation admin / superviseur</span>
