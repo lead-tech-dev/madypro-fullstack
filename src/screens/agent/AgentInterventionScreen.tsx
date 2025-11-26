@@ -475,11 +475,20 @@ export default function InterventionDetailScreen() {
       subtitle={`${TYPE_LABELS[intervention.type]} • ${STATUS_LABELS[intervention.status]}`}
       accent="Détail intervention"
       trailing={
-        <Button
-          title={arrivalRecorded ? 'Présence enregistrée' : 'Enregistrer ma présence'}
-          onPress={handleArrival}
-          disabled={isMarkingArrival || isVerifying || arrivalRecorded || !canMarkArrival}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+          {isMarkingArrival && <ActivityIndicator color={theme.colors.primary} />}
+          <Button
+            title={
+              isMarkingArrival
+                ? 'Enregistrement...'
+                : arrivalRecorded
+                ? 'Présence enregistrée'
+                : 'Enregistrer ma présence'
+            }
+            onPress={handleArrival}
+            disabled={isMarkingArrival || isVerifying || arrivalRecorded || !canMarkArrival}
+          />
+        </View>
       }
     >
       <ScrollView
@@ -590,6 +599,12 @@ export default function InterventionDetailScreen() {
           <View style={styles.verifyingRow}>
             <ActivityIndicator size="small" color={theme.colors.primary} />
             <Text style={styles.verifyingText}>Vérification de la position…</Text>
+          </View>
+        )}
+        {isMarkingArrival && (
+          <View style={styles.verifyingRow}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <Text style={styles.verifyingText}>Enregistrement de présence...</Text>
           </View>
         )}
         {isPlanned && (
