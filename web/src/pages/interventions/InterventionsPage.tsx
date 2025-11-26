@@ -20,6 +20,7 @@ import { Client } from '../../types/client';
 import { Select } from '../../components/ui/Select';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { listAttendance } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
 import { Anomaly } from '../../types/anomaly';
@@ -609,11 +610,10 @@ export const InterventionsPage: React.FC = () => {
               )}
               <label className="form-field" htmlFor="observation">
                 <span>Observation admin / superviseur</span>
-                <textarea
-                  id="observation"
-                  name="observation"
+                <RichTextEditor
                   value={form.observation ?? ''}
-                  onChange={handleFormChange}
+                  onChange={(value) => setForm((prev) => ({ ...prev, observation: value }))}
+                  disabled={observationOnly}
                   placeholder="Instruction ou remarque"
                 />
               </label>
