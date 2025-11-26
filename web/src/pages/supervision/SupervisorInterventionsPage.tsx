@@ -8,6 +8,7 @@ import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
+import { RichTextEditor } from '../../components/ui/RichTextEditor';
 
 const todayLocal = () => {
   const d = new Date();
@@ -320,7 +321,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
                 Fermer
               </Button>
             </div>
-            <div className="table-wrapper" style={{ marginTop: '0.75rem' }}>
+          <div className="table-wrapper" style={{ marginTop: '0.75rem' }}>
               <table className="table" aria-label="détails intervention">
                 <tbody>
                   <tr>
@@ -363,11 +364,9 @@ export const SupervisorInterventionsPage: React.FC = () => {
                 <tr>
                   <th>Observation</th>
                   <td>
-                    <textarea
+                    <RichTextEditor
                       value={observationDraft}
-                      onChange={(e) => setObservationDraft(e.target.value)}
-                      rows={3}
-                      className="textarea"
+                      onChange={(value) => setObservationDraft(value)}
                       placeholder="Ajouter une observation"
                     />
                   </td>
