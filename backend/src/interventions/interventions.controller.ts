@@ -30,6 +30,7 @@ export class InterventionsController {
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '20',
   ) {
+    const user = req.user as any;
     const filters: InterventionFilters = {
       startDate,
       endDate,
@@ -37,7 +38,7 @@ export class InterventionsController {
       clientId,
       type: (type as any) ?? 'all',
       subType,
-      agentId: agentId ?? (req.user as any)?.sub,
+      agentId: agentId ?? (user?.role === 'AGENT' ? user.sub : undefined),
       status: (status as any) ?? 'all',
       page: parseInt(page, 10) || 1,
       pageSize: parseInt(pageSize, 10) || 20,
