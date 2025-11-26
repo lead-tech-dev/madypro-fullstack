@@ -50,7 +50,8 @@ export const SupervisorPresencePage: React.FC = () => {
 
   const supervisedSiteIds = useMemo(() => {
     if (!user || user.role?.toUpperCase() !== 'SUPERVISOR') return null;
-    return new Set(sites.filter((s) => s.supervisorIds?.includes(user.id)).map((s) => s.id));
+    const ids = sites.filter((s) => s.supervisorIds?.includes(user.id)).map((s) => s.id);
+    return ids.length ? new Set(ids) : null;
   }, [sites, user]);
 
   const filteredAttendance = useMemo(() => {

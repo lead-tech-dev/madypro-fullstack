@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import { listInterventions, updateIntervention } from '../../services/api/interventions.api';
 import { listSites } from '../../services/api/sites.api';
