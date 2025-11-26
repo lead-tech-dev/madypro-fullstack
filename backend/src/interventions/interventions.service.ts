@@ -288,6 +288,7 @@ export class InterventionsService implements OnModuleInit {
     if (dto.date) data.date = this.toDateOnly(dto.date);
     if (dto.startTime !== undefined) data.startTime = dto.startTime;
     if (dto.endTime !== undefined) data.endTime = dto.endTime;
+    if (dto.status) data.status = dto.status;
     if (dto.type) {
       const normalizedType = this.normalizeTypeInput(dto.type);
       if (normalizedType) {
