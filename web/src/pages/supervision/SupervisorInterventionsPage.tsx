@@ -9,7 +9,13 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
 
-const today = new Date().toISOString().slice(0, 10);
+const todayLocal = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+
+const today = todayLocal();
 
 export const SupervisorInterventionsPage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
@@ -53,7 +59,9 @@ export const SupervisorInterventionsPage: React.FC = () => {
 
   const supervisedSiteIds = useMemo(() => {
     if (!user || user.role?.toUpperCase() !== 'SUPERVISOR') return null;
-    return new Set(sites.filter((s) => s.supervisorIds?.includes(user.id)).map((s) => s.id));
+    const ids = sites.filter((s) => s.supervisorIds?.includes(user.id)).map((s) => s.id);
+    // si l’API ne remplit pas supervisorIds, on ne filtre pas côté front pour ne pas masquer les interventions
+    return ids.length ? new Set(ids) : null;
   }, [sites, user]);
 
   const filtered = useMemo(() => {
