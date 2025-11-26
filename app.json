@@ -1,9 +1,14 @@
 {
   "expo": {
-    "name": "MJ Planning Mobile",
-    "slug": "mj-planning-mobile",
+    "name": "MadyPro Clean",
+    "slug": "madypro-clean",
+    "icon": "./assets/icon.png",
     "android": {
-      "package": "com.maximan81.mjplanningmobile"
+      "package": "com.maximan81.madyproclean",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "extra": {
       "eas": {
