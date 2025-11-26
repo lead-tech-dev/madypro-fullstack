@@ -77,43 +77,55 @@ export const SupervisorInterventionsPage: React.FC = () => {
     if (viewing) {
       setObservationDraft(viewing.observation ?? '');
       setPhotoDraft(viewing.photos ?? []);
-      if (token) {
-        const date = viewing.date;
-        const agents = viewing.agents?.length ? viewing.agents : [{ id: undefined } as any];
-        Promise.all(
-          agents.map((agent) =>
-            listAttendance(token, {
-              siteId: viewing.siteId,
-              agentId: agent.id,
-              startDate: date,
-              endDate: date,
-              pageSize: 50,
-            }).catch(() => ({ items: [] })),
-          ),
-        )
-          .then((results) => {
-            const collected = results.flatMap((res) => ((res as any).items ?? (Array.isArray(res) ? res : [])) as any[]);
-            const allowedAgents = new Set(viewing.agents.map((a) => a.id));
-            const filtered = collected.filter((att) =>
-              allowedAgents.size === 0 ? true : allowedAgents.has(att.agent?.id || att.agentId),
-            );
-            const map = new Map<string, any>();
-            filtered.forEach((att: any) => {
-              const key = att.agent?.id || att.agentId || att.id;
-              const existing = map.get(key);
-              map.set(key, {
-                ...existing,
-                ...att,
-                checkInTime: att.checkInTime || existing?.checkInTime,
-                checkOutTime: att.checkOutTime || existing?.checkOutTime,
-              });
-            });
-            setAttendance(Array.from(map.values()));
-          })
-          .catch(() => setAttendance([]));
-      }
+      fetchAttendanceForViewing(viewing);
     }
   }, [viewing]);
+
+  const fetchAttendanceForViewing = useCallback(
+    (current: Intervention) => {
+      if (!token) return;
+      const date = current.date;
+      const agents = current.agents?.length ? current.agents : [{ id: undefined } as any];
+      Promise.all(
+        agents.map((agent) =>
+          listAttendance(token, {
+            siteId: current.siteId,
+            agentId: agent.id,
+            startDate: date,
+            endDate: date,
+            pageSize: 50,
+          }).catch(() => ({ items: [] })),
+        ),
+      )
+        .then((results) => {
+          const collected = results.flatMap((res) => ((res as any).items ?? (Array.isArray(res) ? res : [])) as any[]);
+          const allowedAgents = new Set(current.agents.map((a) => a.id));
+          const filtered = collected.filter((att) =>
+            allowedAgents.size === 0 ? true : allowedAgents.has(att.agent?.id || att.agentId),
+          );
+          const map = new Map<string, any>();
+          filtered.forEach((att: any) => {
+            const key = att.agent?.id || att.agentId || att.id;
+            const existing = map.get(key);
+            map.set(key, {
+              ...existing,
+              ...att,
+              checkInTime: att.checkInTime || existing?.checkInTime,
+              checkOutTime: att.checkOutTime || existing?.checkOutTime,
+            });
+          });
+          setAttendance(Array.from(map.values()));
+        })
+        .catch(() => setAttendance([]));
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    if (!viewing) return;
+    const interval = setInterval(() => fetchAttendanceForViewing(viewing), 20000);
+    return () => clearInterval(interval);
+  }, [viewing, fetchAttendanceForViewing]);
 
   const handlePhotoUpload = (files: FileList | null) => {
     if (!files || files.length === 0) return;
