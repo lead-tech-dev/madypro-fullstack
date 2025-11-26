@@ -60,8 +60,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
   const supervisedSiteIds = useMemo(() => {
     if (!user || user.role?.toUpperCase() !== 'SUPERVISOR') return null;
     const ids = sites.filter((s) => s.supervisorIds?.includes(user.id)).map((s) => s.id);
-    // si l’API ne remplit pas supervisorIds, on ne filtre pas côté front pour ne pas masquer les interventions
-    return ids.length ? new Set(ids) : null;
+    return new Set(ids);
   }, [sites, user]);
 
   const filtered = useMemo(() => {
