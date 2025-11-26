@@ -7,7 +7,12 @@ import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { formatDateTime } from '../../utils/datetime';
 
-const today = new Date().toISOString().slice(0, 10);
+const todayLocal = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+const today = todayLocal();
 
 export const SupervisorPresencePage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
@@ -21,21 +26,26 @@ export const SupervisorPresencePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!token) return;
-    setLoading(true);
-    Promise.all([
-      listAttendance(token, { startDate: filters.date, endDate: filters.date }).catch(() => [] as Attendance[]),
-      listSites(token, { pageSize: 200 }).catch(() => ({ items: [] as Site[] })),
-    ])
-      .then(([attendanceRes, sitesRes]) => {
-        setAttendance(Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes as any).items ?? []);
-        setSites((sitesRes as any).items ?? (sitesRes as Site[]));
-      })
-      .catch((err) => {
-        const message = err instanceof Error ? err.message : 'Impossible de charger la présence';
-        notify(message, 'error');
-      })
-      .finally(() => setLoading(false));
+    const fetchData = () => {
+      if (!token) return;
+      setLoading(true);
+      Promise.all([
+        listAttendance(token, { startDate: filters.date, endDate: filters.date, pageSize: 200 }).catch(() => [] as Attendance[]),
+        listSites(token, { pageSize: 200 }).catch(() => ({ items: [] as Site[] })),
+      ])
+        .then(([attendanceRes, sitesRes]) => {
+          setAttendance(Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes as any).items ?? []);
+          setSites((sitesRes as any).items ?? (sitesRes as Site[]));
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : 'Impossible de charger la présence';
+          notify(message, 'error');
+        })
+        .finally(() => setLoading(false));
+    };
+    fetchData();
+    const interval = setInterval(fetchData, 20000);
+    return () => clearInterval(interval);
   }, [token, filters.date, notify]);
 
   const supervisedSiteIds = useMemo(() => {
@@ -118,8 +128,8 @@ export const SupervisorPresencePage: React.FC = () => {
                       <td>{att.site.name}</td>
                       <td>{att.checkInTime ? formatDateTime(att.checkInTime) : '—'}</td>
                       <td>
-                        {att.plannedStart
-                          ? `${att.plannedStart}${att.plannedEnd ? ` → ${att.plannedEnd}` : ''}`
+                        {att.plannedStart || att.plannedEnd
+                          ? `${att.plannedStart ?? '—'}${att.plannedEnd ? ` → ${att.plannedEnd}` : ''}`
                           : '—'}
                       </td>
                       <td>
