@@ -74,6 +74,17 @@ export const SupervisorInterventionsPage: React.FC = () => {
     });
   }, [filters.siteId, filters.status, interventions, supervisedSiteIds]);
 
+  const attendanceByAgent = useMemo(() => {
+    const map = new Map<string, any>();
+    attendance.forEach((att) => {
+      const id = att.agent?.id || att.agentId || att.id;
+      if (id && !map.has(id)) {
+        map.set(id, att);
+      }
+    });
+    return Array.from(map.values());
+  }, [attendance]);
+
   useEffect(() => {
     if (viewing) {
       setObservationDraft(viewing.observation ?? '');
@@ -86,51 +97,20 @@ export const SupervisorInterventionsPage: React.FC = () => {
     (current: Intervention) => {
       if (!token) return;
       const date = current.date;
-      const agents = current.agents?.length ? current.agents : [{ id: undefined } as any];
-      Promise.all(
-        agents.map((agent) =>
-          listAttendance(token, {
-            siteId: current.siteId,
-            agentId: agent.id,
-            startDate: date,
-            endDate: date,
-            pageSize: 50,
-          }).catch(() => ({ items: [] })),
-        ),
-      )
-        .then((results) => {
-          const collected = results.flatMap((res) => ((res as any).items ?? (Array.isArray(res) ? res : [])) as any[]);
-          const allowedAgents = new Set(current.agents.map((a) => a.id));
-          const filtered = collected.filter((att) =>
-            allowedAgents.size === 0 ? true : allowedAgents.has(att.agent?.id || att.agentId),
-          );
-          const map = new Map<string, any>();
-          const plannedStart = `${current.date}T${current.startTime}:00`;
-          const plannedEnd = `${current.date}T${current.endTime}:00`;
-          filtered.forEach((att: any) => {
-            const key = att.agent?.id || att.agentId || att.id;
-            const existing = map.get(key);
-            map.set(key, {
-              ...existing,
-              ...att,
-              checkInTime: att.checkInTime || existing?.checkInTime,
-              checkOutTime: att.checkOutTime || existing?.checkOutTime,
-              plannedStart: att.plannedStart || plannedStart,
-              plannedEnd: att.plannedEnd || plannedEnd,
-            });
-          });
-          // ensure each agent has at least planned times
-          current.agents.forEach((agent) => {
-            const key = agent.id;
-            if (!key || map.has(key)) return;
-            map.set(key, {
-              id: key,
-              agent,
-              plannedStart: `${current.date}T${current.startTime}:00`,
-              plannedEnd: `${current.date}T${current.endTime}:00`,
-            });
-          });
-          setAttendance(Array.from(map.values()));
+      listAttendance(token, {
+        siteId: current.siteId,
+        startDate: date,
+        endDate: date,
+        status: 'all',
+        pageSize: 200,
+      })
+        .then((res) => {
+          const items = (res as any)?.items ?? (Array.isArray(res) ? res : []);
+          const allowedAgents = new Set(current.agents.map((a) => a.id).filter(Boolean));
+          const filtered = allowedAgents.size
+            ? items.filter((att: any) => allowedAgents.has(att.agent?.id || att.agentId))
+            : items;
+          setAttendance(filtered);
         })
         .catch(() => setAttendance([]));
     },
@@ -158,17 +138,6 @@ export const SupervisorInterventionsPage: React.FC = () => {
       .then((base64) => setPhotoDraft((prev) => [...prev, ...base64]))
       .catch(() => notify('Impossible de charger les photos', 'error'));
   };
-
-  const formatAttendanceTime = useCallback(
-    (value?: string | Date) => {
-      if (!value) return '—';
-      if (typeof value === 'string' && !value.includes('T')) {
-        return value;
-      }
-      return formatDateTime(value);
-    },
-    [],
-  );
 
   return (
     <div className="page">
@@ -402,83 +371,137 @@ export const SupervisorInterventionsPage: React.FC = () => {
               </table>
             </div>
 
-          <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-            <table className="table" aria-label="pointages intervention">
-              <thead>
-                  <tr>
-                    <th>Agent</th>
-                    <th>Début</th>
-                    <th>Fin</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {attendance.map((att) => (
-                    <tr key={att.id}>
-                      <td>{att.agent?.name ?? '—'}</td>
-                      <td>{formatAttendanceTime(att.checkInTime || att.plannedStart)}</td>
-                      <td>{formatAttendanceTime(att.checkOutTime || att.plannedEnd)}</td>
-                    </tr>
-                  ))}
-                  {attendance.length === 0 && (
-                    <tr>
-                      <td colSpan={3} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
-                        Aucun pointage associé à cette intervention.
-                      </td>
-                    </tr>
-                  )}
-              </tbody>
-            </table>
-          </div>
-
-          {['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(viewing.status) ? (
-            <div style={{ marginTop: '1rem', display: 'grid', gap: '0.5rem' }}>
-              <p className="card__meta">Photos</p>
-              <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
-              {photoDraft.length > 0 && <ImageSlider images={photoDraft} />}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                  Fermer
-                </Button>
-                <Button
-                  type="button"
-                  onClick={async () => {
-                    if (!token || !viewing) return;
-                    try {
-                      const payload: any = {
-                        observation: observationDraft,
-                      };
-                      if (photoDraft && photoDraft.length > 0) {
-                        payload.photos = photoDraft;
-                      }
-                      const updated = await updateIntervention(token, viewing.id, payload);
-                      setInterventions((prev) => prev.map((i) => (i.id === viewing.id ? updated : i)));
-                      setViewing(updated);
-                      notify('Observation mise à jour');
-                    } catch (err) {
-                      const message = err instanceof Error ? err.message : 'Mise à jour impossible';
-                      notify(message, 'error');
-                    }
-                  }}
-                >
-                  Enregistrer
-                </Button>
+            <div className="detail-grid" style={{ marginTop: '1rem' }}>
+              <div>
+                <strong>Site</strong>
+                <p>{viewing.siteName}</p>
+              </div>
+              <div>
+                <strong>Type</strong>
+                <p>{viewing.type === 'REGULAR' ? 'Régulier' : `Ponctuel - ${viewing.subType ?? 'Sans sous-type'}`}</p>
+              </div>
+              <div>
+                <strong>Agents</strong>
+                <p>{viewing.agents.map((a) => a.name).join(', ') || '—'}</p>
+              </div>
+              <div>
+                <strong>Camions</strong>
+                <p>{viewing.truckLabels?.join(', ') || '—'}</p>
+              </div>
+              <div>
+                <strong>Statut</strong>
+                <p>{viewing.status}</p>
+              </div>
+              <div>
+                <strong>Observation</strong>
+                <p>{viewing.observation || '—'}</p>
               </div>
             </div>
-          ) : (
-            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              {photoDraft.length > 0 ? (
-                <div style={{ flex: 1 }}>
-                  <h4 style={{ marginBottom: '0.5rem' }}>Photos</h4>
-                  <ImageSlider images={photoDraft} />
+
+            <div style={{ marginTop: '1.5rem' }}>
+              <h4>Agents & pointages</h4>
+              <div className="table-wrapper" style={{ maxHeight: 240, overflow: 'auto' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Arrivée</th>
+                      <th>Début</th>
+                      <th>Fin</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceByAgent.length
+                      ? attendanceByAgent.map((att) => (
+                          <tr key={att.id || att.agent?.id}>
+                            <td>{att.agent?.name ?? '—'}</td>
+                            <td>{att.checkInTime ?? att.plannedStart ?? '—'}</td>
+                            <td>{att.checkInTime ?? '—'}</td>
+                            <td>{att.checkOutTime ?? '—'}</td>
+                          </tr>
+                        ))
+                      : null}
+                    {viewing.agents
+                      .filter((agent) => !attendanceByAgent.some((att) => att.agent?.id === agent.id))
+                      .map((agent) => (
+                        <tr key={agent.id}>
+                          <td>{agent.name}</td>
+                          <td>—</td>
+                          <td>—</td>
+                          <td>—</td>
+                        </tr>
+                      ))}
+                    {!viewing.agents.length && attendanceByAgent.length === 0 && (
+                      <tr>
+                        <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                          Aucun agent associé
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>
+              {['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(viewing.status) ? (
+                <div style={{ display: 'grid', gap: '0.5rem' }}>
+                  <h4>Observation superviseur / admin</h4>
+                  <RichTextEditor
+                    value={observationDraft}
+                    onChange={(value) => setObservationDraft(value)}
+                    placeholder="Ajouter une observation"
+                  />
+                  <div style={{ display: 'grid', gap: '0.35rem' }}>
+                    <p className="card__meta">Photos</p>
+                    <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
+                    {photoDraft.length > 0 && <ImageSlider images={photoDraft} />}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                    <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
+                      Fermer
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={async () => {
+                        if (!token || !viewing) return;
+                        try {
+                          const payload: any = {
+                            observation: observationDraft,
+                          };
+                          if (photoDraft && photoDraft.length > 0) {
+                            payload.photos = photoDraft;
+                          }
+                          const updated = await updateIntervention(token, viewing.id, payload);
+                          setInterventions((prev) => prev.map((i) => (i.id === viewing.id ? updated : i)));
+                          setViewing(updated);
+                          notify('Observation mise à jour');
+                        } catch (err) {
+                          const message = err instanceof Error ? err.message : 'Mise à jour impossible';
+                          notify(message, 'error');
+                        }
+                      }}
+                    >
+                      Enregistrer
+                    </Button>
+                  </div>
                 </div>
               ) : (
-                <div />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {photoDraft.length > 0 ? (
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ marginBottom: '0.5rem' }}>Photos</h4>
+                      <ImageSlider images={photoDraft} />
+                    </div>
+                  ) : (
+                    <div />
+                  )}
+                  <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
+                    Fermer
+                  </Button>
+                </div>
               )}
-              <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                Fermer
-              </Button>
             </div>
-          )}
         </div>
       </div>
     )}
