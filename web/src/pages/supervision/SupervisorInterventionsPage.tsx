@@ -105,6 +105,8 @@ export const SupervisorInterventionsPage: React.FC = () => {
             allowedAgents.size === 0 ? true : allowedAgents.has(att.agent?.id || att.agentId),
           );
           const map = new Map<string, any>();
+          const plannedStart = `${current.date}T${current.startTime}:00`;
+          const plannedEnd = `${current.date}T${current.endTime}:00`;
           filtered.forEach((att: any) => {
             const key = att.agent?.id || att.agentId || att.id;
             const existing = map.get(key);
@@ -113,6 +115,8 @@ export const SupervisorInterventionsPage: React.FC = () => {
               ...att,
               checkInTime: att.checkInTime || existing?.checkInTime,
               checkOutTime: att.checkOutTime || existing?.checkOutTime,
+              plannedStart: att.plannedStart || plannedStart,
+              plannedEnd: att.plannedEnd || plannedEnd,
             });
           });
           // ensure each agent has at least planned times
@@ -154,6 +158,17 @@ export const SupervisorInterventionsPage: React.FC = () => {
       .then((base64) => setPhotoDraft((prev) => [...prev, ...base64]))
       .catch(() => notify('Impossible de charger les photos', 'error'));
   };
+
+  const formatAttendanceTime = useCallback(
+    (value?: string | Date) => {
+      if (!value) return '—';
+      if (typeof value === 'string' && !value.includes('T')) {
+        return value;
+      }
+      return formatDateTime(value);
+    },
+    [],
+  );
 
   return (
     <div className="page">
@@ -400,8 +415,8 @@ export const SupervisorInterventionsPage: React.FC = () => {
                   {attendance.map((att) => (
                     <tr key={att.id}>
                       <td>{att.agent?.name ?? '—'}</td>
-                      <td>{att.checkInTime ? formatDateTime(att.checkInTime) : att.plannedStart ?? '—'}</td>
-                      <td>{att.checkOutTime ? formatDateTime(att.checkOutTime) : att.plannedEnd ?? '—'}</td>
+                      <td>{formatAttendanceTime(att.checkInTime || att.plannedStart)}</td>
+                      <td>{formatAttendanceTime(att.checkOutTime || att.plannedEnd)}</td>
                     </tr>
                   ))}
                   {attendance.length === 0 && (
