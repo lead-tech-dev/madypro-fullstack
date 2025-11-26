@@ -1,7 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { IsIn, IsOptional, IsString } from 'class-validator';
 import { CreateInterventionDto } from './create-intervention.dto';
-import { InterventionStatus } from '../entities/intervention.entity';
+import type { InterventionStatus } from '../entities/intervention.entity';
 
 export class UpdateInterventionDto extends PartialType(CreateInterventionDto) {
   @IsOptional()
