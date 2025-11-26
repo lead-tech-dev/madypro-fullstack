@@ -83,6 +83,7 @@ export const AttendanceListPage: React.FC = () => {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [selected, setSelected] = useState<Attendance | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [editForm, setEditForm] = useState<{ checkInTime: string; checkOutTime: string; note: string }>(
     { checkInTime: '', checkOutTime: '', note: '' }
   );
@@ -230,6 +231,7 @@ export const AttendanceListPage: React.FC = () => {
       checkOutTime: record.checkOutTime ?? '',
       note: record.note ?? '',
     });
+    setDetailOpen(true);
   };
 
   const handleEditChange = (
@@ -673,109 +675,117 @@ export const AttendanceListPage: React.FC = () => {
         <span className="card__meta">{total} résultats</span>
       </div>
 
-      {selected && (
-        <section className="panel">
-          <h3>Détail du pointage</h3>
-          <div className="detail-grid">
-            <div className="detail-grid__item">
-              <span>Agent</span>
-              <strong>{selected.agent.name}</strong>
-            </div>
-            <div className="detail-grid__item">
-              <span>Site</span>
-              <strong>{selected.site.name}</strong>
-              <small>{selected.site.clientName}</small>
-            </div>
-            <div className="detail-grid__item">
-              <span>Planifié</span>
-              <strong>{selected.plannedStart ?? '—'} / {selected.plannedEnd ?? '—'}</strong>
-            </div>
-            <div className="detail-grid__item">
-              <span>Réel</span>
-              <strong>{selected.checkInTime ?? '—'} / {selected.checkOutTime ?? '—'}</strong>
-            </div>
-            <div className="detail-grid__item">
-              <span>Durée</span>
-              <strong>{durationLabel(selected.durationMinutes)}</strong>
-            </div>
-            <div className="detail-grid__item">
-              <span>Origine</span>
-              <strong>{selected.manual ? 'Créé manuellement' : `Créé par ${selected.createdBy}`}</strong>
-            </div>
-          </div>
-
-          <div className="detail-grid">
-            <div className="detail-grid__item">
-              <span>GPS arrivée</span>
-              {selected.gps.checkIn ? (
-                <>
-                  <strong>
-                    {selected.gps.checkIn.latitude.toFixed(4)}, {selected.gps.checkIn.longitude.toFixed(4)}
-                  </strong>
-                  <small>
-                    {selected.gps.checkIn.distanceMeters !== undefined
-                      ? `${selected.gps.checkIn.distanceMeters} m du site`
-                      : 'Distance inconnue'}
-                  </small>
-                </>
-              ) : (
-                <strong>—</strong>
-              )}
-            </div>
-            <div className="detail-grid__item">
-              <span>GPS départ</span>
-              {selected.gps.checkOut ? (
-                <>
-                  <strong>
-                    {selected.gps.checkOut.latitude.toFixed(4)}, {selected.gps.checkOut.longitude.toFixed(4)}
-                  </strong>
-                  <small>
-                    {selected.gps.checkOut.distanceMeters !== undefined
-                      ? `${selected.gps.checkOut.distanceMeters} m du site`
-                      : 'Distance inconnue'}
-                  </small>
-                </>
-              ) : (
-                <strong>—</strong>
-              )}
-            </div>
-          </div>
-
-          <label className="form-field" htmlFor="editNote">
-            <span>Note</span>
-            <textarea id="editNote" name="note" value={editForm.note} onChange={handleEditChange} />
-          </label>
-
-          <div className="form-row">
-            <Input
-              id="editCheckIn"
-              name="checkInTime"
-              label="Heure d'arrivée"
-              type="time"
-              value={editForm.checkInTime}
-              onChange={handleEditChange}
-            />
-            <Input
-              id="editCheckOut"
-              name="checkOutTime"
-              label="Heure de départ"
-              type="time"
-              value={editForm.checkOutTime}
-              onChange={handleEditChange}
-            />
-          </div>
-
-          <div className="form-actions">
-            <Button type="button" onClick={saveEdition} disabled={editSubmitting}>
-              {editSubmitting ? 'Enregistrement...' : 'Mettre à jour'}
-            </Button>
-            {selected.status !== 'CANCELLED' && (
-              <Button type="button" variant="ghost" onClick={() => cancelRecord(selected)}>
-                Annuler le pointage
+      {detailOpen && selected && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card" style={{ width: 'min(900px, 95vw)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+              <h3 style={{ margin: 0 }}>Détail du pointage</h3>
+              <Button type="button" variant="ghost" onClick={() => setDetailOpen(false)}>
+                Fermer
               </Button>
-            )}
+            </div>
+
+            <div className="detail-grid" style={{ marginTop: '1rem' }}>
+              <div className="detail-grid__item">
+                <span>Agent</span>
+                <strong>{selected.agent.name}</strong>
+              </div>
+              <div className="detail-grid__item">
+                <span>Site</span>
+                <strong>{selected.site.name}</strong>
+                <small>{selected.site.clientName}</small>
+              </div>
+              <div className="detail-grid__item">
+                <span>Planifié</span>
+                <strong>{selected.plannedStart ?? '—'} / {selected.plannedEnd ?? '—'}</strong>
+              </div>
+              <div className="detail-grid__item">
+                <span>Réel</span>
+                <strong>{selected.checkInTime ?? '—'} / {selected.checkOutTime ?? '—'}</strong>
+              </div>
+              <div className="detail-grid__item">
+                <span>Durée</span>
+                <strong>{durationLabel(selected.durationMinutes)}</strong>
+              </div>
+              <div className="detail-grid__item">
+                <span>Origine</span>
+                <strong>{selected.manual ? 'Créé manuellement' : `Créé par ${selected.createdBy}`}</strong>
+              </div>
+            </div>
+
+            <div className="detail-grid">
+              <div className="detail-grid__item">
+                <span>GPS arrivée</span>
+                {selected.gps.checkIn ? (
+                  <>
+                    <strong>
+                      {selected.gps.checkIn.latitude.toFixed(4)}, {selected.gps.checkIn.longitude.toFixed(4)}
+                    </strong>
+                    <small>
+                      {selected.gps.checkIn.distanceMeters !== undefined
+                        ? `${selected.gps.checkIn.distanceMeters} m du site`
+                        : 'Distance inconnue'}
+                    </small>
+                  </>
+                ) : (
+                  <strong>—</strong>
+                )}
+              </div>
+              <div className="detail-grid__item">
+                <span>GPS départ</span>
+                {selected.gps.checkOut ? (
+                  <>
+                    <strong>
+                      {selected.gps.checkOut.latitude.toFixed(4)}, {selected.gps.checkOut.longitude.toFixed(4)}
+                    </strong>
+                    <small>
+                      {selected.gps.checkOut.distanceMeters !== undefined
+                        ? `${selected.gps.checkOut.distanceMeters} m du site`
+                        : 'Distance inconnue'}
+                    </small>
+                  </>
+                ) : (
+                  <strong>—</strong>
+                )}
+              </div>
+            </div>
+
+            <label className="form-field" htmlFor="editNote">
+              <span>Note</span>
+              <textarea id="editNote" name="note" value={editForm.note} onChange={handleEditChange} />
+            </label>
+
+            <div className="form-row">
+              <Input
+                id="editCheckIn"
+                name="checkInTime"
+                label="Heure d'arrivée"
+                type="time"
+                value={editForm.checkInTime}
+                onChange={handleEditChange}
+              />
+              <Input
+                id="editCheckOut"
+                name="checkOutTime"
+                label="Heure de départ"
+                type="time"
+                value={editForm.checkOutTime}
+                onChange={handleEditChange}
+              />
+            </div>
+
+            <div className="form-actions">
+              <Button type="button" onClick={saveEdition} disabled={editSubmitting}>
+                {editSubmitting ? 'Enregistrement...' : 'Mettre à jour'}
+              </Button>
+              {selected.status !== 'CANCELLED' && (
+                <Button type="button" variant="ghost" onClick={() => cancelRecord(selected)}>
+                  Annuler le pointage
+                </Button>
+              )}
+            </div>
           </div>
-        </section>
+        </div>
       )}
     </div>
   );
