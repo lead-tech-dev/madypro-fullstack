@@ -431,10 +431,13 @@ export const SupervisorInterventionsPage: React.FC = () => {
               onClick={async () => {
                 if (!token || !viewing) return;
                 try {
-                  const updated = await updateIntervention(token, viewing.id, {
+                  const payload: any = {
                     observation: observationDraft,
-                    photos: photoDraft,
-                  } as any);
+                  };
+                  if (photoDraft && photoDraft.length > 0) {
+                    payload.photos = photoDraft;
+                  }
+                  const updated = await updateIntervention(token, viewing.id, payload);
                   setInterventions((prev) => prev.map((i) => (i.id === viewing.id ? updated : i)));
                   setViewing(updated);
                   notify('Observation mise à jour');

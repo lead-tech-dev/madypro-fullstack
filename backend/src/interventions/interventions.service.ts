@@ -101,7 +101,7 @@ export class InterventionsService implements OnModuleInit {
       agentIds: record.assignments.map((assignment) => assignment.userId),
       truckLabels: record.trucks.map((truck) => truck.label),
       observation: record.observation ?? undefined,
-      photos: (record as any).photos ?? [],
+      photos: Array.isArray((record as any).photos) ? (record as any).photos : [],
       status,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
@@ -314,8 +314,8 @@ export class InterventionsService implements OnModuleInit {
         create: dto.truckLabels.map((label) => ({ label })),
       };
     }
-    if (dto.photos) {
-      (data as any).photos = dto.photos;
+    if (dto.photos !== undefined) {
+      (data as any).photos = dto.photos ?? [];
     }
 
     const record = await this.prisma.intervention.update({
