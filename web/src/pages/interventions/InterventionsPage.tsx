@@ -24,6 +24,7 @@ import { ImageSlider } from '../../components/ui/ImageSlider';
 import { listAttendance } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
 import { formatDateTime } from '../../utils/datetime';
+import { compressImageFile } from '../../utils/image';
 
 const STATUS_OPTIONS: { value: InterventionStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'Tous statuts' },
@@ -234,15 +235,7 @@ export const InterventionsPage: React.FC = () => {
 
   const handlePhotoUpload = (files: FileList | null) => {
     if (!files || !files.length) return;
-    const tasks = Array.from(files).map(
-      (file) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error('Lecture fichier impossible'));
-          reader.readAsDataURL(file);
-        }),
-    );
+    const tasks = Array.from(files).map((file) => compressImageFile(file));
     Promise.all(tasks)
       .then((base64) => setPhotoDraft((prev) => [...prev, ...base64]))
       .catch(() => notify('Impossible de charger les photos', 'error'));

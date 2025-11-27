@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { ImageSlider } from '../../components/ui/ImageSlider';
+import { compressImageFile } from '../../utils/image';
 
 const todayLocal = () => {
   const d = new Date();
@@ -125,15 +126,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
 
   const handlePhotoUpload = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const tasks = Array.from(files).map(
-      (file) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error('Lecture fichier impossible'));
-          reader.readAsDataURL(file);
-        }),
-    );
+    const tasks = Array.from(files).map((file) => compressImageFile(file));
     Promise.all(tasks)
       .then((base64) => setPhotoDraft((prev) => [...prev, ...base64]))
       .catch(() => notify('Impossible de charger les photos', 'error'));
