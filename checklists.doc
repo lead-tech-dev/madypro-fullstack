@@ -1,0 +1,36 @@
+Checklists terrain
+
+Administrateur (web)
+- Statuts/compteurs dashboard cohérents (planifiées/en cours/terminées, présences/retards) et widgets alignés.
+- Interventions : créer ponctuelle avec camion (Drissa/Cissé/Samassa), agents, horaires ; éditer ; visualiser (agents & pointages, observation éditeur riche, slider photos) ; dupliquer ; annuler ; filtres site/date/agent/statut/type ; pagination.
+- Photos : upload multi compressé, affichage slider après refresh, pas d’erreur 413.
+- Rôles/droits : ADMIN voit tout.
+- Absences : demande/validation/refus, historique motifs, filtres site/agent/date, impact planning.
+- Notifications : envoi ciblé et global, réception web/mobile, marquer lu/tout lu.
+- Rapports : génération période/site/agent, export CSV/PDF, agrégats cohérents.
+- Paramètres : formats FR, fuseau, limites upload, rôles/droits, appliquer aux nouvelles interventions.
+- Audit : journal création/modification/suppression (sites, interventions, utilisateurs, absences), filtres par utilisateur/ressource/date, horodatage FR.
+
+Superviseur (web)
+- Visibilité limitée aux sites supervisés (interventions, données dashboard).
+- Visualisation intervention : statut, horaires, agents, camions, observation, photos slider, Agents & pointages (arrivée/début/fin) cohérents avec admin.
+- Actions : observation/photos éditables si terminée/non effectuée/annulée ; boutons démarrer/terminer désactivés selon statut ; démarrer en cours/terminer en fin OK.
+- Filtres site/date/statut, rafraîchissement temps réel.
+- Absences : affichage/validation si autorisé, historique motifs.
+- Notifications : réception ciblée, marquer lu/tout lu.
+- Rapports : limité aux sites/agents supervisés ; exports si disponibles.
+- Paramètres : respect des restrictions de rôle ; formats horaires FR.
+- Audit : journal uniquement sur ses sites, filtres date/utilisateur, horodatage FR.
+
+Mobile (agent)
+- Connexion et permissions : localisation + notifications acceptées sur appareil physique ; pas d’alerte “notifications désactivées” si OK.
+- Notifications : réception premier/second plan, après reboot ; ouverture mène à l’intervention.
+- Présence : possible 30 min avant début ; spinner “Enregistrement…” ; succès ; blocage hors fenêtre ou sans GPS.
+- Intervention : démarrer après présence, temps écoulé continue en changeant d’écran, terminer → statut terminé côté web/superviseur.
+- Horaires : affichage prévu et réel en FR sans décalage, concordance avec web.
+- Camions : interventions ponctuelles affichent camions (Drissa/Cissé/Samassa).
+- Observations/photos : ajout, upload (compression web), visibilité slider côté web.
+- Historique : heures cumulées semaine/mois mises à jour après interventions terminées.
+- Offline/sync : check-in/out et présence hors ligne, synchronisation au retour réseau (bannière si en attente).
+- Géolocalisation : vérif proximité, alerte si trop loin, ouverture Maps.
+- Ergonomie : boutons désactivés aux bons états (démarrer interdit avant présence, terminer interdit si non démarré), loaders visibles (position, présence).

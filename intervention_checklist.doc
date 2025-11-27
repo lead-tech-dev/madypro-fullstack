@@ -1,0 +1,35 @@
+Checklists terrain (admin → superviseur → mobile)
+
+Administrateur (web)
+- Créer une intervention ponctuelle avec camion sélectionné (Drissa/Cissé/Samassa), agents et horaires (ex. 13:30-15:00) ; vérifier qu’elle apparaît dans la liste avec les bons libellés.
+- Éditer l’intervention (changement horaire, agents, camions, observation) et vérifier la mise à jour immédiate en liste.
+- Visualiser l’intervention : vérifier tableau “Agents & pointages” (arrivée/début/fin vides avant pointage), observation (éditeur riche), photos (slider).
+- Ajouter des photos dans la modale et sauvegarder ; vérifier leur affichage dans le slider après refresh.
+- Dupliquer une intervention et vérifier dates/agents/camions copiés.
+- Annuler une intervention et vérifier que les boutons d’action se désactivent (démarrer/terminer).
+- Filtrer par site, date, agent, statut, type/sous-type ; vérifier que les résultats correspondent.
+- Pagination : naviguer pages, vérifier cohérence du total.
+- Superviser les droits : un ADMIN voit toutes les interventions, y compris celles sans superviseur.
+
+Superviseur (web)
+- Se connecter en compte SUPERVISEUR associé à un site ; vérifier que seules ses interventions s’affichent.
+- Visualiser l’intervention : vérifier statut, horaires, agents, camions, observation, photos (slider), tableau Agents & pointages (arrivée/début/fin).
+- Ajouter observation et photos si statut terminé/non effectuée/annulée ; sauvegarder et vérifier persistance après refresh.
+- Vérifier que pour une intervention en cours, le bouton “Démarrer” est désactivé ; pour planifiée, “Terminer” désactivé ; pour non effectuée, “Démarrer/Terminer” désactivés.
+- Vérifier que les heures affichées (arrivée/début/fin) correspondent aux check-in/out réels et ne reprennent plus d’anciens horaires.
+- Filtrer par site/date/statut ; vérifier rafraîchissement correct.
+- Présence temps réel : colonnes “check-in” et “prévu” chargées depuis la BD.
+
+Agent (mobile)
+- Activer les notifications push (appareil physique) : accepter la permission, vérifier absence d’alerte “notifications désactivées”.
+- Recevoir une notification (mock ou push serveur) et vérifier l’ouverture/lecture dans le centre de notifications.
+- Sur une intervention planifiée, enregistrer la présence 30 minutes avant l’heure de début ; vérifier spinner “Enregistrement…” et message de succès.
+- Démarrer l’intervention après présence enregistrée ; vérifier que le temps écoulé continue en changeant d’écran.
+- Terminer l’intervention et vérifier que le statut passe à “terminée” côté superviseur/admin (plus de “en cours”).
+- Historique interventions : vérifier synchronisation des heures (semaine/mois) avec cumul après interventions.
+- Cas d’erreur : tenter check-in hors fenêtre, vérifier message adapté ; tenter sans GPS ou hors site, vérifier alerte.
+
+Flux croisés
+- Agent démarre/termine ; vérifier mise à jour temps réel côté superviseur et admin (statut, heures de début/fin).
+- Ajout de photos d’intervention par superviseur/admin : vérifier affichage côté admin/superviseur (slider).
+- Vérifier que les horaires affichés admin vs superviseur concordent pour un même agent/intervention (arrivée/début/fin).

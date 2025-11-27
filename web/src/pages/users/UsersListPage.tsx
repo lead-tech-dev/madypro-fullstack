@@ -315,24 +315,6 @@ export const UsersListPage: React.FC = () => {
             <option value="inactive">Inactifs</option>
           </select>
         </label>
-        <div className="pagination">
-          <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
-            Précédent
-          </Button>
-          <span className="card__meta">Page {page}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              const maxPage = Math.ceil(total / pageSize) || 1;
-              setPage((p) => (p < maxPage ? p + 1 : p));
-            }}
-            disabled={page * pageSize >= total}
-          >
-            Suivant
-          </Button>
-          <span className="card__meta">{total} résultats</span>
-        </div>
       </div>
 
       {error && <p className="form-error">{error}</p>}
@@ -367,6 +349,25 @@ export const UsersListPage: React.FC = () => {
             </div>
           </article>
           ))}
+      </div>
+
+      <div className="pagination" style={{ marginTop: '1.5rem' }}>
+        <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+          Précédent
+        </Button>
+        <span className="card__meta">Page {page}</span>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            const maxPage = Math.ceil(total / pageSize) || 1;
+            setPage((p) => (p < maxPage ? p + 1 : p));
+          }}
+          disabled={page * pageSize >= total}
+        >
+          Suivant
+        </Button>
+        <span className="card__meta">{total} résultats</span>
       </div>
     </div>
   );
