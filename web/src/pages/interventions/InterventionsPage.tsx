@@ -114,6 +114,13 @@ export const InterventionsPage: React.FC = () => {
     return Array.from(map.values());
   }, [viewAttendances]);
 
+  const filterAttendanceForIntervention = React.useCallback(
+    (list: Attendance[], intervention: Intervention) => {
+      return list.filter((att) => att.interventionId === intervention.id);
+    },
+    [],
+  );
+
   const openCreateForm = () => {
     setObservationOnly(false);
     setEditingId(null);
@@ -803,8 +810,8 @@ export const InterventionsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {attendanceByAgent.length
-                        ? attendanceByAgent.map((att) => (
+                      {viewing && filterAttendanceForIntervention(attendanceByAgent, viewing).length
+                        ? filterAttendanceForIntervention(attendanceByAgent, viewing).map((att) => (
                             <tr key={att.id}>
                               <td>{att.agent.name}</td>
                               <td>{att.checkInTime ?? att.plannedStart ?? '—'}</td>
@@ -814,7 +821,11 @@ export const InterventionsPage: React.FC = () => {
                           ))
                         : null}
                       {viewing.agents
-                        .filter((agent) => !attendanceByAgent.some((att) => att.agent.id === agent.id))
+                        .filter((agent) =>
+                          !filterAttendanceForIntervention(attendanceByAgent, viewing ?? ({} as any)).some(
+                            (att) => att.agent.id === agent.id,
+                          ),
+                        )
                         .map((agent) => (
                           <tr key={agent.id}>
                             <td>{agent.name}</td>

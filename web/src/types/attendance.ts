@@ -19,6 +19,7 @@ export type Attendance = {
     clientName: string;
   };
   clientId: string;
+  interventionId?: string;
   checkInTime?: string;
   checkOutTime?: string;
   plannedStart?: string;

@@ -5,6 +5,7 @@ export class AttendanceEntity {
   userId!: string;
   siteId!: string;
   clientId!: string;
+  interventionId?: string;
   arrivalTime?: Date;
   arrivalLocation?: { latitude: number; longitude: number };
   plannedStart?: Date;
