@@ -47,7 +47,10 @@ function AuthNavigator() {
 function AgentTabNavigator() {
   return (
     <AgentTabs.Navigator
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        sceneContainerStyle: { paddingBottom: 96 },
+      }}
       tabBar={(props) => <AgentTabBar {...props} iconMap={agentTabMeta} />}
     >
       <AgentTabs.Screen name="AgentHome" component={AgentHomeScreen} options={{ title: agentTabMeta.AgentHome.label }} />

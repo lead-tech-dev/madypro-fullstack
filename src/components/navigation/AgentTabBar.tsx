@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 Ionicons.loadFont?.();
 
@@ -15,8 +16,11 @@ type AgentTabBarProps = BottomTabBarProps & {
 };
 
 export const AgentTabBar: React.FC<AgentTabBarProps> = ({ state, navigation, iconMap }) => {
+  const insets = useSafeAreaInsets();
+  const bottom = Math.max(8, insets.bottom + 8);
+
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, { paddingBottom: bottom }]}>
       <View style={styles.container}>
         {state.routes.map((route, index) => {
           const isFocused = state.index === index;
@@ -69,9 +73,13 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({ state, navigation, ico
 
 const styles = StyleSheet.create({
   wrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     paddingHorizontal: 16,
-    paddingBottom: 16,
     backgroundColor: 'transparent',
+    pointerEvents: 'box-none',
   },
   container: {
     flexDirection: 'row',
@@ -85,6 +93,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 8,
+    marginHorizontal: 0,
   },
   tab: {
     flex: 1,

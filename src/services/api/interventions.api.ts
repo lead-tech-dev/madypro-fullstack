@@ -76,9 +76,9 @@ export async function listInterventionsByRange(
   const filters = rangeToFilters(range);
   const primary = await fetchInterventions(token, { ...filters, agentId });
   if (agentId && primary.length === 0) {
-    // fallback: certains backends ignorent agentId, on réessaie sans filtre
+    // fallback limité : on refiltre côté client pour ne pas exposer d'autres agents
     const fallback = await fetchInterventions(token, filters);
-    return fallback;
+    return fallback.filter((i) => i.agentIds?.includes(agentId));
   }
   return primary;
 }

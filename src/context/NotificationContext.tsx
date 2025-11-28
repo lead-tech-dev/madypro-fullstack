@@ -19,7 +19,7 @@ type NotificationContextValue = {
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { token } = useAuthContext();
+  const { token, user } = useAuthContext();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
@@ -86,11 +86,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [token, fetchNotifications]);
 
   useEffect(() => {
-    if (!token || !expoPushToken) return;
+    if (!token || !expoPushToken || !user) return;
+    console.log('[Push] Expo token obtenu', expoPushToken);
     registerNotificationToken(token, expoPushToken).catch((error) => {
       console.warn('Push token registration failed', error);
     });
-  }, [token, expoPushToken]);
+  }, [token, expoPushToken, user]);
 
   useEffect(() => {
     Notifications.setNotificationHandler({
@@ -106,8 +107,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           'Notifications désactivées',
           "Activez les notifications pour être informé en temps réel des interventions. Vérifiez les autorisations système et utilisez un appareil physique.",
         );
+        console.warn('[Push] Aucun token obtenu (permission refusée ou simulateur).');
         return;
       }
+      console.log('[Push] Token Expo reçu', value);
       setExpoPushToken(value);
     });
 

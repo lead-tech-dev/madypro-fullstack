@@ -69,7 +69,6 @@ export default function OnboardingScreen({ navigation, onFinish }: Props) {
   const completeOnboarding = useCallback(async () => {
     await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
     await onFinish?.();
-    navigation.reset({ index: 0, routes: [{ name: 'Auth' }] });
   }, [navigation, onFinish]);
 
   const handleNext = useCallback(() => {
