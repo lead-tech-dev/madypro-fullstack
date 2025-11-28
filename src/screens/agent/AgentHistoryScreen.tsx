@@ -238,10 +238,12 @@ async function computeHoursForRange(token: string, agentId: string, range: 'week
       endDate: endISO,
       pageSize: 500,
     });
-    const attendanceItems = (attendanceRes as any).items ?? (Array.isArray(attendanceRes) ? attendanceRes : []);
+    const attendanceItems =
+      Array.isArray(attendanceRes) ||
+      attendanceRes instanceof Array ? attendanceRes : (attendanceRes as any).items ?? (attendanceRes as any).data ?? [];
     const attendanceHours = attendanceItems.reduce((total: number, att: any) => {
-      const startTime = parseAttendanceTime(att.date, att.checkInTime || att.plannedStart);
-      const endTime = parseAttendanceTime(att.date, att.checkOutTime || att.plannedEnd);
+      const startTime = parseAttendanceTime(att.date, att.checkInTime || att.plannedStart || att.actualStartAt);
+      const endTime = parseAttendanceTime(att.date, att.checkOutTime || att.plannedEnd || att.actualEndAt);
       if (!startTime || !endTime) return total;
       const hours = Math.max(0, (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60));
       return total + hours;
