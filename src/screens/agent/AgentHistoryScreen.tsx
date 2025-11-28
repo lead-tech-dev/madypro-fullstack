@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
 import { theme } from '@/config/theme';
 import { Intervention } from '@/types/intervention';
-import { listInterventionsByRange } from '@/services/api/interventions.api';
+import { fetchInterventions, listInterventionsByRange } from '@/services/api/interventions.api';
 import { listAttendance } from '@/services/api/attendance.api';
 import { useAuthContext } from '@/context/AuthContext';
 
@@ -231,14 +231,42 @@ async function computeHoursForRange(token: string, agentId: string, range: 'week
   const startISO = start.toISOString().slice(0, 10);
   const endISO = now.toISOString().slice(0, 10);
   try {
-    const res = await listAttendance(token, { agentId, startDate: startISO, endDate: endISO, pageSize: 200 });
-    const items = (res as any).items ?? (Array.isArray(res) ? res : []);
-    return items.reduce((total: number, att: any) => {
-      if (!att.checkInTime || !att.checkOutTime) return total;
-      const startTime = new Date(att.checkInTime);
-      const endTime = new Date(att.checkOutTime);
-      if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) return total;
+    // 1) tenter via pointages (plus fiable si disponibles)
+    const attendanceRes = await listAttendance(token, {
+      agentId,
+      startDate: startISO,
+      endDate: endISO,
+      pageSize: 500,
+    });
+    const attendanceItems = (attendanceRes as any).items ?? (Array.isArray(attendanceRes) ? attendanceRes : []);
+    const attendanceHours = attendanceItems.reduce((total: number, att: any) => {
+      const startTime = parseAttendanceTime(att.date, att.checkInTime || att.plannedStart);
+      const endTime = parseAttendanceTime(att.date, att.checkOutTime || att.plannedEnd);
+      if (!startTime || !endTime) return total;
       const hours = Math.max(0, (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60));
+      return total + hours;
+    }, 0);
+    if (attendanceHours > 0) return attendanceHours;
+
+    // 2) fallback via interventions (si le backend ne renvoie pas les pointages)
+    let interventions = await fetchInterventions(token, { startDate: startISO, endDate: endISO, agentId });
+    if (agentId && interventions.length === 0) {
+      const fallback = await fetchInterventions(token, { startDate: startISO, endDate: endISO });
+      interventions = fallback.filter((i) => i.agentIds?.includes(agentId));
+    }
+    return interventions.reduce((total, intervention) => {
+      const startDate = getDateFromActual(
+        intervention.actualStartAt,
+        intervention.date,
+        intervention.actualStartTime ?? intervention.startTime,
+      );
+      const endDate = getDateFromActual(
+        intervention.actualEndAt,
+        intervention.date,
+        intervention.actualEndTime ?? intervention.endTime,
+      );
+      if (!startDate || !endDate) return total;
+      const hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
       return total + hours;
     }, 0);
   } catch {
@@ -263,6 +291,17 @@ function getDateFromActual(actual: string | undefined, fallbackDate: string, fal
     return new Date(`${fallbackDate}T${fallbackTime}:00`);
   }
   return null;
+}
+
+function parseAttendanceTime(date: string, time?: string) {
+  if (!time) return null;
+  if (time.includes('T')) {
+    const d = new Date(time);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  // format HH:mm
+  const candidate = new Date(`${date}T${time}:00`);
+  return Number.isNaN(candidate.getTime()) ? null : candidate;
 }
 
 const styles = StyleSheet.create({

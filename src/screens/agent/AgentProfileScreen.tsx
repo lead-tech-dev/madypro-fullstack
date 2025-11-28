@@ -5,7 +5,6 @@ import { useAuthContext } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { theme } from '@/config/theme';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
-import { navigationRef } from '@/navigation/navigationRef';
 
 export default function AgentProfileScreen() {
   const { user, logout } = useAuthContext();
@@ -67,12 +66,6 @@ export default function AgentProfileScreen() {
         title="Se déconnecter"
         onPress={() => {
           logout();
-          if (navigationRef.isReady()) {
-            navigationRef.reset({
-              index: 0,
-              routes: [{ name: 'Auth', params: { screen: 'Login' } }],
-            });
-          }
         }}
       />
     </HeaderLayout>

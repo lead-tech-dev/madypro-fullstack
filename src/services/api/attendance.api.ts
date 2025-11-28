@@ -5,7 +5,10 @@ export async function listAttendance(token: string, filters: Partial<{ startDate
   const params = new URLSearchParams();
   if (filters.startDate) params.set('startDate', filters.startDate);
   if (filters.endDate) params.set('endDate', filters.endDate);
-  if (filters.agentId) params.set('agentId', filters.agentId);
+  if (filters.agentId) {
+    params.set('agentId', filters.agentId);
+    params.set('userId', filters.agentId); // compat backend
+  }
   if (filters.siteId) params.set('siteId', filters.siteId);
   const query = params.toString();
   const path = query ? `/attendance?${query}` : '/attendance';
