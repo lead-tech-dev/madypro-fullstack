@@ -346,7 +346,6 @@ export class AttendanceService implements OnModuleInit {
         checkInTime: now,
         checkInLatitude: dto.latitude,
         checkInLongitude: dto.longitude,
-        interventionId: intervention?.id,
         status: 'PENDING',
         manual: false,
         createdBy: 'AGENT',
@@ -365,24 +364,35 @@ export class AttendanceService implements OnModuleInit {
   }
 
   async checkOut(dto: CheckOutDto) {
-    let existing = dto.interventionId
-      ? await this.prisma.attendance.findFirst({
+    let existing = await this.prisma.attendance.findFirst({
+      where: {
+        userId: dto.userId,
+        checkOutTime: null,
+        status: { in: ['PENDING'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!existing && dto.interventionId) {
+      // cherche par date/site de l'intervention
+      const intervention = await this.prisma.intervention.findUnique({ where: { id: dto.interventionId } });
+      if (intervention) {
+        const startOfDay = new Date(intervention.date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(intervention.date);
+        endOfDay.setHours(23, 59, 59, 999);
+        existing = await this.prisma.attendance.findFirst({
           where: {
             userId: dto.userId,
-            interventionId: dto.interventionId,
-            checkOutTime: null,
-            status: { in: ['PENDING'] },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-      : await this.prisma.attendance.findFirst({
-          where: {
-            userId: dto.userId,
+            siteId: intervention.siteId,
+            date: { gte: startOfDay, lte: endOfDay },
             checkOutTime: null,
             status: { in: ['PENDING'] },
           },
           orderBy: { createdAt: 'desc' },
         });
+      }
+    }
     if (!existing) {
       throw new NotFoundException('Aucun check-in en cours');
     }
@@ -393,7 +403,7 @@ export class AttendanceService implements OnModuleInit {
         status: 'COMPLETED',
       },
     });
-    await this.updateInterventionStatus(existing.userId, existing.siteId, existing.date, 'COMPLETED', dto.interventionId);
+    await this.updateInterventionStatus(existing.userId, existing.siteId, existing.date, 'COMPLETED');
     const view = this.toView(this.toEntity(record));
     this.realtime.broadcast('attendance.checkout', {
       attendanceId: view.id,
@@ -576,13 +586,7 @@ export class AttendanceService implements OnModuleInit {
     );
   }
 
-  private async updateInterventionStatus(
-    userId: string,
-    siteId: string,
-    date: Date,
-    status: AttendanceStatus,
-    interventionId?: string,
-  ) {
+  private async updateInterventionStatus(userId: string, siteId: string, date: Date, status: AttendanceStatus) {
     const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
     const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
     const intervention = interventionId
