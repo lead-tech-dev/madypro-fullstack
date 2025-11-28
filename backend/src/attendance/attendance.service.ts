@@ -589,24 +589,15 @@ export class AttendanceService implements OnModuleInit {
   private async updateInterventionStatus(userId: string, siteId: string, date: Date, status: AttendanceStatus) {
     const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
     const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
-    const intervention = interventionId
-      ? await this.prisma.intervention.findFirst({
-          where: {
-            id: interventionId,
-            siteId,
-            status: { notIn: ['CANCELLED'] },
-          },
-          include: { assignments: true },
-        })
-      : await this.prisma.intervention.findFirst({
-          where: {
-            siteId,
-            date: { gte: startOfDay, lte: endOfDay },
-            assignments: { some: { userId } },
-            status: { notIn: ['CANCELLED'] },
-          },
-          include: { assignments: true },
-        });
+    const intervention = await this.prisma.intervention.findFirst({
+      where: {
+        siteId,
+        date: { gte: startOfDay, lte: endOfDay },
+        assignments: { some: { userId } },
+        status: { notIn: ['CANCELLED'] },
+      },
+      include: { assignments: true },
+    });
     if (!intervention) return;
 
     if (status === 'COMPLETED') {
