@@ -109,7 +109,7 @@ export class AttendanceService implements OnModuleInit {
           ? { latitude: record.checkOutLatitude, longitude: record.checkOutLongitude }
           : undefined,
       status: record.status,
-      interventionId: record.interventionId ?? undefined,
+      interventionId: r.interventionId ?? undefined,
       note: record.note ?? undefined,
       manual: record.manual,
       createdBy: record.createdBy as 'AGENT' | 'SUPERVISOR' | 'ADMIN',
@@ -353,7 +353,7 @@ export class AttendanceService implements OnModuleInit {
         status: 'PENDING',
         manual: false,
         createdBy: 'AGENT',
-      },
+      } as any,
     });
     const view = this.toView(this.toEntity(record));
     this.realtime.broadcast('attendance.checkin', {
@@ -371,12 +371,21 @@ export class AttendanceService implements OnModuleInit {
     let existing = await this.prisma.attendance.findFirst({
       where: {
         userId: dto.userId,
-        interventionId: dto.interventionId ?? undefined,
         checkOutTime: null,
         status: { in: ['PENDING'] },
       },
       orderBy: { createdAt: 'desc' },
     });
+    if (!existing) {
+      existing = await this.prisma.attendance.findFirst({
+        where: {
+          userId: dto.userId,
+          checkOutTime: null,
+          status: { in: ['PENDING'] },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
     if (!existing) {
       throw new NotFoundException('Aucun check-in en cours');
     }
@@ -387,7 +396,8 @@ export class AttendanceService implements OnModuleInit {
         status: 'COMPLETED',
       },
     });
-    await this.updateInterventionStatus(existing.userId, existing.siteId, existing.date, 'COMPLETED', existing.interventionId);
+    const interventionId = (existing as any).interventionId ?? undefined;
+    await this.updateInterventionStatus(existing.userId, existing.siteId, existing.date, 'COMPLETED', interventionId);
     const view = this.toView(this.toEntity(record));
     this.realtime.broadcast('attendance.checkout', {
       attendanceId: view.id,
