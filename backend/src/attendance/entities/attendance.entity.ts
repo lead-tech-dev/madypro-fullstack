@@ -3,9 +3,7 @@ export type AttendanceStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
 export class AttendanceEntity {
   id!: string;
   userId!: string;
-  siteId!: string;
-  clientId!: string;
-  interventionId?: string;
+  interventionId!: string;
   arrivalTime?: Date;
   arrivalLocation?: { latitude: number; longitude: number };
   plannedStart?: Date;

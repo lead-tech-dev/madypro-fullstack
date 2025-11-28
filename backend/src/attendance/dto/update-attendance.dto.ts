@@ -17,4 +17,8 @@ export class UpdateAttendanceDto {
   @IsOptional()
   @IsIn(['PENDING', 'COMPLETED', 'CANCELLED'])
   status?: AttendanceStatus;
+
+  @IsOptional()
+  @IsString()
+  interventionId?: string;
 }

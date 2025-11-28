@@ -42,7 +42,6 @@ export const SupervisorSitesPage: React.FC = () => {
               <thead>
                 <tr>
                   <th>Site</th>
-                  <th>Client</th>
                   <th>Adresse</th>
                   <th>Superviseurs</th>
                   <th>Actions</th>
@@ -52,7 +51,6 @@ export const SupervisorSitesPage: React.FC = () => {
                 {supervisedSites.map((site) => (
                   <tr key={site.id}>
                     <td>{site.name}</td>
-                    <td>{site.clientName}</td>
                     <td>{site.address}</td>
                     <td>{site.supervisors?.map((s) => s.name).join(', ') || '—'}</td>
                     <td>

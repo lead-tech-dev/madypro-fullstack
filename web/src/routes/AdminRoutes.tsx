@@ -14,7 +14,6 @@ import { ReportsPage } from '../pages/reports/ReportsPage';
 import { SettingsPage } from '../pages/settings/SettingsPage';
 import { NotificationsPage } from '../pages/notifications/NotificationsPage';
 import { AuditPage } from '../pages/audit/AuditPage';
-import { ClientsPage } from '../pages/clients/ClientsPage';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 
 export const AdminRoutes = () => (
@@ -27,7 +26,6 @@ export const AdminRoutes = () => (
       <Route path="/sites" element={<SitesListPage />} />
       <Route path="/sites/new" element={<SiteFormPage />} />
       <Route path="/sites/:id/edit" element={<SiteFormPage />} />
-      <Route path="/clients" element={<ClientsPage />} />
       <Route path="/interventions" element={<InterventionsPage />} />
       <Route path="/attendance" element={<AttendanceListPage />} />
       <Route path="/absences" element={<AbsencesListPage />} />

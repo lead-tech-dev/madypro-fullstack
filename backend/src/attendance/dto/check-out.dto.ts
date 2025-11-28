@@ -7,4 +7,8 @@ export class CheckOutDto {
   @IsString()
   @IsOptional()
   interventionId?: string;
+
+  @IsString()
+  @IsOptional()
+  attendanceId?: string;
 }

@@ -16,4 +16,8 @@ export class CheckInDto {
   @IsString()
   @IsOptional()
   interventionId?: string;
+
+   @IsString()
+   @IsOptional()
+   attendanceId?: string;
 }

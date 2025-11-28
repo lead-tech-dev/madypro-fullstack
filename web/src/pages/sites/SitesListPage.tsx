@@ -1,11 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { deleteSite, listSites, createSite, updateSite } from '../../services/api/sites.api';
 import { Site } from '../../types/site';
 import { Button } from '../../components/ui/Button';
 import { useAuthContext } from '../../context/AuthContext';
-import { Client } from '../../types/client';
-import { listClients } from '../../services/api/clients.api';
 import { listUsers } from '../../services/api/users.api';
 import { User } from '../../types/user';
 import { env } from '../../config/env';
@@ -18,7 +15,6 @@ export const SitesListPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [error, setError] = useState<string | null>(null);
-  const [clients, setClients] = useState<Client[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [saving, setSaving] = useState(false);
@@ -26,7 +22,6 @@ export const SitesListPage: React.FC = () => {
   const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([]);
   const [formValues, setFormValues] = useState({
     name: '',
-    clientId: '',
     address: '',
     timeWindow: '',
     active: true,
@@ -41,17 +36,12 @@ export const SitesListPage: React.FC = () => {
   const [addressError, setAddressError] = useState<string | null>(null);
 
   const portfolio = useMemo(() => {
-    const counts = sites.reduce<Record<string, number>>((acc, site) => {
-      const key = site.clientName || 'Client inconnu';
-      acc[key] = (acc[key] ?? 0) + 1;
-      return acc;
-    }, {});
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([label, count]) => ({
-        label,
-        value: `${String(count).padStart(2, '0')} site${count > 1 ? 's' : ''}`,
-      }));
+    const active = sites.filter((site) => site.active).length;
+    const inactive = sites.length - active;
+    return [
+      { label: 'Sites actifs', value: `${String(active).padStart(2, '0')}` },
+      { label: 'Sites inactifs', value: `${String(inactive).padStart(2, '0')}` },
+    ];
   }, [sites]);
 
   useEffect(() => {
@@ -60,21 +50,12 @@ export const SitesListPage: React.FC = () => {
       return;
     }
     setLoading(true);
-    Promise.all([
-      listSites(token, { page, pageSize }),
-      listClients(token),
-      listUsers(token, { role: 'SUPERVISOR', status: 'active' }),
-    ])
-      .then(([sitePage, clientData, supervisorData]) => {
+    Promise.all([listSites(token, { page, pageSize }), listUsers(token, { role: 'SUPERVISOR', status: 'active' })])
+      .then(([sitePage, supervisorData]) => {
         const siteItems = Array.isArray((sitePage as any)?.items)
           ? (sitePage as any).items
           : Array.isArray(sitePage as any)
           ? (sitePage as any)
-          : [];
-        const clientItems = Array.isArray((clientData as any)?.items)
-          ? (clientData as any).items
-          : Array.isArray(clientData as any)
-          ? (clientData as any)
           : [];
         const supervisorItems = Array.isArray((supervisorData as any)?.items)
           ? (supervisorData as any).items
@@ -83,13 +64,11 @@ export const SitesListPage: React.FC = () => {
           : [];
         setSites(siteItems);
         setTotal((sitePage as any)?.total ?? siteItems.length);
-        setClients(clientItems);
         setSupervisors(supervisorItems);
         setError(null);
       })
       .catch((err) => {
-        const message =
-          err instanceof Error ? err.message : 'Impossible de charger les sites clients.';
+        const message = err instanceof Error ? err.message : 'Impossible de charger les sites.';
         setError(message);
         notify(message, 'error');
       })
@@ -167,19 +146,15 @@ export const SitesListPage: React.FC = () => {
     <div className="page-container sites-page" style={{ maxWidth: '100%', width: '100%' }}>
       <div className="page-hero">
         <div className="page-hero__content">
-          <span className="pill">Gestion des sites & clients</span>
-          <h2>Cartographie des contrats</h2>
-          <p>
-            Centralisez les implantations à nettoyer, les responsables locaux et les prochains
-            passages terrain pour garantir la promesse propreté Madypro Clean.
-          </p>
+          <span className="pill">Gestion des sites</span>
+          <h2>Cartographie terrain</h2>
+          <p>Centralisez les implantations à nettoyer, les responsables locaux et les fenêtres horaires.</p>
           <Button
             type="button"
             onClick={() => {
               setEditingSite(null);
               setFormValues({
                 name: '',
-                clientId: clients[0]?.id || '',
                 address: '',
                 timeWindow: '',
                 active: true,
@@ -232,7 +207,6 @@ export const SitesListPage: React.FC = () => {
           <div className="table">
             <div className="table-head">
               <div>Nom</div>
-              <div>Client</div>
               <div>Adresse</div>
               <div>Statut</div>
               <div>Actions</div>
@@ -241,7 +215,6 @@ export const SitesListPage: React.FC = () => {
               {sites.map((site) => (
                 <div className="table-row" key={site.id}>
                   <div>{site.name}</div>
-                  <div>{site.clientName}</div>
                   <div>{site.address}</div>
                   <div>
                     <span className={`tag ${site.active ? 'tag--success' : 'tag--muted'}`}>
@@ -253,14 +226,13 @@ export const SitesListPage: React.FC = () => {
                       type="button"
                       variant="ghost"
                       className="btn--compact"
-                      onClick={() => {
-                        setEditingSite(site);
-                        setFormValues({
-                          name: site.name,
-                          clientId: site.clientId,
-                          address: site.address,
-                          timeWindow: site.timeWindow ?? '',
-                          active: site.active,
+                    onClick={() => {
+                      setEditingSite(site);
+                      setFormValues({
+                        name: site.name,
+                        address: site.address,
+                        timeWindow: site.timeWindow ?? '',
+                        active: site.active,
                           latitude: site.latitude != null ? String(site.latitude) : '',
                           longitude: site.longitude != null ? String(site.longitude) : '',
                         });
@@ -328,7 +300,6 @@ export const SitesListPage: React.FC = () => {
                   onClick={() => {
                     setFormValues({
                       name: '',
-                      clientId: clients[0]?.id || '',
                       address: '',
                       timeWindow: '',
                       active: true,
@@ -359,15 +330,14 @@ export const SitesListPage: React.FC = () => {
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!token) return;
-                if (!formValues.name || !formValues.clientId) {
-                  notify('Nom et client requis', 'error');
+                if (!formValues.name) {
+                  notify('Nom requis', 'error');
                   return;
                 }
                 setSaving(true);
                 try {
                   if (editingSite) {
                     const updated = await updateSite(token, editingSite.id, {
-                      clientId: formValues.clientId || editingSite.clientId,
                       name: formValues.name,
                       address: formValues.address,
                       timeWindow: formValues.timeWindow || undefined,
@@ -386,7 +356,6 @@ export const SitesListPage: React.FC = () => {
                     notify('Site mis à jour');
                   } else {
                     const created = await createSite(token, {
-                      clientId: formValues.clientId || clients[0]?.id || '',
                       name: formValues.name,
                       address: formValues.address,
                       timeWindow: formValues.timeWindow || undefined,
@@ -425,23 +394,6 @@ export const SitesListPage: React.FC = () => {
                   required
                 />
               </div>
-              <div className="form-field">
-                <label className="form-label">Client</label>
-                <select
-                  className="form-control"
-                  value={formValues.clientId}
-                  onChange={(e) => setFormValues((p) => ({ ...p, clientId: e.target.value }))}
-                  required
-                >
-                  {clients.length === 0 && <option value="">Aucun client</option>}
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {/* Client fixe en arrière-plan pour compatibilité API */}
               <div className="form-field">
                 <label className="form-label">Adresse</label>
                 <input

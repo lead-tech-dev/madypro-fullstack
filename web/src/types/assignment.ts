@@ -13,7 +13,6 @@ export type Assignment = {
   site: {
     id: string;
     name: string;
-    clientName: string;
     address: string;
   };
 };

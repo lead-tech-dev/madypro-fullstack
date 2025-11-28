@@ -17,6 +17,10 @@ export class CreateManualAttendanceDto {
   @IsString()
   checkOutTime?: string;
 
+  @IsOptional()
+  @IsString()
+  interventionId?: string;
+
   @IsString()
   note!: string;
 

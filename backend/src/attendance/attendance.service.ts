@@ -19,8 +19,7 @@ type AttendanceFilters = {
   startDate?: string;
   endDate?: string;
   userId?: string;
-  siteId?: string;
-  clientId?: string;
+  interventionId?: string;
   status?: AttendanceStatus | 'all';
   page?: number;
   pageSize?: number;
@@ -30,8 +29,7 @@ type AttendanceView = {
   id: string;
   date: string;
   agent: { id: string; name: string };
-  site: { id: string; name: string; clientName: string };
-  clientId: string;
+  site: { id: string; name: string };
   interventionId?: string;
   checkInTime?: string;
   checkOutTime?: string;
@@ -48,9 +46,7 @@ type AttendanceView = {
   };
 };
 
-type AttendanceRecord = Prisma.AttendanceGetPayload<{
-  include: { site: false };
-}>;
+type AttendanceRecord = Prisma.AttendanceGetPayload<{}>;
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {
@@ -89,8 +85,6 @@ export class AttendanceService implements OnModuleInit {
     const base: AttendanceEntity = {
       id: record.id,
       userId: record.userId,
-      siteId: record.siteId,
-      clientId: record.clientId,
       arrivalTime: r.arrivalTime ?? undefined,
       arrivalLocation:
         r.arrivalLatitude != null && r.arrivalLongitude != null
@@ -109,7 +103,7 @@ export class AttendanceService implements OnModuleInit {
           ? { latitude: record.checkOutLatitude, longitude: record.checkOutLongitude }
           : undefined,
       status: record.status,
-      interventionId: r.interventionId ?? undefined,
+      interventionId: record.interventionId!,
       note: record.note ?? undefined,
       manual: record.manual,
       createdBy: record.createdBy as 'AGENT' | 'SUPERVISOR' | 'ADMIN',
@@ -136,9 +130,20 @@ export class AttendanceService implements OnModuleInit {
     return record;
   }
 
-  private toView(record: AttendanceEntity): AttendanceView {
+  private async toView(record: AttendanceEntity): Promise<AttendanceView> {
     const user = this.usersService.findOne(record.userId);
-    const site = this.sitesService.findOne(record.siteId);
+    const intervention = await this.prisma.intervention.findUnique({
+      where: { id: record.interventionId },
+      include: { site: true },
+    });
+    const siteRaw = intervention?.site ?? { id: '', name: '' };
+    const site: any = {
+      id: siteRaw.id,
+      name: (siteRaw as any).name ?? '',
+      latitude: (siteRaw as any).latitude ?? null,
+      longitude: (siteRaw as any).longitude ?? null,
+      supervisorIds: (siteRaw as any).supervisorIds ?? [],
+    };
     const durationMinutes =
       record.checkIn && record.checkOut
         ? Math.max(0, Math.round((record.checkOut.getTime() - record.checkIn.getTime()) / 60000))
@@ -148,8 +153,7 @@ export class AttendanceService implements OnModuleInit {
       id: record.id,
       date: this.formatDate(record.checkIn ?? record.plannedStart ?? record.createdAt),
       agent: { id: user?.id ?? record.userId, name: user?.name ?? 'Agent inconnu' },
-      site: { id: site.id, name: site.name, clientName: site.clientName },
-      clientId: site.clientId,
+      site: { id: site.id, name: site.name },
       interventionId: record.interventionId,
       checkInTime: this.formatTime(record.checkIn),
       checkOutTime: this.formatTime(record.checkOut),
@@ -180,8 +184,7 @@ export class AttendanceService implements OnModuleInit {
   async list(filters: AttendanceFilters = {}) {
     const where: Prisma.AttendanceWhereInput = {};
     if (filters.userId) where.userId = filters.userId;
-    if (filters.siteId) where.siteId = filters.siteId;
-    if (filters.clientId) where.clientId = filters.clientId;
+    if (filters.interventionId) where.interventionId = filters.interventionId;
     if (filters.status && filters.status !== 'all') where.status = filters.status;
     if (filters.startDate || filters.endDate) {
       where.date = {};
@@ -195,14 +198,14 @@ export class AttendanceService implements OnModuleInit {
       this.prisma.attendance.findMany({
         where,
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-        include: { user: true, site: { include: { client: true } } },
+        include: { user: true, intervention: { include: { site: { include: { client: true } } } } },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       this.prisma.attendance.count({ where }),
     ]);
     return {
-      items: records.map((record) => this.toView(this.toEntity(record as any))),
+      items: await Promise.all(records.map((record) => this.toView(this.toEntity(record as any)))),
       total,
       page,
       pageSize,
@@ -215,7 +218,13 @@ export class AttendanceService implements OnModuleInit {
   }
 
   async createManual(dto: CreateManualAttendanceDto) {
-    const site = this.sitesService.findOne(dto.siteId);
+    const intervention = dto.interventionId
+      ? await this.prisma.intervention.findUnique({
+          where: { id: dto.interventionId },
+          include: { site: { include: { client: true } } },
+        })
+      : null;
+    const site = intervention?.site ?? this.sitesService.findOne(dto.siteId);
     const date = this.toDateOnly(dto.date);
     const endOfDay = this.endOfDay(dto.date);
     const checkIn = this.combine(dto.date, dto.checkInTime);
@@ -226,7 +235,7 @@ export class AttendanceService implements OnModuleInit {
     const existing = await this.prisma.attendance.findFirst({
       where: {
         userId: dto.userId,
-        siteId: dto.siteId,
+        interventionId: dto.interventionId ?? undefined,
         date: { gte: date, lte: endOfDay },
       },
       orderBy: { createdAt: 'desc' },
@@ -234,8 +243,7 @@ export class AttendanceService implements OnModuleInit {
 
     const data: any = {
       userId: dto.userId,
-      siteId: dto.siteId,
-      clientId: site.clientId,
+      interventionId: dto.interventionId ?? undefined,
       date,
       checkInTime: checkIn,
       checkOutTime: checkOut,
@@ -251,7 +259,7 @@ export class AttendanceService implements OnModuleInit {
       ? await this.prisma.attendance.update({ where: { id: existing.id }, data })
       : await this.prisma.attendance.create({ data });
 
-    await this.updateInterventionStatus(dto.userId, dto.siteId, date, status);
+    await this.updateInterventionStatus(dto.userId, date, status, dto.interventionId);
     this.auditService.record({
       actorId: createdBy,
       action: 'CREATE_MANUAL_ATTENDANCE',
@@ -278,6 +286,9 @@ export class AttendanceService implements OnModuleInit {
     }
     if (dto.status) {
       data.status = dto.status;
+    }
+    if (dto.interventionId) {
+      data.intervention = { connect: { id: dto.interventionId } };
     }
 
     const record = await this.prisma.attendance.update({
@@ -319,15 +330,18 @@ export class AttendanceService implements OnModuleInit {
   }
 
   async checkIn(dto: CheckInDto) {
-    const site = this.sitesService.findOne(dto.siteId);
     const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     const intervention = dto.interventionId
       ? await this.prisma.intervention.findFirst({
-          where: { id: dto.interventionId, siteId: dto.siteId, assignments: { some: { userId: dto.userId } } },
+          where: { id: dto.interventionId, assignments: { some: { userId: dto.userId } } },
+          include: { site: true },
         })
       : await this.ensureWithinInterventionWindow(dto.userId, dto.siteId, now, {
           allowBeforeStart: true,
         });
+    const site = (intervention as any)?.site ?? this.sitesService.findOne(dto.siteId);
     if (site.latitude == null || site.longitude == null) {
       throw new BadRequestException("Les coordonnées du site sont manquantes.");
     }
@@ -344,22 +358,53 @@ export class AttendanceService implements OnModuleInit {
         data: { status: 'IN_PROGRESS' },
       });
     }
-    const record = await this.prisma.attendance.create({
-      data: {
-        userId: dto.userId,
-        siteId: dto.siteId,
-        clientId: site.clientId,
-        date: this.toDateOnly(now.toISOString().slice(0, 10)),
-        checkInTime: now,
-        checkInLatitude: dto.latitude,
-        checkInLongitude: dto.longitude,
-        interventionId: intervention?.id,
-        status: 'PENDING',
-        manual: false,
-        createdBy: 'AGENT',
-      } as any,
-    });
-    const view = this.toView(this.toEntity(record));
+    let record: any = null;
+    if (dto.attendanceId) {
+      record = await this.prisma.attendance.findFirst({
+        where: {
+          id: dto.attendanceId,
+          userId: dto.userId,
+          interventionId: dto.interventionId ?? undefined,
+        },
+      });
+    }
+    if (!record) {
+      record = await this.prisma.attendance.findFirst({
+        where: {
+          userId: dto.userId,
+          interventionId: dto.interventionId ?? undefined,
+          date: { gte: startOfDay, lte: endOfDay },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    if (record) {
+      record = await this.prisma.attendance.update({
+        where: { id: record.id },
+        data: {
+          checkInTime: now,
+          checkInLatitude: dto.latitude,
+          checkInLongitude: dto.longitude,
+          status: 'PENDING',
+        },
+      });
+    } else {
+      record = await this.prisma.attendance.create({
+        data: {
+          userId: dto.userId,
+          date: startOfDay,
+          checkInTime: now,
+          checkInLatitude: dto.latitude,
+          checkInLongitude: dto.longitude,
+          interventionId: intervention?.id ?? dto.interventionId,
+          status: 'PENDING',
+          manual: false,
+          createdBy: 'AGENT',
+        } as any,
+      });
+    }
+    const view = await this.toView(this.toEntity(record));
     this.realtime.broadcast('attendance.checkin', {
       attendanceId: view.id,
       userId: dto.userId,
@@ -372,19 +417,25 @@ export class AttendanceService implements OnModuleInit {
   }
 
   async checkOut(dto: CheckOutDto) {
-    let existing = await this.prisma.attendance.findFirst({
-      where: {
-        userId: dto.userId,
-        checkOutTime: null,
-        status: { in: ['PENDING'] },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const now = new Date();
+    let existing = null as any;
+    if (dto.attendanceId) {
+      existing = await this.prisma.attendance.findFirst({
+        where: {
+          id: dto.attendanceId,
+          userId: dto.userId,
+          status: { in: ['PENDING'] },
+        },
+      });
+    }
     if (!existing) {
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
       existing = await this.prisma.attendance.findFirst({
         where: {
           userId: dto.userId,
-          checkOutTime: null,
+          interventionId: dto.interventionId ?? undefined,
+          date: { gte: todayStart, lte: todayEnd },
           status: { in: ['PENDING'] },
         },
         orderBy: { createdAt: 'desc' },
@@ -401,12 +452,11 @@ export class AttendanceService implements OnModuleInit {
       },
     });
     const interventionId = (existing as any).interventionId ?? undefined;
-    await this.updateInterventionStatus(existing.userId, existing.siteId, existing.date, 'COMPLETED', interventionId);
-    const view = this.toView(this.toEntity(record));
+    await this.updateInterventionStatus(existing.userId, existing.date, 'COMPLETED', interventionId);
+    const view = await this.toView(this.toEntity(record));
     this.realtime.broadcast('attendance.checkout', {
       attendanceId: view.id,
       userId: existing.userId,
-      siteId: existing.siteId,
       status: view.status,
       checkOutTime: view.checkOutTime,
       date: view.date,
@@ -437,8 +487,8 @@ export class AttendanceService implements OnModuleInit {
 
     const existing = await this.prisma.attendance.findFirst({
       where: {
+        id: dto.attendanceId ?? undefined,
         userId: dto.userId,
-        siteId: dto.siteId,
         interventionId: dto.interventionId ?? undefined,
         date: {
           gte: this.toDateOnly(now.toISOString().slice(0, 10)),
@@ -460,8 +510,6 @@ export class AttendanceService implements OnModuleInit {
       : await this.prisma.attendance.create({
           data: {
             userId: dto.userId,
-            siteId: dto.siteId,
-            clientId: site.clientId,
             date: this.toDateOnly(now.toISOString().slice(0, 10)),
             arrivalTime: now,
             arrivalLatitude: dto.latitude,
@@ -483,7 +531,7 @@ export class AttendanceService implements OnModuleInit {
       });
     }
 
-    const view = this.toView(this.toEntity(record));
+    const view = await this.toView(this.toEntity(record));
     this.realtime.broadcast('attendance.arrival', {
       attendanceId: view.id,
       userId: dto.userId,
@@ -506,7 +554,7 @@ export class AttendanceService implements OnModuleInit {
     let record: any = await this.prisma.attendance.findFirst({
       where: {
         userId: dto.userId,
-        siteId: dto.siteId,
+        interventionId: dto.interventionId ?? undefined,
         date: { gte: startOfDay, lte: endOfDay },
         status: { in: ['PENDING'] },
       },
@@ -516,8 +564,7 @@ export class AttendanceService implements OnModuleInit {
       record = await this.prisma.attendance.create({
         data: {
           userId: dto.userId,
-          siteId: dto.siteId,
-          clientId: site.clientId,
+          interventionId: dto.interventionId ?? undefined,
           date: startOfDay,
           status: 'PENDING',
           manual: false,
@@ -580,7 +627,7 @@ export class AttendanceService implements OnModuleInit {
         outsideSince: null,
       } as any,
     });
-        await this.updateInterventionStatus(att.userId, att.siteId, att.date, 'COMPLETED', att.interventionId);
+        await this.updateInterventionStatus(att.userId, att.date, 'COMPLETED', att.interventionId);
         this.notifications.send({
           audience: 'AGENT',
           targetId: att.userId,
@@ -593,7 +640,6 @@ export class AttendanceService implements OnModuleInit {
 
   private async updateInterventionStatus(
     userId: string,
-    siteId: string,
     date: Date,
     status: AttendanceStatus,
     interventionId?: string | null,
@@ -610,7 +656,6 @@ export class AttendanceService implements OnModuleInit {
         })
       : await this.prisma.intervention.findFirst({
           where: {
-            siteId,
             date: { gte: startOfDay, lte: endOfDay },
             assignments: { some: { userId } },
             status: { notIn: ['CANCELLED'] },
@@ -630,7 +675,6 @@ export class AttendanceService implements OnModuleInit {
       }
       const pending = await this.prisma.attendance.findMany({
         where: {
-          siteId,
           userId: { in: assignedUserIds },
           date: { gte: startOfDay, lte: endOfDay },
           checkOutTime: null,

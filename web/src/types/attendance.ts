@@ -16,9 +16,7 @@ export type Attendance = {
   site: {
     id: string;
     name: string;
-    clientName: string;
   };
-  clientId: string;
   interventionId?: string;
   checkInTime?: string;
   checkOutTime?: string;

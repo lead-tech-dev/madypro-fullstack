@@ -2,7 +2,6 @@ import { Site } from '../../types/site';
 import { apiFetch } from './client';
 
 export type SitePayload = {
-  clientId: string;
   name: string;
   address: string;
   latitude?: number;

@@ -207,7 +207,6 @@ export const SupervisorInterventionsPage: React.FC = () => {
                   <tr key={intervention.id}>
                     <td>
                       <strong>{intervention.siteName}</strong>
-                      <small style={{ display: 'block', color: 'var(--color-muted)' }}>{intervention.clientName}</small>
                     </td>
                     <td>
                       {formatDateTime(intervention.date)} · {intervention.startTime} – {intervention.endTime}
@@ -311,7 +310,6 @@ export const SupervisorInterventionsPage: React.FC = () => {
               <div>
                 <p className="card__meta">Intervention</p>
                 <h3 style={{ margin: 0 }}>{viewing.siteName}</h3>
-                <p className="card__meta">{viewing.clientName}</p>
               </div>
               <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
                 Fermer

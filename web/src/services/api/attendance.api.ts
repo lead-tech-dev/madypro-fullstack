@@ -6,7 +6,7 @@ export type AttendanceFilters = {
   endDate?: string;
   agentId?: string;
   siteId?: string;
-  clientId?: string;
+  interventionId?: string;
   status?: AttendanceStatus | 'all';
   page?: number;
   pageSize?: number;
@@ -35,7 +35,7 @@ export async function listAttendance(token: string, filters: AttendanceFilters =
   if (filters.endDate) params.set('endDate', filters.endDate);
   if (filters.agentId && filters.agentId !== 'all') params.set('agentId', filters.agentId);
   if (filters.siteId && filters.siteId !== 'all') params.set('siteId', filters.siteId);
-  if (filters.clientId && filters.clientId !== 'all') params.set('clientId', filters.clientId);
+  if (filters.interventionId) params.set('interventionId', filters.interventionId);
   if (filters.status && filters.status !== 'all') params.set('status', filters.status);
   if (filters.page) params.set('page', String(filters.page));
   if (filters.pageSize) params.set('pageSize', String(filters.pageSize));

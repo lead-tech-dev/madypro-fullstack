@@ -16,11 +16,9 @@ import { Input } from '../../components/ui/Input';
 import { useAuthContext } from '../../context/AuthContext';
 import { listUsers } from '../../services/api/users.api';
 import { listSites } from '../../services/api/sites.api';
-import { listClients } from '../../services/api/clients.api';
 import { listInterventions } from '../../services/api/interventions.api';
 import { User } from '../../types/user';
 import { Site } from '../../types/site';
-import { Client } from '../../types/client';
 import { Intervention } from '../../types/intervention';
 
 const today = new Date();
@@ -51,7 +49,6 @@ type FilterState = {
   endDate: string;
   agentId: string;
   siteId: string;
-  clientId: string;
   status: AttendanceStatus | 'all';
 };
 
@@ -60,7 +57,6 @@ const createFilters = (): FilterState => ({
   endDate: formatDate(today),
   agentId: 'all',
   siteId: 'all',
-  clientId: 'all',
   status: 'all',
 });
 
@@ -76,9 +72,8 @@ export const AttendanceListPage: React.FC = () => {
   const [options, setOptions] = useState<{
     agents: User[];
     sites: Site[];
-    clients: Client[];
     interventions: Intervention[];
-  }>({ agents: [], sites: [], clients: [], interventions: [] });
+  }>({ agents: [], sites: [], interventions: [] });
   const [manualForm, setManualForm] = useState<ManualFormState>(initialManualForm);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
@@ -94,7 +89,6 @@ export const AttendanceListPage: React.FC = () => {
     Promise.all([
       listUsers(token, { role: 'AGENT', status: 'active' }),
       listSites(token),
-      listClients(token),
       listInterventions(token, {
         status: 'COMPLETED',
         type: 'all',
@@ -102,7 +96,7 @@ export const AttendanceListPage: React.FC = () => {
         endDate: formatDate(today),
       }),
     ])
-      .then(([agentsPage, sitePage, clients, interventionsPage]) => {
+      .then(([agentsPage, sitePage, interventionsPage]) => {
         const agents = Array.isArray((agentsPage as any)?.items)
           ? (agentsPage as any).items
           : Array.isArray(agentsPage as any)
@@ -113,17 +107,12 @@ export const AttendanceListPage: React.FC = () => {
           : Array.isArray(sitePage as any)
           ? (sitePage as any)
           : [];
-        const clientItems = Array.isArray((clients as any)?.items)
-          ? (clients as any).items
-          : Array.isArray(clients as any)
-          ? (clients as any)
-          : [];
         const interventions = Array.isArray((interventionsPage as any)?.items)
           ? (interventionsPage as any).items
           : Array.isArray(interventionsPage as any)
           ? (interventionsPage as any)
           : [];
-        setOptions({ agents, sites, clients: clientItems, interventions });
+        setOptions({ agents, sites, interventions });
         const firstIntervention = interventions[0];
         setManualForm((prev) => ({
           ...prev,
@@ -150,7 +139,6 @@ export const AttendanceListPage: React.FC = () => {
       endDate: filters.endDate,
       agentId: filters.agentId,
       siteId: filters.siteId,
-      clientId: filters.clientId,
       status: filters.status,
       page,
       pageSize,
@@ -182,7 +170,7 @@ export const AttendanceListPage: React.FC = () => {
 
   useEffect(() => {
     fetchAttendance();
-  }, [token, filters.startDate, filters.endDate, filters.agentId, filters.siteId, filters.clientId, filters.status, page]);
+  }, [token, filters.startDate, filters.endDate, filters.agentId, filters.siteId, filters.status, page]);
 
   const handleFilterChange = (key: keyof FilterState, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -284,16 +272,9 @@ export const AttendanceListPage: React.FC = () => {
 
   const siteOptions = useMemo(
     () => [{ value: 'all', label: 'Tous les sites' }].concat(
-      options.sites.map((site) => ({ value: site.id, label: `${site.name} · ${site.clientName}` }))
+      options.sites.map((site) => ({ value: site.id, label: site.name }))
     ),
     [options.sites]
-  );
-
-  const clientOptions = useMemo(
-    () => [{ value: 'all', label: 'Tous les clients' }].concat(
-      options.clients.map((client) => ({ value: client.id, label: client.name }))
-    ),
-    [options.clients]
   );
 
   const manualAgentOptions = options.agents.map((agent) => ({ value: agent.id, label: agent.name }));
@@ -385,16 +366,6 @@ export const AttendanceListPage: React.FC = () => {
           Site
           <select value={filters.siteId} onChange={(event) => handleFilterChange('siteId', event.target.value)}>
             {siteOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="filter-field filter-card">
-          Client
-          <select value={filters.clientId} onChange={(event) => handleFilterChange('clientId', event.target.value)}>
-            {clientOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -577,7 +548,6 @@ export const AttendanceListPage: React.FC = () => {
                 'Date',
                 'Agent',
                 'Site',
-                'Client',
                 'Arrivée',
                 'Départ',
                 'Durée',
@@ -591,7 +561,6 @@ export const AttendanceListPage: React.FC = () => {
                   <td>{entry.date}</td>
                   <td>{entry.agent.name}</td>
                   <td>{entry.site.name}</td>
-                  <td>{entry.site.clientName}</td>
                   <td>{entry.checkInTime ?? '—'}</td>
                   <td>{entry.checkOutTime ?? '—'}</td>
                   <td>{durationLabel(entry.durationMinutes)}</td>
@@ -693,7 +662,6 @@ export const AttendanceListPage: React.FC = () => {
               <div className="detail-grid__item">
                 <span>Site</span>
                 <strong>{selected.site.name}</strong>
-                <small>{selected.site.clientName}</small>
               </div>
               <div className="detail-grid__item">
                 <span>Planifié</span>

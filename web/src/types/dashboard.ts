@@ -1,5 +1,4 @@
 export type DashboardFilterOptions = {
-  clients: string[];
   sites: string[];
   supervisors: string[];
 };
@@ -8,7 +7,6 @@ export type DashboardPlanningRecord = {
   id: string;
   agent: string;
   supervisor: string;
-  client: string;
   site: string;
   planned: boolean;
   checkIn?: string;

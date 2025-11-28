@@ -202,7 +202,6 @@ export const SupervisorPlanningPage: React.FC = () => {
               <div>
                 <p className="card__meta">Site</p>
                 <h3 style={{ margin: 0 }}>{site?.name ?? 'Site inconnu'}</h3>
-                <p className="card__meta">{site?.clientName}</p>
               </div>
             </div>
             <div className="table-wrapper" style={{ marginTop: '0.5rem' }}>

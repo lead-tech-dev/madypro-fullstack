@@ -12,10 +12,8 @@ import {
 } from '../../services/api/interventions.api';
 import { listSites } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
-import { listClients } from '../../services/api/clients.api';
 import { Site } from '../../types/site';
 import { User } from '../../types/user';
-import { Client } from '../../types/client';
 import { Select } from '../../components/ui/Select';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -65,7 +63,6 @@ const defaultFilters = () => ({
   type: 'all' as InterventionType | 'all',
   subType: '',
   siteId: 'all',
-  clientId: 'all',
   agentId: 'all',
   status: 'all' as InterventionStatus | 'all',
 });
@@ -88,7 +85,6 @@ export const InterventionsPage: React.FC = () => {
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [filters, setFilters] = useState(defaultFilters);
   const [sites, setSites] = useState<Site[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<CreateInterventionPayload>(createFormDefaults);
@@ -139,17 +135,12 @@ export const InterventionsPage: React.FC = () => {
 
   useEffect(() => {
     if (!token) return;
-    Promise.all([listSites(token), listClients(token), listUsers(token, { role: 'AGENT', status: 'active' })])
-      .then(([sitePage, clientData, userData]) => {
+    Promise.all([listSites(token), listUsers(token, { role: 'AGENT', status: 'active' })])
+      .then(([sitePage, userData]) => {
         const siteItems = Array.isArray((sitePage as any)?.items)
           ? (sitePage as any).items
           : Array.isArray(sitePage as any)
           ? (sitePage as any)
-          : [];
-        const clientItems = Array.isArray((clientData as any)?.items)
-          ? (clientData as any).items
-          : Array.isArray(clientData as any)
-          ? (clientData as any)
           : [];
         const agentItems = Array.isArray((userData as any)?.items)
           ? (userData as any).items
@@ -157,7 +148,6 @@ export const InterventionsPage: React.FC = () => {
           ? (userData as any)
           : [];
         setSites(siteItems);
-        setClients(clientItems);
         setUsers(agentItems);
         setForm((prev) => ({
           ...prev,
@@ -175,7 +165,6 @@ export const InterventionsPage: React.FC = () => {
       startDate: filters.startDate,
       endDate: filters.endDate,
       siteId: filters.siteId !== 'all' ? filters.siteId : undefined,
-      clientId: filters.clientId !== 'all' ? filters.clientId : undefined,
       type: filters.type,
       subType: filters.subType || undefined,
       agentId: filters.agentId !== 'all' ? filters.agentId : undefined,
@@ -199,7 +188,7 @@ export const InterventionsPage: React.FC = () => {
 
   useEffect(() => {
     fetchInterventions();
-  }, [token, filters.startDate, filters.endDate, filters.siteId, filters.clientId, filters.type, filters.subType, filters.agentId, filters.status, page]);
+  }, [token, filters.startDate, filters.endDate, filters.siteId, filters.type, filters.subType, filters.agentId, filters.status, page]);
 
   useEffect(() => {
     if (!token || !viewing) return;
@@ -218,7 +207,6 @@ export const InterventionsPage: React.FC = () => {
   }, [token, viewing]);
 
   const siteOptions = useMemo(() => [{ value: 'all', label: 'Tous les sites' }].concat(sites.map((site) => ({ value: site.id, label: site.name }))), [sites]);
-  const clientOptions = useMemo(() => [{ value: 'all', label: 'Tous les clients' }].concat(clients.map((client) => ({ value: client.id, label: client.name }))), [clients]);
   const agentOptions = useMemo(() => [{ value: 'all', label: 'Tous les agents' }].concat(users.map((user) => ({ value: user.id, label: user.name }))), [users]);
   const hasStarted = (intervention: Intervention) => {
     const planned = new Date(`${intervention.date}T${intervention.startTime}:00`);
@@ -641,10 +629,9 @@ export const InterventionsPage: React.FC = () => {
                     <td>
                       {intervention.startTime} – {intervention.endTime}
                     </td>
-                    <td>
-                      <strong>{intervention.siteName}</strong>
-                      <small style={{ display: 'block', color: 'var(--color-muted)' }}>{intervention.clientName}</small>
-                    </td>
+                  <td>
+                    <strong>{intervention.siteName}</strong>
+                  </td>
                     <td>
                       {intervention.type === 'REGULAR'
                         ? 'Régulier'

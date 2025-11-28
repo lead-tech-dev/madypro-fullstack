@@ -33,14 +33,15 @@ export class ReportsService {
       }),
       this.prisma.attendance.findMany({
         where: { date: { gte: start, lte: end } },
-        include: { user: true, site: true },
+        include: { user: true, intervention: { include: { site: true } } },
       }),
     ]);
 
     const attendanceMap = new Map<string, { checkIn?: string; status?: string }>();
     attendance.forEach((att) => {
-      if (!att.userId || !att.siteId) return;
-      const key = `${att.userId}::${att.siteId}`;
+      const siteId = (att as any).intervention?.siteId;
+      if (!att.userId || !siteId) return;
+      const key = `${att.userId}::${siteId}`;
       const checkIn = att.checkInTime ? new Date(att.checkInTime).toISOString().slice(11, 16) : undefined;
       const status = att.status;
       attendanceMap.set(key, { checkIn, status });
@@ -48,7 +49,6 @@ export class ReportsService {
 
     const planning = interventions.flatMap((intervention) => {
       const siteName = intervention.site.name;
-      const clientName = intervention.site.client.name;
       const supervisors = intervention.site.supervisors.map((s) => `${s.user.firstName} ${s.user.lastName}`.trim());
       return intervention.assignments.map((assign) => {
         const agent = `${assign.user.firstName} ${assign.user.lastName}`.trim();
@@ -67,7 +67,6 @@ export class ReportsService {
           id: `${intervention.id}-${assign.userId}`,
           agent,
           supervisor: supervisors.join(', ') || '—',
-          client: clientName,
           site: siteName,
           planned: true,
           checkIn: attendanceInfo?.checkIn,
@@ -77,7 +76,6 @@ export class ReportsService {
     });
 
     const filterOptions = {
-      clients: Array.from(new Set(planning.map((p) => p.client))),
       sites: Array.from(new Set(planning.map((p) => p.site))),
       supervisors: Array.from(new Set(planning.map((p) => p.supervisor).filter(Boolean))),
     };
@@ -129,10 +127,6 @@ export class ReportsService {
         totalMinutes: 1980,
         workingDays: 9,
         absenceMinutes: 240,
-        clients: [
-          { name: 'Maison Arches', minutes: 1200 },
-          { name: 'Terrasses Geneva', minutes: 780 },
-        ],
       },
       {
         id: '5',
@@ -140,10 +134,6 @@ export class ReportsService {
         totalMinutes: 1680,
         workingDays: 8,
         absenceMinutes: 0,
-        clients: [
-          { name: 'Viva Retail', minutes: 1200 },
-          { name: 'Maison Arches', minutes: 480 },
-        ],
       },
       {
         id: '4',
@@ -151,9 +141,6 @@ export class ReportsService {
         totalMinutes: 1440,
         workingDays: 7,
         absenceMinutes: 360,
-        clients: [
-          { name: 'Terrasses Geneva', minutes: 1440 },
-        ],
       },
     ];
 
@@ -161,7 +148,6 @@ export class ReportsService {
       {
         id: 'site-atelier',
         name: 'Atelier Genève',
-        clientName: 'Maison Arches',
         totalMinutes: 2100,
         agents: ['Lucas Pereira', 'Valérie Masson'],
         uncoveredDays: 0,
@@ -169,7 +155,6 @@ export class ReportsService {
       {
         id: 'site-viva',
         name: 'Siège Viva Retail',
-        clientName: 'Viva Retail',
         totalMinutes: 1680,
         agents: ['Imen Rami'],
         uncoveredDays: 1,
@@ -177,7 +162,6 @@ export class ReportsService {
       {
         id: 'site-terrasse',
         name: 'Terrasse Lémanique',
-        clientName: 'Terrasses Geneva',
         totalMinutes: 960,
         agents: ['Valérie Masson'],
         uncoveredDays: 2,
@@ -185,14 +169,9 @@ export class ReportsService {
     ];
 
     const totalMinutes = agentReports.reduce((sum, agent) => sum + agent.totalMinutes, 0);
-    const clientTotals = siteReports.reduce<Record<string, number>>((acc, site) => {
-      acc[site.clientName] = (acc[site.clientName] ?? 0) + site.totalMinutes;
-      return acc;
-    }, {});
 
     const totals = {
       totalMinutes,
-      clients: Object.entries(clientTotals).map(([name, minutes]) => ({ name, minutes })),
     };
 
     return {

@@ -5,14 +5,13 @@ export type Intervention = {
   id: string;
   siteId: string;
   siteName: string;
-  clientName: string;
   date: string;
   startTime: string;
   endTime: string;
   type: InterventionType;
   subType?: string;
   label?: string;
-  agents: { id: string; name: string }[];
+  agents: { id: string; name: string; attendanceId?: string; attendanceStatus?: string; arrivalTime?: string; checkInTime?: string; checkOutTime?: string }[];
   agentIds: string[];
   truckLabels: string[];
   observation?: string;

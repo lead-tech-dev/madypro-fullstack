@@ -5,7 +5,6 @@ export type InterventionFilters = {
   startDate?: string;
   endDate?: string;
   siteId?: string;
-  clientId?: string;
   type?: InterventionType | 'all';
   subType?: string;
   agentId?: string;
@@ -55,7 +54,6 @@ export async function listInterventions(token: string, filters: InterventionFilt
   if (filters.startDate) params.set('startDate', filters.startDate);
   if (filters.endDate) params.set('endDate', filters.endDate);
   if (filters.siteId) params.set('siteId', filters.siteId);
-  if (filters.clientId) params.set('clientId', filters.clientId);
   if (filters.type && filters.type !== 'all') params.set('type', mapTypeToApi(filters.type) as string);
   if (filters.subType) params.set('subType', filters.subType);
   if (filters.agentId) params.set('agentId', filters.agentId);

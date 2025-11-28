@@ -40,11 +40,19 @@ export type InterventionFilters = {
 export type InterventionView = InterventionEntity & {
   siteName: string;
   clientName: string;
-  agents: { id: string; name: string }[];
+  agents: {
+    id: string;
+    name: string;
+    attendanceId?: string;
+    attendanceStatus?: string;
+    arrivalTime?: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+  }[];
 };
 
 type InterventionRecord = Prisma.InterventionGetPayload<{
-  include: { assignments: true; trucks: true };
+  include: { assignments: true; trucks: true; attendances: true };
 }>;
 
 type PersistedInterventionType = 'REGULAR' | 'PUNCTUAL';
@@ -77,6 +85,10 @@ export class InterventionsService implements OnModuleInit {
 
   private endOfDay(value: string) {
     return new Date(`${value}T23:59:59.999Z`);
+  }
+
+  private combine(dateStr: string, time: string) {
+    return new Date(`${dateStr}T${time}:00`);
   }
 
   private toEntity(record: InterventionRecord): InterventionEntity {
@@ -119,12 +131,28 @@ export class InterventionsService implements OnModuleInit {
     return type as PersistedInterventionType;
   }
 
-  private present(entity: InterventionEntity): InterventionView {
+  private present(
+    entity: InterventionEntity,
+    attendances?: { id: string; userId: string; status: string; arrivalTime: Date | null; checkInTime: Date | null; checkOutTime: Date | null }[],
+  ): InterventionView {
     const site = this.sitesService.findOne(entity.siteId);
+    const attMap = new Map<string, any>();
+    attendances?.forEach((att) => attMap.set(att.userId, att));
     const agents = entity.agentIds
       .map((id) => this.usersService.findOne(id))
       .filter((user): user is NonNullable<ReturnType<UsersService['findOne']>> => Boolean(user))
-      .map((user) => ({ id: user.id, name: user.name }));
+      .map((user) => {
+        const att = attMap.get(user.id);
+        return {
+          id: user.id,
+          name: user.name,
+          attendanceId: att?.id,
+          attendanceStatus: att?.status,
+          arrivalTime: att?.arrivalTime ? att.arrivalTime.toISOString() : undefined,
+          checkInTime: att?.checkInTime ? att.checkInTime.toISOString() : undefined,
+          checkOutTime: att?.checkOutTime ? att.checkOutTime.toISOString() : undefined,
+        };
+      });
     return {
       ...entity,
       siteName: site.name,
@@ -206,14 +234,14 @@ export class InterventionsService implements OnModuleInit {
       this.prisma.intervention.findMany({
         where,
         orderBy: [{ date: 'desc' }, { startTime: 'asc' }],
-        include: { assignments: true, trucks: true },
+        include: { assignments: true, trucks: true, attendances: true },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       this.prisma.intervention.count({ where }),
     ]);
     return {
-      items: records.map((record) => this.present(this.toEntity(record))),
+      items: records.map((record) => this.present(this.toEntity(record), record.attendances as any)),
       total,
       page,
       pageSize,
@@ -223,13 +251,13 @@ export class InterventionsService implements OnModuleInit {
   async findOne(id: string, viewer: { id: string; role: string }) {
     const record = await this.prisma.intervention.findUnique({
       where: { id },
-      include: { assignments: true, trucks: true },
+      include: { assignments: true, trucks: true, attendances: true },
     });
     if (!record) {
       throw new NotFoundException('Intervention introuvable');
     }
     // Agents can only access their assigned interventions
-    return this.present(this.toEntity(record));
+    return this.present(this.toEntity(record), (record as any).attendances);
   }
 
   async create(dto: CreateInterventionDto) {
@@ -263,9 +291,28 @@ export class InterventionsService implements OnModuleInit {
             }
           : undefined,
       } as any,
-      include: { assignments: true, trucks: true },
+      include: { assignments: true, trucks: true, attendances: true },
     });
-    const view = this.present(this.toEntity(record as any));
+
+    // Pré-crée une ligne d'assiduité par agent assigné, avec horaires vides
+    if (record.assignments?.length) {
+      const plannedStart = this.combine(dto.date, dto.startTime);
+      const plannedEnd = this.combine(dto.date, dto.endTime);
+      await this.prisma.attendance.createMany({
+        data: record.assignments.map((assignment) => ({
+          userId: assignment.userId,
+          interventionId: record.id,
+          date: this.toDateOnly(dto.date),
+          plannedStart,
+          plannedEnd,
+          status: 'PENDING',
+          manual: false,
+          createdBy: 'SYSTEM',
+        })),
+      });
+    }
+
+    const view = this.present(this.toEntity(record as any), (record as any).attendances);
     this.realtime.broadcast('intervention.created', {
       id: view.id,
       siteId: view.siteId,
@@ -322,14 +369,14 @@ export class InterventionsService implements OnModuleInit {
     const record = await this.prisma.intervention.update({
       where: { id },
       data,
-      include: { assignments: true, trucks: true },
+      include: { assignments: true, trucks: true, attendances: true },
     });
     const finalType = dto.type ? this.normalizeTypeInput(dto.type) ?? record.type : record.type;
     const finalSubType = dto.subType ?? record.subType;
     if (finalType === 'PUNCTUAL' && !finalSubType) {
       throw new BadRequestException('Le sous-type est obligatoire pour une intervention ponctuelle.');
     }
-    const view = this.present(this.toEntity(record));
+    const view = this.present(this.toEntity(record), (record as any).attendances);
     this.realtime.broadcast('intervention.updated', {
       id: view.id,
       siteId: view.siteId,
@@ -366,9 +413,9 @@ export class InterventionsService implements OnModuleInit {
     const updated = await this.prisma.intervention.update({
       where: { id },
       data: { status },
-      include: { assignments: true, trucks: true },
+      include: { assignments: true, trucks: true, attendances: true },
     });
-    const view = this.present(this.toEntity(updated));
+    const view = this.present(this.toEntity(updated), (updated as any).attendances);
     this.realtime.broadcast('intervention.status', {
       id: view.id,
       siteId: view.siteId,
@@ -401,9 +448,9 @@ export class InterventionsService implements OnModuleInit {
             }
           : undefined,
       },
-      include: { assignments: true, trucks: true },
+      include: { assignments: true, trucks: true, attendances: true },
     });
-    const view = this.present(this.toEntity(copy));
+    const view = this.present(this.toEntity(copy), (copy as any).attendances);
     this.notifyAssignedAgents(view, 'created').catch((err) =>
       this.logger.warn(`Notification agents échouée: ${err.message}`),
     );
@@ -420,9 +467,9 @@ export class InterventionsService implements OnModuleInit {
         status: 'CANCELLED',
         observation,
       },
-      include: { assignments: true, trucks: true },
+      include: { assignments: true, trucks: true, attendances: true },
     });
-    const view = this.present(this.toEntity(record));
+    const view = this.present(this.toEntity(record), (record as any).attendances);
     this.realtime.broadcast('intervention.status', {
       id: view.id,
       siteId: view.siteId,
@@ -567,9 +614,9 @@ export class InterventionsService implements OnModuleInit {
                 }
               : undefined,
           },
-          include: { assignments: true, trucks: true },
+          include: { assignments: true, trucks: true, attendances: true },
         });
-        const view = this.present(this.toEntity(created));
+        const view = this.present(this.toEntity(created), (created as any).attendances);
         this.notifyAssignedAgents(view, 'created').catch((err) =>
           this.logger.warn(`Notification agents échouée: ${err.message}`),
         );

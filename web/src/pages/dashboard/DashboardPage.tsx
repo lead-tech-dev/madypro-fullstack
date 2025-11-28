@@ -6,7 +6,6 @@ import { env } from '../../config/env';
 
 type FilterState = {
   date: string;
-  client: string;
   site: string;
   supervisor: string;
   search: string;
@@ -14,7 +13,6 @@ type FilterState = {
 
 const createDefaultFilters = (defaultDate: string): FilterState => ({
   date: defaultDate,
-  client: 'all',
   site: 'all',
   supervisor: 'all',
   search: '',
@@ -62,12 +60,11 @@ export const DashboardPage: React.FC = () => {
   const filteredRecords = useMemo(() => {
     if (!summary || !filters) return [];
     return summary.planning.filter((record) => {
-      if (filters.client !== 'all' && record.client !== filters.client) return false;
       if (filters.site !== 'all' && record.site !== filters.site) return false;
       if (filters.supervisor !== 'all' && record.supervisor !== filters.supervisor) return false;
       if (filters.search) {
         const term = filters.search.toLowerCase();
-        const target = `${record.agent} ${record.site} ${record.client} ${record.supervisor}`.toLowerCase();
+        const target = `${record.agent} ${record.site} ${record.supervisor}`.toLowerCase();
         if (!target.includes(term)) return false;
       }
       return true;
@@ -117,7 +114,7 @@ export const DashboardPage: React.FC = () => {
               Recherche
               <input
                 type="text"
-                placeholder="Agent, site, client..."
+                placeholder="Agent, site..."
                 value={filters.search}
                 onChange={(event) => handleFilterChange('search', event.target.value)}
               />
@@ -129,19 +126,6 @@ export const DashboardPage: React.FC = () => {
                 value={filters.date}
                 onChange={(event) => handleFilterChange('date', event.target.value)}
               />
-            </label>
-            <label className="filter-field filter-card">
-              Client
-              <select
-                value={filters.client}
-                onChange={(event) => handleFilterChange('client', event.target.value)}
-              >
-                {['all', ...summary.filterOptions.clients].map((option) => (
-                  <option key={option} value={option}>
-                    {option === 'all' ? 'Tous' : option}
-                  </option>
-                ))}
-              </select>
             </label>
             <label className="filter-field filter-card">
               Site
@@ -205,7 +189,6 @@ export const DashboardPage: React.FC = () => {
                 <tr>
                   <th>Agent</th>
                   <th>Site</th>
-                  <th>Client</th>
                   <th>Superviseur</th>
                   <th>Statut</th>
                 </tr>
@@ -215,7 +198,6 @@ export const DashboardPage: React.FC = () => {
                   <tr key={record.id}>
                     <td>{record.agent}</td>
                     <td>{record.site}</td>
-                    <td>{record.client}</td>
                     <td>{record.supervisor}</td>
                     <td>
                       <span

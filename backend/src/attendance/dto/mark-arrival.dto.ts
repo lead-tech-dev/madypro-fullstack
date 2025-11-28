@@ -16,4 +16,8 @@ export class MarkArrivalDto {
   @IsString()
   @IsOptional()
   interventionId?: string;
+
+  @IsString()
+  @IsOptional()
+  attendanceId?: string;
 }

@@ -1,13 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
-import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { useAuthContext } from '../../context/AuthContext';
-import { listClients } from '../../services/api/clients.api';
 import { createSite, getSite, SitePayload, updateSite } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
-import { Client } from '../../types/client';
 import { env } from '../../config/env';
 
 const STATUS_OPTIONS = [
@@ -29,7 +26,6 @@ type AddressSuggestion = {
 
 type FormState = {
   name: string;
-  clientId: string;
   address: string;
   timeWindow: string;
   latitude: string;
@@ -39,7 +35,6 @@ type FormState = {
 
 const INITIAL_FORM: FormState = {
   name: '',
-  clientId: '',
   address: '',
   timeWindow: '',
   latitude: '',
@@ -54,7 +49,6 @@ export const SiteFormPage: React.FC = () => {
   const isEdit = Boolean(siteId);
   const { token, notify } = useAuthContext();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
-  const [clients, setClients] = useState<Client[]>([]);
   const [supervisors, setSupervisors] = useState<SupervisorOption[]>([]);
   const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,12 +69,10 @@ export const SiteFormPage: React.FC = () => {
     setLoading(true);
     const load = async () => {
       try {
-        const [clientData, supervisorData, siteData] = await Promise.all([
-          listClients(token),
+        const [supervisorData, siteData] = await Promise.all([
           listUsers(token, { role: 'SUPERVISOR', status: 'active' }),
           siteId ? getSite(token, siteId) : Promise.resolve(null),
         ]);
-        setClients(clientData);
         const supervisorItems = (supervisorData as any)?.items ?? (supervisorData as any) ?? [];
         const supervisorOptions: SupervisorOption[] = supervisorItems.map((user: any) => ({
           id: user.id,
@@ -97,7 +89,6 @@ export const SiteFormPage: React.FC = () => {
           setSupervisors(mergedSupervisors);
           setForm({
             name: siteData.name,
-            clientId: siteData.clientId,
             address: siteData.address,
             timeWindow: siteData.timeWindow ?? '',
             latitude: typeof siteData.latitude === 'number' ? String(siteData.latitude) : '',
@@ -108,10 +99,7 @@ export const SiteFormPage: React.FC = () => {
           setFormVisible(true);
         } else {
           setSupervisors(supervisorOptions);
-          setForm((prev) => ({
-            ...INITIAL_FORM,
-            clientId: clientData[0]?.id || '',
-          }));
+          setForm(INITIAL_FORM);
           setSelectedSupervisors([]);
           // en création, on ouvre la modale directement pour aligner avec l'édition
           setFormVisible(true);
@@ -120,7 +108,7 @@ export const SiteFormPage: React.FC = () => {
         const message =
           err instanceof Error
             ? err.message
-            : 'Impossible de charger les informations clients/superviseurs.';
+            : 'Impossible de charger les informations superviseurs.';
         setError(message);
         notify(message, 'error');
       } finally {
@@ -145,11 +133,6 @@ export const SiteFormPage: React.FC = () => {
       prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
     );
   };
-
-  const clientOptions = useMemo(
-    () => clients.map((client) => ({ value: client.id, label: client.name })),
-    [clients],
-  );
 
   useEffect(() => {
     if (!mapboxToken) {
@@ -215,7 +198,7 @@ export const SiteFormPage: React.FC = () => {
     setAddressSuggestions([]);
   };
 
-  const isInvalid = !form.name || !form.address || !form.clientId || !token;
+  const isInvalid = !form.name || !form.address || !token;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -225,7 +208,6 @@ export const SiteFormPage: React.FC = () => {
     const latitude = form.latitude ? Number(form.latitude) : undefined;
     const longitude = form.longitude ? Number(form.longitude) : undefined;
     const payload: SitePayload = {
-      clientId: form.clientId,
       name: form.name,
       address: form.address,
       timeWindow: form.timeWindow || undefined,
@@ -257,10 +239,7 @@ export const SiteFormPage: React.FC = () => {
   };
 
   const openCreateForm = () => {
-    setForm({
-      ...INITIAL_FORM,
-      clientId: clients[0]?.id || '',
-    });
+    setForm(INITIAL_FORM);
     setSelectedSupervisors([]);
     setAddressSelected(false);
     setFormVisible(true);
@@ -270,12 +249,8 @@ export const SiteFormPage: React.FC = () => {
     <div>
       <div className="page-header">
         <span className="pill">Sites</span>
-        <h2>{isEdit ? 'Modifier un site' : 'Nouveau site client'}</h2>
-        <p>
-          {isEdit
-            ? 'Ajustez les informations, superviseurs et moyens logistiques d’un site existant.'
-            : 'Ajoutez un contrat de nettoyage : client, superviseurs et logistique terrain.'}
-        </p>
+        <h2>{isEdit ? 'Modifier un site' : 'Nouveau site'}</h2>
+        <p>Ajustez les informations, superviseurs et moyens logistiques d’un site.</p>
         <Button type="button" onClick={openCreateForm}>
           {isEdit ? 'Modifier' : 'Créer un site'}
         </Button>
@@ -341,16 +316,6 @@ export const SiteFormPage: React.FC = () => {
                   required
                   value={form.name}
                   onChange={handleChange}
-                />
-                <Select
-                  id="clientId"
-                  name="clientId"
-                  label="Client"
-                  options={clientOptions.length ? clientOptions : [{ value: '', label: 'Aucun client' }]}
-                  value={form.clientId}
-                  onChange={handleChange}
-                  disabled={!clientOptions.length}
-                  required
                 />
                 <Input
                   id="address"

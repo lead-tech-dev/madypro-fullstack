@@ -111,7 +111,6 @@ model Site {
   client           Client             @relation(fields: [clientId], references: [id])
   supervisors      SiteSupervisor[]
   interventions    Intervention[]
-  attendance       Attendance[]
   absences         Absence[]
   InterventionRule InterventionRule[]
 }
@@ -182,9 +181,7 @@ model InterventionRule {
 model Attendance {
   id                String           @id @default(cuid())
   userId            String
-  siteId            String
-  clientId          String
-  interventionId    String?
+  interventionId    String
   date              DateTime
   arrivalTime       DateTime?
   arrivalLatitude   Float?
@@ -208,8 +205,7 @@ model Attendance {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   user              User             @relation(fields: [userId], references: [id])
-  site              Site             @relation(fields: [siteId], references: [id])
-  intervention      Intervention?    @relation(fields: [interventionId], references: [id], onDelete: SetNull)
+  intervention      Intervention     @relation(fields: [interventionId], references: [id], onDelete: Cascade)
 }
 
 model Absence {

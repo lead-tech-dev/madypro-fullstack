@@ -72,10 +72,9 @@ export const ReportsPage: React.FC = () => {
   const exportSites = () => {
     if (!data) return;
     const rows = [
-      ['Site', 'Client', 'Heures totales', 'Agents', 'Jours non couverts'],
+      ['Site', 'Heures totales', 'Agents', 'Jours non couverts'],
       ...data.siteReports.map((site) => [
         site.name,
-        site.clientName,
         minutesToHoursLabel(site.totalMinutes),
         site.agents.join(' / '),
         site.uncoveredDays.toString(),
@@ -100,7 +99,7 @@ export const ReportsPage: React.FC = () => {
         <div className="page-hero__content">
           <span className="pill">Rapports & exports</span>
           <h2>Préparez la paie et la facturation</h2>
-          <p>Produisez en un clic des indicateurs agents, sites et clients pour la période de votre choix.</p>
+          <p>Produisez en un clic des indicateurs agents et sites pour la période de votre choix.</p>
         </div>
         <div className="page-hero__accent">
           <h3>Période</h3>
@@ -152,7 +151,6 @@ export const ReportsPage: React.FC = () => {
                     <th>Heures totales</th>
                     <th>Jours travaillés</th>
                     <th>Heures d'absence</th>
-                    <th>Clients</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -162,15 +160,6 @@ export const ReportsPage: React.FC = () => {
                       <td>{minutesToHoursLabel(agent.totalMinutes)}</td>
                       <td>{agent.workingDays}</td>
                       <td>{minutesToHoursLabel(agent.absenceMinutes)}</td>
-                      <td>
-                        <ul className="list-line" style={{ border: 'none' }}>
-                          {agent.clients.map((client) => (
-                            <li key={client.name} style={{ border: 'none', padding: '0.25rem 0' }}>
-                              {client.name} <span>{minutesToHoursLabel(client.minutes)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -193,7 +182,6 @@ export const ReportsPage: React.FC = () => {
                 <thead>
                   <tr>
                     <th>Site</th>
-                    <th>Client</th>
                     <th>Heures totales</th>
                     <th>Agents</th>
                     <th>Jours non couverts</th>
@@ -203,32 +191,9 @@ export const ReportsPage: React.FC = () => {
                   {data.siteReports.map((site) => (
                     <tr key={site.id}>
                       <td>{site.name}</td>
-                      <td>{site.clientName}</td>
                       <td>{minutesToHoursLabel(site.totalMinutes)}</td>
                       <td>{site.agents.join(', ')}</td>
                       <td>{site.uncoveredDays}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="panel">
-            <h3>Vue synthèse par client</h3>
-            <div className="table-wrapper">
-              <table className="table" aria-label="synthèse clients">
-                <thead>
-                  <tr>
-                    <th>Client</th>
-                    <th>Heures totales</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.totals.clients.map((client) => (
-                    <tr key={client.name}>
-                      <td>{client.name}</td>
-                      <td>{minutesToHoursLabel(client.minutes)}</td>
                     </tr>
                   ))}
                 </tbody>

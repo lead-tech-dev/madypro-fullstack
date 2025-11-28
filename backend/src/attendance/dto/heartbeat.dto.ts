@@ -1,4 +1,4 @@
-import { IsString, IsNumber } from 'class-validator';
+import { IsString, IsNumber, IsOptional } from 'class-validator';
 
 export class HeartbeatDto {
   @IsString()
@@ -12,4 +12,8 @@ export class HeartbeatDto {
 
   @IsNumber()
   longitude!: number;
+
+  @IsString()
+  @IsOptional()
+  interventionId?: string;
 }

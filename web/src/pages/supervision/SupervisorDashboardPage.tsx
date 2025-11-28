@@ -120,7 +120,6 @@ export const SupervisorDashboardPage: React.FC = () => {
                 <tr key={intervention.id}>
                   <td>
                     <strong>{intervention.siteName}</strong>
-                    <small style={{ display: 'block', color: 'var(--color-muted)' }}>{intervention.clientName}</small>
                   </td>
                   <td>
                     {intervention.date} · {intervention.startTime} – {intervention.endTime}

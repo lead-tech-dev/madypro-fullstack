@@ -88,7 +88,6 @@ export const AbsenceDetailPage: React.FC = () => {
           <div className="detail-grid__item">
             <span>Site</span>
             <strong>{absence.site.name}</strong>
-            <small>{absence.site.clientName}</small>
           </div>
         )}
         <div className="detail-grid__item">

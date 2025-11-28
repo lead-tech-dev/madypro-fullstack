@@ -8,14 +8,7 @@ type NavItem =
 
 const ADMIN_MENU: NavItem[] = [
   { type: 'link', to: '/dashboard', label: 'Tableau de bord' },
-  {
-    type: 'group',
-    label: 'Sites & clients',
-    children: [
-      { to: '/sites', label: 'Sites' },
-      { to: '/clients', label: 'Clients' },
-    ],
-  },
+  { type: 'link', to: '/sites', label: 'Sites' },
   { type: 'link', to: '/users', label: 'Équipes' },
   { type: 'link', to: '/interventions', label: 'Interventions' },
   { type: 'link', to: '/attendance', label: 'Pointages' },
