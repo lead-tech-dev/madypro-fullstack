@@ -145,6 +145,7 @@ model Intervention {
   anomalies           Anomaly[]
   generatedFromRuleId String?
   generatedFromRule   InterventionRule?        @relation(fields: [generatedFromRuleId], references: [id])
+  attendances         Attendance[]
 }
 
 model InterventionAssignment {

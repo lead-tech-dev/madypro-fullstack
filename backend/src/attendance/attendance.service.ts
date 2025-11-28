@@ -86,7 +86,7 @@ export class AttendanceService implements OnModuleInit {
 
   private toEntity(record: AttendanceRecord): AttendanceEntity {
     const r: any = record as any;
-    return {
+    const base: AttendanceEntity = {
       id: record.id,
       userId: record.userId,
       siteId: record.siteId,
@@ -122,6 +122,10 @@ export class AttendanceService implements OnModuleInit {
           : undefined,
       outsideSince: r.outsideSince ?? undefined,
     };
+    if (r.interventionId) {
+      base.interventionId = r.interventionId;
+    }
+    return base;
   }
 
   private async getRecord(id: string) {
@@ -413,9 +417,13 @@ export class AttendanceService implements OnModuleInit {
   async markArrival(dto: MarkArrivalDto) {
     const site = this.sitesService.findOne(dto.siteId);
     const now = new Date();
-    const intervention = await this.ensureWithinInterventionWindow(dto.userId, dto.siteId, now, {
-      allowBeforeStart: true,
-    });
+    const intervention = dto.interventionId
+      ? await this.prisma.intervention.findFirst({
+          where: { id: dto.interventionId, siteId: dto.siteId, assignments: { some: { userId: dto.userId } } },
+        })
+      : await this.ensureWithinInterventionWindow(dto.userId, dto.siteId, now, {
+          allowBeforeStart: true,
+        });
     if (site.latitude == null || site.longitude == null) {
       throw new BadRequestException("Les coordonnées du site sont manquantes.");
     }
@@ -431,12 +439,13 @@ export class AttendanceService implements OnModuleInit {
       where: {
         userId: dto.userId,
         siteId: dto.siteId,
+        interventionId: dto.interventionId ?? undefined,
         date: {
           gte: this.toDateOnly(now.toISOString().slice(0, 10)),
           lte: this.endOfDay(now.toISOString().slice(0, 10)),
         },
       },
-    });
+    } as any);
 
     const record = existing
       ? await this.prisma.attendance.update({
@@ -445,6 +454,7 @@ export class AttendanceService implements OnModuleInit {
             arrivalTime: now,
             arrivalLatitude: dto.latitude,
             arrivalLongitude: dto.longitude,
+            interventionId: intervention?.id ?? dto.interventionId,
           } as any,
         })
       : await this.prisma.attendance.create({
@@ -456,6 +466,7 @@ export class AttendanceService implements OnModuleInit {
             arrivalTime: now,
             arrivalLatitude: dto.latitude,
             arrivalLongitude: dto.longitude,
+            interventionId: intervention?.id ?? dto.interventionId,
             status: 'PENDING',
             manual: false,
             createdBy: 'AGENT',

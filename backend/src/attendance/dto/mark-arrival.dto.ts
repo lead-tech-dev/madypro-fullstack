@@ -1,4 +1,4 @@
-import { IsNumber, IsString } from 'class-validator';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class MarkArrivalDto {
   @IsString()
@@ -12,4 +12,8 @@ export class MarkArrivalDto {
 
   @IsNumber()
   longitude!: number;
+
+  @IsString()
+  @IsOptional()
+  interventionId?: string;
 }
