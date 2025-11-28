@@ -16,9 +16,10 @@ import { HeartbeatDto } from './dto/heartbeat.dto';
 export class AttendanceController {
   constructor(private readonly service: AttendanceService) {}
 
-  @Roles('ADMIN', 'SUPERVISOR')
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
   @Get()
   list(
+    @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('agentId') userId?: string,
@@ -30,7 +31,7 @@ export class AttendanceController {
     return this.service.list({
       startDate,
       endDate,
-      userId,
+      userId: req.user?.role === 'AGENT' ? req.user?.sub ?? userId : userId,
       interventionId,
       status: (status as any) ?? 'all',
       page: parseInt(page, 10) || 1,
