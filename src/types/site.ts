@@ -1,8 +1,6 @@
 export type Site = {
   id: string;
   name: string;
-  clientId: string;
-  clientName: string;
   address: string;
   latitude?: number;
   longitude?: number;

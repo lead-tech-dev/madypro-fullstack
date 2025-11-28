@@ -11,7 +11,6 @@ export const SiteCard: React.FC<{ site: Site }> = ({ site }) => (
         <Text style={styles.statusText}>{site.active ? 'Actif' : 'Inactif'}</Text>
       </View>
     </View>
-    <Text style={styles.subtitle}>{site.clientName}</Text>
     <Text style={styles.meta}>{site.address}</Text>
     {site.timeWindow && <Text style={styles.meta}>Fenêtre : {site.timeWindow}</Text>}
   </View>

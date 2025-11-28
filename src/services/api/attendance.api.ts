@@ -1,7 +1,10 @@
 import { Attendance } from '../../types/attendance';
 import { apiFetch } from './client';
 
-export async function listAttendance(token: string, filters: Partial<{ startDate: string; endDate: string; agentId: string; siteId: string }> = {}) {
+export async function listAttendance(
+  token: string,
+  filters: Partial<{ startDate: string; endDate: string; agentId: string; interventionId: string }> = {},
+) {
   const params = new URLSearchParams();
   if (filters.startDate) params.set('startDate', filters.startDate);
   if (filters.endDate) params.set('endDate', filters.endDate);
@@ -9,7 +12,7 @@ export async function listAttendance(token: string, filters: Partial<{ startDate
     params.set('agentId', filters.agentId);
     params.set('userId', filters.agentId); // compat backend
   }
-  if (filters.siteId) params.set('siteId', filters.siteId);
+  if (filters.interventionId) params.set('interventionId', filters.interventionId);
   const query = params.toString();
   const path = query ? `/attendance?${query}` : '/attendance';
   return apiFetch<Attendance[]>({ path, token });
@@ -40,6 +43,7 @@ type CheckInPayload = {
   siteId: string;
   latitude: number;
   longitude: number;
+  interventionId?: string;
 };
 
 export async function checkIn(token: string, payload: CheckInPayload) {
@@ -58,6 +62,7 @@ type MarkArrivalPayload = {
   siteId: string;
   latitude: number;
   longitude: number;
+  interventionId?: string;
 };
 
 export async function markArrival(token: string, payload: MarkArrivalPayload) {
@@ -73,6 +78,7 @@ export async function markArrival(token: string, payload: MarkArrivalPayload) {
 
 type CheckOutPayload = {
   userId: string;
+  interventionId?: string;
 };
 
 export type HeartbeatPayload = {

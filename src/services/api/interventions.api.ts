@@ -6,7 +6,6 @@ export type InterventionFilters = {
   startDate?: string;
   endDate?: string;
   siteId?: string;
-  clientId?: string;
   type?: InterventionType | 'all';
   subType?: string;
   agentId?: string;
@@ -41,7 +40,6 @@ export async function fetchInterventions(token: string, filters: InterventionFil
   if (filters.startDate) params.set('startDate', filters.startDate);
   if (filters.endDate) params.set('endDate', filters.endDate);
   if (filters.siteId) params.set('siteId', filters.siteId);
-  if (filters.clientId) params.set('clientId', filters.clientId);
   if (filters.type && filters.type !== 'all') params.set('type', filters.type);
   if (filters.subType) params.set('subType', filters.subType);
   if (filters.agentId) {
@@ -136,7 +134,6 @@ function mapIntervention(intervention: ApiIntervention): Intervention {
     id: intervention.id,
     siteId: intervention.siteId,
     siteName: intervention.siteName,
-    clientName: intervention.clientName,
     date: intervention.date,
     startTime: intervention.startTime,
     endTime: intervention.endTime,
@@ -162,7 +159,6 @@ type ApiIntervention = {
   siteAddress?: string;
   siteLatitude?: number;
   siteLongitude?: number;
-  clientName: string;
   date: string;
   startTime: string;
   endTime: string;

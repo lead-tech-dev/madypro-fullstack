@@ -12,7 +12,6 @@ export type Intervention = {
   id: string;
   siteId: string;
   siteName: string;
-  clientName: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -21,7 +20,7 @@ export type Intervention = {
   label?: string;
   status: InterventionStatus;
   agentIds: string[];
-  agents: { id: string; name: string }[];
+  agents: { id: string; name: string; attendanceId?: string; attendanceStatus?: string; arrivalTime?: string; checkInTime?: string; checkOutTime?: string }[];
   truckLabels: string[];
   observation?: string;
   actualStartTime?: string;

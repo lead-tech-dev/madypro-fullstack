@@ -245,6 +245,7 @@ export default function InterventionDetailScreen() {
         siteId: target.siteId,
         latitude: coords.latitude,
         longitude: coords.longitude,
+        interventionId: target.id,
       }).catch((err) => {
         Alert.alert('Impossible de démarrer', err.message || 'Erreur lors du démarrage');
         throw err;
@@ -284,7 +285,7 @@ export default function InterventionDetailScreen() {
     }
     const finishAction = async () => {
       const now = new Date();
-      await checkOut(token, { userId: user.id }).catch((err) => {
+      await checkOut(token, { userId: user.id, interventionId: target.id }).catch((err) => {
         Alert.alert('Impossible de terminer', err.message || 'Erreur lors de la fin');
         throw err;
       });
@@ -391,6 +392,7 @@ export default function InterventionDetailScreen() {
         siteId: intervention.siteId,
         latitude: coords.latitude,
         longitude: coords.longitude,
+        interventionId: intervention.id,
       });
       Alert.alert('Présence enregistrée', 'Votre arrivée sur site a été enregistrée.');
       setArrivalRecorded(true);
