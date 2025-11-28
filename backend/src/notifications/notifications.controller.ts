@@ -36,6 +36,7 @@ export class NotificationsController {
   @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
   @Post('register-token')
   registerToken(@Req() req: any, @Body() dto: RegisterTokenDto) {
-    return this.service.registerToken(req.user?.sub, dto.token);
+    const userId = req.user?.sub ?? req.user?.userId;
+    return this.service.registerToken(userId, dto.token);
   }
 }
