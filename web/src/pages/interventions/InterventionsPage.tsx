@@ -797,31 +797,23 @@ export const InterventionsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {viewing && filterAttendanceForIntervention(attendanceByAgent, viewing).length
-                        ? filterAttendanceForIntervention(attendanceByAgent, viewing).map((att) => (
-                            <tr key={att.id}>
-                              <td>{att.agent.name}</td>
-                              <td>{att.checkInTime ?? att.plannedStart ?? '—'}</td>
-                              <td>{att.checkInTime ?? '—'}</td>
-                              <td>{att.checkOutTime ?? '—'}</td>
-                            </tr>
-                          ))
-                        : null}
-                      {viewing.agents
-                        .filter((agent) =>
-                          !filterAttendanceForIntervention(attendanceByAgent, viewing ?? ({} as any)).some(
-                            (att) => att.agent.id === agent.id,
-                          ),
-                        )
-                        .map((agent) => (
+                      {viewing.agents.map((agent) => {
+                        const fallback = filterAttendanceForIntervention(attendanceByAgent, viewing).find(
+                          (att) => att.agent.id === agent.id,
+                        );
+                        const arrival = agent.arrivalTime ?? fallback?.checkInTime ?? fallback?.plannedStart ?? '—';
+                        const start = agent.checkInTime ?? fallback?.checkInTime ?? '—';
+                        const end = agent.checkOutTime ?? fallback?.checkOutTime ?? '—';
+                        return (
                           <tr key={agent.id}>
                             <td>{agent.name}</td>
-                            <td>—</td>
-                            <td>—</td>
-                            <td>—</td>
+                            <td>{arrival || '—'}</td>
+                            <td>{start || '—'}</td>
+                            <td>{end || '—'}</td>
                           </tr>
-                        ))}
-                      {!viewing.agents.length && viewAttendances.length === 0 && (
+                        );
+                      })}
+                      {!viewing.agents.length && (
                         <tr>
                           <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
                             Aucun agent associé
