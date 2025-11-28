@@ -314,9 +314,13 @@ export class AttendanceService implements OnModuleInit {
   async checkIn(dto: CheckInDto) {
     const site = this.sitesService.findOne(dto.siteId);
     const now = new Date();
-    const intervention = await this.ensureWithinInterventionWindow(dto.userId, dto.siteId, now, {
-      allowBeforeStart: true,
-    });
+    const intervention = dto.interventionId
+      ? await this.prisma.intervention.findFirst({
+          where: { id: dto.interventionId, siteId: dto.siteId, assignments: { some: { userId: dto.userId } } },
+        })
+      : await this.ensureWithinInterventionWindow(dto.userId, dto.siteId, now, {
+          allowBeforeStart: true,
+        });
     if (site.latitude == null || site.longitude == null) {
       throw new BadRequestException("Les coordonnées du site sont manquantes.");
     }
@@ -342,6 +346,7 @@ export class AttendanceService implements OnModuleInit {
         checkInTime: now,
         checkInLatitude: dto.latitude,
         checkInLongitude: dto.longitude,
+        interventionId: intervention?.id,
         status: 'PENDING',
         manual: false,
         createdBy: 'AGENT',
@@ -360,14 +365,24 @@ export class AttendanceService implements OnModuleInit {
   }
 
   async checkOut(dto: CheckOutDto) {
-    const existing = await this.prisma.attendance.findFirst({
-      where: {
-        userId: dto.userId,
-        checkOutTime: null,
-        status: { in: ['PENDING'] },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    let existing = dto.interventionId
+      ? await this.prisma.attendance.findFirst({
+          where: {
+            userId: dto.userId,
+            interventionId: dto.interventionId,
+            checkOutTime: null,
+            status: { in: ['PENDING'] },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      : await this.prisma.attendance.findFirst({
+          where: {
+            userId: dto.userId,
+            checkOutTime: null,
+            status: { in: ['PENDING'] },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
     if (!existing) {
       throw new NotFoundException('Aucun check-in en cours');
     }
@@ -378,7 +393,7 @@ export class AttendanceService implements OnModuleInit {
         status: 'COMPLETED',
       },
     });
-    await this.updateInterventionStatus(existing.userId, existing.siteId, existing.date, 'COMPLETED');
+    await this.updateInterventionStatus(existing.userId, existing.siteId, existing.date, 'COMPLETED', dto.interventionId);
     const view = this.toView(this.toEntity(record));
     this.realtime.broadcast('attendance.checkout', {
       attendanceId: view.id,
@@ -561,18 +576,33 @@ export class AttendanceService implements OnModuleInit {
     );
   }
 
-  private async updateInterventionStatus(userId: string, siteId: string, date: Date, status: AttendanceStatus) {
+  private async updateInterventionStatus(
+    userId: string,
+    siteId: string,
+    date: Date,
+    status: AttendanceStatus,
+    interventionId?: string,
+  ) {
     const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
     const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
-    const intervention = await this.prisma.intervention.findFirst({
-      where: {
-        siteId,
-        date: { gte: startOfDay, lte: endOfDay },
-        assignments: { some: { userId } },
-        status: { notIn: ['CANCELLED'] },
-      },
-      include: { assignments: true },
-    });
+    const intervention = interventionId
+      ? await this.prisma.intervention.findFirst({
+          where: {
+            id: interventionId,
+            siteId,
+            status: { notIn: ['CANCELLED'] },
+          },
+          include: { assignments: true },
+        })
+      : await this.prisma.intervention.findFirst({
+          where: {
+            siteId,
+            date: { gte: startOfDay, lte: endOfDay },
+            assignments: { some: { userId } },
+            status: { notIn: ['CANCELLED'] },
+          },
+          include: { assignments: true },
+        });
     if (!intervention) return;
 
     if (status === 'COMPLETED') {
@@ -660,7 +690,10 @@ export class AttendanceService implements OnModuleInit {
       return { intervention, windowStart, windowEnd, plannedStart, plannedEnd };
     });
 
-    const selected = withWindows.find((item) => now >= item.windowStart && now <= item.windowEnd);
+    const candidates = withWindows
+      .filter((item) => now >= item.windowStart && now <= item.windowEnd)
+      .sort((a, b) => b.plannedStart.getTime() - a.plannedStart.getTime());
+    const selected = candidates[0];
 
     if (selected) {
       return selected.intervention;

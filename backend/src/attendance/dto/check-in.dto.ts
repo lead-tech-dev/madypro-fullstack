@@ -12,4 +12,8 @@ export class CheckInDto {
 
   @IsNumber()
   longitude!: number;
+
+  @IsString()
+  @IsOptional()
+  interventionId?: string;
 }
