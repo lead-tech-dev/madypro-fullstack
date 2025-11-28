@@ -120,7 +120,7 @@ async function main() {
   const today = new Date();
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  await prisma.intervention.create({
+  const interventionAtelier = await prisma.intervention.create({
     data: {
       siteId: siteAtelier.id,
       date: today,
@@ -137,7 +137,7 @@ async function main() {
     },
   });
 
-  await prisma.intervention.create({
+  const interventionViva = await prisma.intervention.create({
     data: {
       siteId: siteViva.id,
       date: tomorrow,
@@ -160,9 +160,8 @@ async function main() {
   await prisma.attendance.create({
     data: {
       userId: agentLucas.id,
-      siteId: siteAtelier.id,
-      clientId: clientArches.id,
       date: today,
+      interventionId: interventionAtelier.id,
       checkInTime: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 5, 58),
       checkOutTime: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 14, 5),
       plannedStart: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 6, 0),

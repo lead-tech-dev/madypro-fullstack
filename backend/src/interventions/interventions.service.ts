@@ -331,6 +331,15 @@ export class InterventionsService implements OnModuleInit {
   async update(id: string, dto: UpdateInterventionDto) {
     await this.findRecord(id);
     const data: Prisma.InterventionUpdateInput = {};
+    // Pré-calcul pour synchroniser attendances après mise à jour
+    const original = await this.prisma.intervention.findUnique({
+      where: { id },
+      include: { assignments: true, trucks: true, attendances: true },
+    });
+    if (!original) {
+      throw new NotFoundException('Intervention introuvable');
+    }
+
     if (dto.siteId) data.site = { connect: { id: dto.siteId } };
     if (dto.date) data.date = this.toDateOnly(dto.date);
     if (dto.startTime !== undefined) data.startTime = dto.startTime;
@@ -376,7 +385,48 @@ export class InterventionsService implements OnModuleInit {
     if (finalType === 'PUNCTUAL' && !finalSubType) {
       throw new BadRequestException('Le sous-type est obligatoire pour une intervention ponctuelle.');
     }
-    const view = this.present(this.toEntity(record), (record as any).attendances);
+
+    // Synchronise les attendances avec les agents assignés si agentIds fournis
+    if (dto.agentIds) {
+      const targetAgents = new Set(dto.agentIds);
+      const currentAtt = await this.prisma.attendance.findMany({
+        where: { interventionId: id },
+        select: { id: true, userId: true },
+      });
+      const currentAgentIds = new Set(currentAtt.map((a) => a.userId));
+      const toCreate = dto.agentIds.filter((u) => !currentAgentIds.has(u));
+      const toDelete = currentAtt.filter((att) => !targetAgents.has(att.userId)).map((att) => att.id);
+
+      if (toDelete.length) {
+        await this.prisma.attendance.deleteMany({ where: { id: { in: toDelete } } });
+      }
+      if (toCreate.length) {
+        const dateStr = dto.date ?? record.date.toISOString().slice(0, 10);
+        const startTime = dto.startTime ?? record.startTime;
+        const endTime = dto.endTime ?? record.endTime;
+        const plannedStart = this.combine(dateStr, startTime);
+        const plannedEnd = this.combine(dateStr, endTime);
+        await this.prisma.attendance.createMany({
+          data: toCreate.map((userId) => ({
+            userId,
+            interventionId: id,
+            date: this.toDateOnly(dateStr),
+            plannedStart,
+            plannedEnd,
+            status: 'PENDING',
+            manual: false,
+            createdBy: 'SYSTEM',
+          })),
+        });
+      }
+    }
+
+    const refreshed = await this.prisma.intervention.findUnique({
+      where: { id },
+      include: { assignments: true, trucks: true, attendances: true },
+    });
+    if (!refreshed) throw new NotFoundException('Intervention introuvable après mise à jour');
+    const view = this.present(this.toEntity(refreshed), (refreshed as any).attendances);
     this.realtime.broadcast('intervention.updated', {
       id: view.id,
       siteId: view.siteId,
