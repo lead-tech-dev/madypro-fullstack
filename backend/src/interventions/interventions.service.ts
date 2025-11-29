@@ -388,13 +388,14 @@ export class InterventionsService implements OnModuleInit {
 
     // Synchronise les attendances avec les agents assignés si agentIds fournis
     if (dto.agentIds) {
-      const targetAgents = new Set(dto.agentIds);
+      const uniqueAgents = Array.from(new Set(dto.agentIds));
+      const targetAgents = new Set(uniqueAgents);
       const currentAtt = await this.prisma.attendance.findMany({
         where: { interventionId: id },
         select: { id: true, userId: true },
       });
       const currentAgentIds = new Set(currentAtt.map((a) => a.userId));
-      const toCreate = dto.agentIds.filter((u) => !currentAgentIds.has(u));
+      const toCreate = uniqueAgents.filter((u) => !currentAgentIds.has(u));
       const toDelete = currentAtt.filter((att) => !targetAgents.has(att.userId)).map((att) => att.id);
 
       if (toDelete.length) {

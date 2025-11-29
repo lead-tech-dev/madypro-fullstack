@@ -7,10 +7,17 @@ import { Intervention } from '../../types/intervention';
 import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { formatDateTime } from '../../utils/datetime';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { ImageSlider } from '../../components/ui/ImageSlider';
 import { compressImageFile } from '../../utils/image';
+import { formatDateTime } from '../../utils/datetime';
+
+const formatHour = (value?: string | null) => {
+  if (!value) return '—';
+  const d = value.includes('T') ? new Date(value) : new Date(`1970-01-01T${value}`);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+};
 
 const todayLocal = () => {
   const d = new Date();
@@ -409,42 +416,33 @@ export const SupervisorInterventionsPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {viewing && filterAttendanceForIntervention(attendanceByAgent, viewing).length
-                      ? filterAttendanceForIntervention(attendanceByAgent, viewing).map((att) => (
-                          <tr key={att.id || att.agent?.id}>
-                            <td>{att.agent?.name ?? '—'}</td>
-                            <td>{att.checkInTime ?? att.plannedStart ?? '—'}</td>
-                            <td>{att.checkInTime ?? '—'}</td>
-                            <td>{att.checkOutTime ?? '—'}</td>
-                          </tr>
-                        ))
-                      : null}
-                    {viewing.agents
-                      .filter(
-                        (agent) =>
-                          !filterAttendanceForIntervention(attendanceByAgent, viewing ?? ({} as any)).some(
-                            (att) => att.agent?.id === agent.id,
-                          ),
-                      )
-                      .map((agent) => (
+                    {viewing.agents.map((agent) => {
+                      const fallback = filterAttendanceForIntervention(attendanceByAgent, viewing).find(
+                        (att) => att.agent?.id === agent.id,
+                      );
+                      const arrival = formatHour(agent.arrivalTime);
+                      const start = formatHour(agent.checkInTime);
+                      const end = formatHour(agent.checkOutTime);
+                      return (
                         <tr key={agent.id}>
                           <td>{agent.name}</td>
-                          <td>—</td>
-                          <td>—</td>
-                          <td>—</td>
+                          <td>{arrival}</td>
+                          <td>{start}</td>
+                          <td>{end}</td>
                         </tr>
-                      ))}
-                    {!viewing.agents.length && attendanceByAgent.length === 0 && (
+                      );
+                    })}
+                    {!viewing.agents.length && (
                       <tr>
                         <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
                           Aucun agent associé
                         </td>
                       </tr>
                     )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                 </tbody>
+               </table>
+             </div>
+           </div>
 
             <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>
               {['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(viewing.status) ? (

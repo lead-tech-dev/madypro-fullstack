@@ -21,8 +21,14 @@ import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { ImageSlider } from '../../components/ui/ImageSlider';
 import { listAttendance } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
-import { formatDateTime } from '../../utils/datetime';
 import { compressImageFile } from '../../utils/image';
+
+const formatHour = (value?: string | null) => {
+  if (!value) return '—';
+  const d = value.includes('T') ? new Date(value) : new Date(`1970-01-01T${value}`);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+};
 
 const STATUS_OPTIONS: { value: InterventionStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'Tous statuts' },
@@ -801,15 +807,15 @@ export const InterventionsPage: React.FC = () => {
                         const fallback = filterAttendanceForIntervention(attendanceByAgent, viewing).find(
                           (att) => att.agent.id === agent.id,
                         );
-                        const arrival = agent.arrivalTime ?? fallback?.checkInTime ?? fallback?.plannedStart ?? '—';
-                        const start = agent.checkInTime ?? fallback?.checkInTime ?? '—';
-                        const end = agent.checkOutTime ?? fallback?.checkOutTime ?? '—';
+                        const arrival = formatHour(agent.arrivalTime);
+                        const start = formatHour(agent.checkInTime);
+                        const end = formatHour(agent.checkOutTime);
                         return (
                           <tr key={agent.id}>
                             <td>{agent.name}</td>
-                            <td>{arrival || '—'}</td>
-                            <td>{start || '—'}</td>
-                            <td>{end || '—'}</td>
+                            <td>{arrival}</td>
+                            <td>{start}</td>
+                            <td>{end}</td>
                           </tr>
                         );
                       })}
