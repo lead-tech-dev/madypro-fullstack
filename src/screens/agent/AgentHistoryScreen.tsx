@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
 import { theme } from '@/config/theme';
 import { Intervention } from '@/types/intervention';
@@ -26,50 +26,50 @@ const TYPE_FILTERS = [
 export default function HistoryScreen() {
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [isLoading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]['value']>('ALL');
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]['value']>('ALL');
   const [hours, setHours] = useState({ week: 0, month: 0 });
   const { token, user } = useAuthContext();
+  const navigation = useNavigation();
   const now = useMemo(() => new Date(), []);
+  const loadData = React.useCallback(
+    async (showLoader = true) => {
+      if (!token || !user) {
+        setInterventions([]);
+        setHours({ week: 0, month: 0 });
+        setError(null);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+      if (showLoader) setLoading(true);
+      setError(null);
+      try {
+        const [history, weekHours, monthHours] = await Promise.all([
+          listInterventionsByRange(token, 'past', user.id),
+          computeHoursForRange(token, user.id, 'week', now),
+          computeHoursForRange(token, user.id, 'month', now),
+        ]);
+        setInterventions(history);
+        setHours({ week: weekHours, month: monthHours });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Impossible de charger les interventions');
+        setInterventions([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [now, token, user],
+  );
 
   useFocusEffect(
     React.useCallback(() => {
-      if (!token || !user) {
-          setInterventions([]);
-          setLoading(false);
-        return () => {};
-      }
-      let cancelled = false;
-      const load = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          const [history, weekHours, monthHours] = await Promise.all([
-            listInterventionsByRange(token, 'past', user.id),
-            computeHoursForRange(token, user.id, 'week', now),
-            computeHoursForRange(token, user.id, 'month', now),
-          ]);
-          if (!cancelled) {
-            setInterventions(history);
-            setHours({ week: weekHours, month: monthHours });
-          }
-        } catch (err) {
-          if (!cancelled) {
-            setError(err instanceof Error ? err.message : 'Impossible de charger les interventions');
-            setInterventions([]);
-          }
-        } finally {
-          if (!cancelled) {
-            setLoading(false);
-          }
-        }
-      };
-      load();
-      return () => {
-        cancelled = true;
-      };
-    }, [token, user]),
+      loadData();
+      return () => {};
+    }, [loadData]),
   );
 
   const filtered = useMemo(() => {
@@ -91,6 +91,32 @@ export default function HistoryScreen() {
       title="Historique des interventions"
       subtitle="Synthèse des 4 dernières semaines"
       accent="Récap des heures"
+      onRefresh={() => {
+        setRefreshing(true);
+        // relancer le chargement (sans blocage spinner global)
+        const reload = async () => {
+          if (!token || !user) {
+            setRefreshing(false);
+            return;
+          }
+          try {
+            const [history, weekHours, monthHours] = await Promise.all([
+              listInterventionsByRange(token, 'past', user.id),
+              computeHoursForRange(token, user.id, 'week', now),
+              computeHoursForRange(token, user.id, 'month', now),
+            ]);
+            setInterventions(history);
+            setHours({ week: weekHours, month: monthHours });
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Impossible de charger les interventions');
+            setInterventions([]);
+          } finally {
+            setRefreshing(false);
+          }
+        };
+        reload();
+      }}
+      refreshing={refreshing}
     >
       <View style={styles.summaryCard}>
         <View>
@@ -141,16 +167,24 @@ export default function HistoryScreen() {
       ) : filtered.length === 0 ? (
         <Text style={styles.empty}>Aucune intervention pour ces filtres.</Text>
       ) : (
-        filtered.map((intervention) => <HistoryCard key={intervention.id} intervention={intervention} />)
+        filtered.map((intervention) => (
+          <HistoryCard
+            key={intervention.id}
+            intervention={intervention}
+            onPress={() =>
+              navigation.navigate('AgentIntervention' as never, { id: intervention.id } as never)
+            }
+          />
+        ))
       )}
     </HeaderLayout>
   );
 }
 
-const HistoryCard: React.FC<{ intervention: Intervention }> = ({ intervention }) => {
+const HistoryCard: React.FC<{ intervention: Intervention; onPress?: () => void }> = ({ intervention, onPress }) => {
   const duration = getDuration(intervention);
   return (
-    <View style={styles.card}>
+    <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.cardHeader}>
         <View>
           <Text style={styles.cardDate}>{formatDate(intervention.date)}</Text>
@@ -177,7 +211,7 @@ const HistoryCard: React.FC<{ intervention: Intervention }> = ({ intervention })
           <Text style={styles.anomalyText}>Anomalie signalée</Text>
         </View>
       )}
-    </View>
+    </Pressable>
   );
 };
 
@@ -236,16 +270,19 @@ async function computeHoursForRange(token: string, agentId: string, range: 'week
       agentId,
       startDate: startISO,
       endDate: endISO,
+      status: 'COMPLETED' as any,
       pageSize: 500,
     });
     const attendanceItems =
       Array.isArray(attendanceRes) ||
       attendanceRes instanceof Array ? attendanceRes : (attendanceRes as any).items ?? (attendanceRes as any).data ?? [];
-    const attendanceHours = attendanceItems.reduce((total: number, att: any) => {
-      const startTime = parseAttendanceTime(att.date, att.checkInTime || att.plannedStart || att.actualStartAt);
-      const endTime = parseAttendanceTime(att.date, att.checkOutTime || att.plannedEnd || att.actualEndAt);
-      if (!startTime || !endTime) return total;
-      const hours = Math.max(0, (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60));
+    const completed = attendanceItems.filter((att: any) => att.status === 'COMPLETED');
+    const attendanceHours = completed.reduce((total: number, att: any) => {
+      // On ne compte que les heures réellement pointées (check-in / check-out)
+      const startTime = parseAttendanceTime(att.date, att.checkInTime);
+      const endTime = parseAttendanceTime(att.date, att.checkOutTime);
+      if (startTime == null || endTime == null) return total;
+      const hours = Math.max(0, (endTime - startTime) / (1000 * 60 * 60));
       return total + hours;
     }, 0);
     if (attendanceHours > 0) return attendanceHours;
@@ -298,12 +335,16 @@ function getDateFromActual(actual: string | undefined, fallbackDate: string, fal
 function parseAttendanceTime(date: string, time?: string) {
   if (!time) return null;
   if (time.includes('T')) {
-    const d = new Date(time);
-    return Number.isNaN(d.getTime()) ? null : d;
+    const ts = Date.parse(time);
+    return Number.isNaN(ts) ? null : ts;
   }
-  // format HH:mm
-  const candidate = new Date(`${date}T${time}:00`);
-  return Number.isNaN(candidate.getTime()) ? null : candidate;
+  // format HH:mm (pas de timezone)
+  const [h, m] = time.split(':').map((v) => parseInt(v, 10));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  const d = new Date(`${date}T00:00:00`);
+  d.setHours(h, m, 0, 0);
+  const ts = d.getTime();
+  return Number.isNaN(ts) ? null : ts;
 }
 
 const styles = StyleSheet.create({

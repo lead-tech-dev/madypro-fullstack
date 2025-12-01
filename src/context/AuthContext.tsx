@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthUser } from '../types/auth';
 
 interface AuthContextValue {
@@ -22,6 +23,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     setToken(null);
+    // purge les données locales liées à l'utilisateur précédent
+    AsyncStorage.getAllKeys()
+      .then((keys) => {
+        const keysToRemove = keys.filter(
+          (key) => key === 'syncQueue' || key.startsWith('intervention:start:'),
+        );
+        if (keysToRemove.length) {
+          AsyncStorage.multiRemove(keysToRemove).catch(() => {});
+        }
+      })
+      .catch(() => {});
   };
 
   return (

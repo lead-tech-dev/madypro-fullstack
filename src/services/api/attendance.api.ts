@@ -3,7 +3,7 @@ import { apiFetch } from './client';
 
 export async function listAttendance(
   token: string,
-  filters: Partial<{ startDate: string; endDate: string; agentId: string; interventionId: string }> = {},
+  filters: Partial<{ startDate: string; endDate: string; agentId: string; interventionId: string; status: string }> = {},
 ) {
   const params = new URLSearchParams();
   if (filters.startDate) params.set('startDate', filters.startDate);
@@ -13,6 +13,7 @@ export async function listAttendance(
     params.set('userId', filters.agentId); // compat backend
   }
   if (filters.interventionId) params.set('interventionId', filters.interventionId);
+  if (filters.status) params.set('status', filters.status);
   const query = params.toString();
   const path = query ? `/attendance?${query}` : '/attendance';
   return apiFetch<Attendance[]>({ path, token });

@@ -155,6 +155,11 @@ export default function InterventionDetailScreen() {
 
   const isPlanned = intervention?.status === 'PLANNED';
   const isRunning = intervention?.status === 'IN_PROGRESS';
+  const isCompleted = intervention?.status === 'COMPLETED';
+  const userAttendance = React.useMemo(
+    () => intervention?.agents?.find((a) => a.id === user?.id) ?? null,
+    [intervention?.agents, user?.id],
+  );
   const startDate = React.useMemo(() => {
     if (!intervention) {
       return null;
@@ -188,6 +193,18 @@ export default function InterventionDetailScreen() {
   const hasPendingSync = intervention
     ? pendingEvents.some((event: { interventionId: string }) => event.interventionId === intervention.id)
     : false;
+
+  const actualStartDisplay = React.useMemo(() => {
+    if (intervention?.actualStartTime) return intervention.actualStartTime;
+    if (userAttendance?.checkInTime) return formatTime(new Date(userAttendance.checkInTime));
+    return null;
+  }, [intervention?.actualStartTime, userAttendance?.checkInTime]);
+
+  const actualEndDisplay = React.useMemo(() => {
+    if (intervention?.actualEndTime) return intervention.actualEndTime;
+    if (userAttendance?.checkOutTime) return formatTime(new Date(userAttendance.checkOutTime));
+    return null;
+  }, [intervention?.actualEndTime, userAttendance?.checkOutTime]);
 
   React.useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30 * 1000);
@@ -297,6 +314,15 @@ export default function InterventionDetailScreen() {
               status: 'COMPLETED',
               actualEndTime: prev.actualEndTime ?? displayTime,
               actualEndAt: prev.actualEndAt ?? now.toISOString(),
+              agents: prev.agents.map((a) =>
+                a.id === user.id
+                  ? {
+                      ...a,
+                      attendanceStatus: 'COMPLETED',
+                      checkOutTime: a.checkOutTime ?? now.toISOString(),
+                    }
+                  : a,
+              ),
             }
           : prev,
       );
@@ -479,17 +505,25 @@ export default function InterventionDetailScreen() {
       trailing={
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
           {isMarkingArrival && <ActivityIndicator color={theme.colors.primary} />}
-          <Button
-            title={
-              isMarkingArrival
-                ? 'Enregistrement...'
-                : arrivalRecorded
-                ? 'Présence enregistrée'
-                : 'Enregistrer ma présence'
-            }
-            onPress={handleArrival}
-            disabled={isMarkingArrival || isVerifying || arrivalRecorded || !canMarkArrival}
-          />
+          {!(isCompleted || userAttendance?.attendanceStatus === 'COMPLETED') && (
+            <Button
+              title={
+                isMarkingArrival
+                  ? 'Enregistrement...'
+                  : arrivalRecorded
+                  ? 'Présence enregistrée'
+                  : 'Enregistrer ma présence'
+              }
+              onPress={handleArrival}
+              disabled={
+                isMarkingArrival ||
+                isVerifying ||
+                arrivalRecorded ||
+                !canMarkArrival ||
+                userAttendance?.attendanceStatus === 'COMPLETED'
+              }
+            />
+          )}
         </View>
       }
     >
@@ -538,14 +572,14 @@ export default function InterventionDetailScreen() {
               Arrivée possible dès {formatTime(arrivalAllowedFrom)} (30 min avant le début)
             </Text>
           )}
-          {intervention.actualStartTime && (
+          {actualStartDisplay && (
             <Text style={styles.row}>
-              Réel début : <Text style={styles.highlight}>{intervention.actualStartTime}</Text>
+              Réel début : <Text style={styles.highlight}>{actualStartDisplay}</Text>
             </Text>
           )}
-          {intervention.actualEndTime && (
+          {actualEndDisplay && (
             <Text style={styles.row}>
-              Réel fin : <Text style={styles.highlight}>{intervention.actualEndTime}</Text>
+              Réel fin : <Text style={styles.highlight}>{actualEndDisplay}</Text>
             </Text>
           )}
         </Section>
@@ -616,7 +650,7 @@ export default function InterventionDetailScreen() {
             disabled={isVerifying || !arrivalRecorded}
           />
         )}
-        {isRunning && (
+        {isRunning && !(isCompleted || userAttendance?.attendanceStatus === 'COMPLETED') && (
           <Button title="Terminer l’intervention" onPress={handleFinish} disabled={isVerifying} />
         )}
         <Button title="Signaler un problème" variant="ghost" onPress={handleProblem} />
