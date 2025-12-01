@@ -672,15 +672,20 @@ export class AttendanceService implements OnModuleInit {
         });
         return;
       }
-      const pending = await this.prisma.attendance.findMany({
+      // Récupère les attendances de l'intervention pour les agents affectés
+      const attForAgents = await this.prisma.attendance.findMany({
         where: {
+          interventionId: intervention.id,
           userId: { in: assignedUserIds },
-          date: { gte: startOfDay, lte: endOfDay },
-          checkOutTime: null,
-          status: { in: ['PENDING'] },
         },
       });
-      const allDone = pending.length === 0;
+      // Un agent est considéré terminé s'il a une ligne avec checkOutTime et status COMPLETED
+      const completedUserIds = new Set(
+        attForAgents
+          .filter((att) => att.status === 'COMPLETED' && att.checkOutTime != null)
+          .map((att) => att.userId),
+      );
+      const allDone = assignedUserIds.every((uid) => completedUserIds.has(uid));
       await this.prisma.intervention.update({
         where: { id: intervention.id },
         data: { status: allDone ? 'COMPLETED' : 'IN_PROGRESS' },
