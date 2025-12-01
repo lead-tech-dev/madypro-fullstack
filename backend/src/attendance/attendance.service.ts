@@ -526,7 +526,6 @@ export class AttendanceService implements OnModuleInit {
         where: { id: intervention.id },
         data: {
           observation: intervention.observation ?? 'Arrivée enregistrée',
-          status: 'IN_PROGRESS',
         },
       });
     }
