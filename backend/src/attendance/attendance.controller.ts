@@ -54,8 +54,9 @@ export class AttendanceController {
 
   @Roles('ADMIN', 'SUPERVISOR')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateAttendanceDto) {
-    return this.service.update(id, dto);
+  update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateAttendanceDto) {
+    const actorId = req.user?.sub ?? req.user?.id ?? 'unknown';
+    return this.service.update(id, dto, actorId);
   }
 
   @Roles('ADMIN', 'SUPERVISOR')

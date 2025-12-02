@@ -157,6 +157,30 @@ export class InterventionsService implements OnModuleInit {
         where: { id: intervention.id },
         data: { status: targetStatus as any },
       });
+
+      if (!allDone && this.AUTO_CLOSE_INCOMPLETE_STATUS === 'NEEDS_REVIEW') {
+        // Alerte les agents et superviseurs que l'intervention est à valider
+        try {
+          await Promise.all([
+            ...assignedUserIds.map((agentId) =>
+              this.notifications.send({
+                audience: 'AGENT',
+                targetId: agentId,
+                title: 'Intervention à valider',
+                message: `L'intervention ${intervention.label ?? intervention.siteId} est à valider (fin dépassée).`,
+              }),
+            ),
+            this.notifications.send({
+              audience: 'SITE_AGENTS',
+              targetId: intervention.siteId,
+              title: 'Intervention à valider',
+              message: `Le créneau est dépassé pour ${intervention.label ?? intervention.siteId}. Merci de vérifier les pointages.`,
+            }),
+          ]);
+        } catch (err) {
+          this.logger.warn(`Notification auto-close échouée: ${(err as Error).message}`);
+        }
+      }
     }
   }
 

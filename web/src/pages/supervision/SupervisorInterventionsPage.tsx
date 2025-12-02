@@ -2,12 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import { listInterventions, updateIntervention } from '../../services/api/interventions.api';
 import { listSites } from '../../services/api/sites.api';
-import { listAttendance } from '../../services/api/attendance.api';
+import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
 import { Intervention } from '../../types/intervention';
 import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { ImageSlider } from '../../components/ui/ImageSlider';
 import { compressImageFile } from '../../utils/image';
 import { formatDateTime } from '../../utils/datetime';
@@ -17,6 +16,12 @@ const formatHour = (value?: string | null) => {
   const d = value.includes('T') ? new Date(value) : new Date(`1970-01-01T${value}`);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+};
+
+const timeValue = (value?: string | null) => {
+  if (!value) return '';
+  if (value.includes('T')) return value.slice(11, 16);
+  return value;
 };
 
 const todayLocal = () => {
@@ -33,9 +38,9 @@ export const SupervisorInterventionsPage: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewing, setViewing] = useState<Intervention | null>(null);
-  const [observationDraft, setObservationDraft] = useState('');
   const [photoDraft, setPhotoDraft] = useState<string[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
+  const [attendanceEdits, setAttendanceEdits] = useState<Record<string, { checkInTime?: string; checkOutTime?: string }>>({});
   const [filters, setFilters] = useState<{ siteId: string; date: string; status: string }>({
     siteId: 'all',
     date: today,
@@ -102,11 +107,14 @@ export const SupervisorInterventionsPage: React.FC = () => {
 
   useEffect(() => {
     if (viewing) {
-      setObservationDraft(viewing.observation ?? '');
       setPhotoDraft(viewing.photos ?? []);
       fetchAttendanceForViewing(viewing);
     }
   }, [viewing]);
+
+  useEffect(() => {
+    setAttendanceEdits({});
+  }, [viewing?.id]);
 
   const fetchAttendanceForViewing = useCallback(
     (current: Intervention) => {
@@ -362,16 +370,10 @@ export const SupervisorInterventionsPage: React.FC = () => {
                     <th>Camions</th>
                     <td>{viewing.truckLabels?.length ? viewing.truckLabels.join(', ') : '—'}</td>
                   </tr>
-                <tr>
-                  <th>Observation</th>
-                  <td>
-                    <RichTextEditor
-                      value={observationDraft}
-                      onChange={(value) => setObservationDraft(value)}
-                      placeholder="Ajouter une observation"
-                    />
-                  </td>
-                </tr>
+                  <tr>
+                    <th>Observation</th>
+                    <td>{viewing.observation || '—'}</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -420,15 +422,46 @@ export const SupervisorInterventionsPage: React.FC = () => {
                       const fallback = filterAttendanceForIntervention(attendanceByAgent, viewing).find(
                         (att) => att.agent?.id === agent.id,
                       );
-                      const arrival = formatHour(agent.arrivalTime);
-                      const start = formatHour(agent.checkInTime);
-                      const end = formatHour(agent.checkOutTime);
+                      const attendanceId = agent.attendanceId ?? fallback?.id;
+                      const arrival = formatHour(agent.arrivalTime ?? fallback?.arrivalTime);
+                      const startValue = attendanceEdits[attendanceId ?? '']?.checkInTime ?? timeValue(agent.checkInTime ?? fallback?.checkInTime);
+                      const endValue = attendanceEdits[attendanceId ?? '']?.checkOutTime ?? timeValue(agent.checkOutTime ?? fallback?.checkOutTime);
                       return (
                         <tr key={agent.id}>
                           <td>{agent.name}</td>
                           <td>{arrival}</td>
-                          <td>{start}</td>
-                          <td>{end}</td>
+                          <td>
+                            {viewing.status === 'NEEDS_REVIEW' && attendanceId ? (
+                              <input
+                                type="time"
+                                value={startValue}
+                                onChange={(e) =>
+                                  setAttendanceEdits((prev) => ({
+                                    ...prev,
+                                    [attendanceId]: { ...prev[attendanceId], checkInTime: e.target.value },
+                                  }))
+                                }
+                              />
+                            ) : (
+                              formatHour(agent.checkInTime ?? fallback?.checkInTime)
+                            )}
+                          </td>
+                          <td>
+                            {viewing.status === 'NEEDS_REVIEW' && attendanceId ? (
+                              <input
+                                type="time"
+                                value={endValue}
+                                onChange={(e) =>
+                                  setAttendanceEdits((prev) => ({
+                                    ...prev,
+                                    [attendanceId]: { ...prev[attendanceId], checkOutTime: e.target.value },
+                                  }))
+                                }
+                              />
+                            ) : (
+                              formatHour(agent.checkOutTime ?? fallback?.checkOutTime)
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -443,6 +476,64 @@ export const SupervisorInterventionsPage: React.FC = () => {
                </table>
              </div>
            </div>
+
+            {viewing.status === 'NEEDS_REVIEW' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
+                <Button type="button" variant="ghost" onClick={() => setAttendanceEdits({})}>
+                  Réinitialiser
+                </Button>
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    if (!token || !viewing) return;
+                    const entries = Object.entries(attendanceEdits).filter(
+                      ([, edit]) => edit.checkInTime || edit.checkOutTime,
+                    );
+                    for (const [attId, edit] of entries) {
+                      await updateAttendanceApi(token, attId, {
+                        checkInTime: edit.checkInTime,
+                        checkOutTime: edit.checkOutTime,
+                      });
+                    }
+                    const refreshed = await listAttendance(token, {
+                      siteId: viewing.siteId,
+                      startDate: viewing.date,
+                      endDate: viewing.date,
+                      status: 'all',
+                      pageSize: 200,
+                    });
+                    const items = (refreshed as any)?.items ?? (Array.isArray(refreshed) ? refreshed : []);
+                    const allowedAgents = new Set(viewing.agents.map((a) => a.id).filter(Boolean));
+                    const filtered = allowedAgents.size
+                      ? items.filter((att: any) => allowedAgents.has(att.agent?.id || att.agentId))
+                      : items;
+                    setAttendance(filtered);
+                    setAttendanceEdits({});
+                    setViewing((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            agents: prev.agents.map((agent) => {
+                              const att = filtered.find((a: any) => a.agent?.id === agent.id);
+                              return att
+                                ? {
+                                    ...agent,
+                                    arrivalTime: att.arrivalTime ?? agent.arrivalTime,
+                                    checkInTime: att.checkInTime ?? agent.checkInTime,
+                                    checkOutTime: att.checkOutTime ?? agent.checkOutTime,
+                                  }
+                                : agent;
+                            }),
+                          }
+                        : prev,
+                    );
+                    notify('Corrections enregistrées');
+                  }}
+                >
+                  Enregistrer corrections
+                </Button>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
               <Button type="button" variant="ghost" onClick={() => setViewing(null)}>

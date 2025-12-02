@@ -270,7 +270,7 @@ export class AttendanceService implements OnModuleInit {
     return this.toView(this.toEntity(record));
   }
 
-  async update(id: string, dto: UpdateAttendanceDto) {
+  async update(id: string, dto: UpdateAttendanceDto, actorId = 'admin@madyproclean.com') {
     const current = this.toEntity(await this.getRecord(id));
     const data: Prisma.AttendanceUpdateInput = {};
     if (dto.checkInTime) {
@@ -296,7 +296,7 @@ export class AttendanceService implements OnModuleInit {
       data,
     });
     this.auditService.record({
-      actorId: 'admin@madyproclean.com',
+      actorId,
       action: 'UPDATE_ATTENDANCE',
       entityType: 'attendance',
       entityId: id,
@@ -333,21 +333,23 @@ export class AttendanceService implements OnModuleInit {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const intervention = dto.interventionId
-      ? await this.prisma.intervention.findFirst({
-          where: { id: dto.interventionId, assignments: { some: { userId: dto.userId } } },
-          include: { site: true },
-        })
-      : await this.ensureWithinInterventionWindow(dto.userId, dto.siteId, now, {
-          allowBeforeStart: true,
-        });
+    if (!dto.interventionId) {
+      throw new BadRequestException("L'intervention est requise pour démarrer.");
+    }
+    const intervention = await this.prisma.intervention.findFirst({
+      where: { id: dto.interventionId, assignments: { some: { userId: dto.userId } } },
+      include: { site: true },
+    });
+    if (!intervention) {
+      throw new BadRequestException("Intervention introuvable ou non assignée.");
+    }
     const site = (intervention as any)?.site ?? this.sitesService.findOne(dto.siteId);
     if (site.latitude == null || site.longitude == null) {
       throw new BadRequestException("Les coordonnées du site sont manquantes.");
     }
     const distance = this.computeDistance(
       { latitude: dto.latitude, longitude: dto.longitude },
-      { ...site, latitude: site.latitude, longitude: site.longitude },
+      { ...site, latitude: site.latitude, longitude: site.longitude, supervisorIds: (site as any).supervisorIds ?? [] },
     );
     if (distance != null && distance > this.MAX_DISTANCE_METERS) {
       throw new BadRequestException("Vous êtes trop loin du site pour démarrer l'intervention.");
@@ -364,7 +366,7 @@ export class AttendanceService implements OnModuleInit {
         where: {
           id: dto.attendanceId,
           userId: dto.userId,
-          interventionId: dto.interventionId ?? undefined,
+          interventionId: dto.interventionId,
         },
       });
     }
@@ -372,7 +374,7 @@ export class AttendanceService implements OnModuleInit {
       record = await this.prisma.attendance.findFirst({
         where: {
           userId: dto.userId,
-          interventionId: dto.interventionId ?? undefined,
+          interventionId: dto.interventionId,
           date: { gte: startOfDay, lte: endOfDay },
         },
         orderBy: { createdAt: 'desc' },
@@ -404,6 +406,13 @@ export class AttendanceService implements OnModuleInit {
         } as any,
       });
     }
+    this.auditService.record({
+      actorId: dto.userId,
+      action: 'UPDATE_ATTENDANCE',
+      entityType: 'attendance',
+      entityId: record.id,
+      details: 'CHECK_IN',
+    });
     const view = await this.toView(this.toEntity(record));
     this.realtime.broadcast('attendance.checkin', {
       attendanceId: view.id,
@@ -418,6 +427,9 @@ export class AttendanceService implements OnModuleInit {
 
   async checkOut(dto: CheckOutDto) {
     const now = new Date();
+    if (!dto.interventionId) {
+      throw new BadRequestException("L'intervention est requise pour terminer.");
+    }
     let existing = null as any;
     if (dto.attendanceId) {
       existing = await this.prisma.attendance.findFirst({
@@ -434,7 +446,7 @@ export class AttendanceService implements OnModuleInit {
       existing = await this.prisma.attendance.findFirst({
         where: {
           userId: dto.userId,
-          interventionId: dto.interventionId ?? undefined,
+          interventionId: dto.interventionId,
           date: { gte: todayStart, lte: todayEnd },
           status: { in: ['PENDING'] },
         },
@@ -461,25 +473,51 @@ export class AttendanceService implements OnModuleInit {
       checkOutTime: view.checkOutTime,
       date: view.date,
     });
+    this.auditService.record({
+      actorId: dto.userId,
+      action: 'UPDATE_ATTENDANCE',
+      entityType: 'attendance',
+      entityId: record.id,
+      details: 'CHECK_OUT',
+    });
     return view;
   }
 
   async markArrival(dto: MarkArrivalDto) {
-    const site = this.sitesService.findOne(dto.siteId);
     const now = new Date();
-    const intervention = dto.interventionId
-      ? await this.prisma.intervention.findFirst({
-          where: { id: dto.interventionId, siteId: dto.siteId, assignments: { some: { userId: dto.userId } } },
-        })
-      : await this.ensureWithinInterventionWindow(dto.userId, dto.siteId, now, {
-          allowBeforeStart: true,
-        });
+    if (!dto.interventionId) {
+      throw new BadRequestException("L'intervention est requise pour enregistrer la présence.");
+    }
+    const intervention = await this.prisma.intervention.findFirst({
+      where: { id: dto.interventionId, assignments: { some: { userId: dto.userId } } },
+      include: { site: true },
+    });
+    if (!intervention) {
+      throw new BadRequestException("Intervention introuvable ou non assignée.");
+    }
+    const rawSite = intervention.site ?? this.sitesService.findOne(dto.siteId);
+    const site = { ...rawSite, supervisorIds: (rawSite as any).supervisorIds ?? [] };
     if (site.latitude == null || site.longitude == null) {
       throw new BadRequestException("Les coordonnées du site sont manquantes.");
     }
+    // contrôle fenêtre horaire (30min avant le début, 1h après la fin)
+    const dateStr =
+      intervention.date instanceof Date
+        ? intervention.date.toISOString().slice(0, 10)
+        : new Date(intervention.date as any).toISOString().slice(0, 10);
+    const plannedStart = this.combineFromParts(dateStr, intervention.startTime, this.TZ_OFFSET_MINUTES);
+    const plannedEnd = this.combineFromParts(dateStr, intervention.endTime, this.TZ_OFFSET_MINUTES);
+    const windowStart = new Date(plannedStart.getTime() - 30 * 60 * 1000);
+    const windowEnd = new Date(plannedEnd.getTime() + 60 * 60 * 1000);
+    if (now < windowStart) {
+      throw new BadRequestException("Arrivée trop tôt : enregistrement possible 30 minutes avant le début.");
+    }
+    if (now > windowEnd) {
+      throw new BadRequestException("Arrivée hors créneau : l'intervention est dépassée.");
+    }
     const distance = this.computeDistance(
       { latitude: dto.latitude, longitude: dto.longitude },
-      { ...site, latitude: site.latitude, longitude: site.longitude },
+      site as any,
     );
     if (distance != null && distance > this.MAX_DISTANCE_METERS) {
       throw new BadRequestException("Vous êtes trop loin du site pour enregistrer votre présence.");
@@ -489,7 +527,7 @@ export class AttendanceService implements OnModuleInit {
       where: {
         id: dto.attendanceId ?? undefined,
         userId: dto.userId,
-        interventionId: dto.interventionId ?? undefined,
+        interventionId: dto.interventionId,
         date: {
           gte: this.toDateOnly(now.toISOString().slice(0, 10)),
           lte: this.endOfDay(now.toISOString().slice(0, 10)),
@@ -508,18 +546,18 @@ export class AttendanceService implements OnModuleInit {
           } as any,
         })
       : await this.prisma.attendance.create({
-          data: {
-            userId: dto.userId,
-            date: this.toDateOnly(now.toISOString().slice(0, 10)),
-            arrivalTime: now,
-            arrivalLatitude: dto.latitude,
-            arrivalLongitude: dto.longitude,
-            interventionId: intervention?.id ?? dto.interventionId,
-            status: 'PENDING',
-            manual: false,
-            createdBy: 'AGENT',
-          } as any,
-        });
+        data: {
+          userId: dto.userId,
+          date: this.toDateOnly(now.toISOString().slice(0, 10)),
+          arrivalTime: now,
+          arrivalLatitude: dto.latitude,
+          arrivalLongitude: dto.longitude,
+          interventionId: intervention?.id ?? dto.interventionId,
+          status: 'PENDING',
+          manual: false,
+          createdBy: 'AGENT',
+        } as any,
+      });
 
     if (intervention) {
       await this.prisma.intervention.update({
@@ -537,6 +575,13 @@ export class AttendanceService implements OnModuleInit {
       siteId: dto.siteId,
       arrivalTime: view.plannedStart ?? view.checkInTime ?? view.date,
       status: view.status,
+    });
+    this.auditService.record({
+      actorId: dto.userId,
+      action: 'UPDATE_ATTENDANCE',
+      entityType: 'attendance',
+      entityId: record.id,
+      details: 'ARRIVAL',
     });
     return view;
   }

@@ -19,7 +19,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { ImageSlider } from '../../components/ui/ImageSlider';
-import { listAttendance } from '../../services/api/attendance.api';
+import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
 import { compressImageFile } from '../../utils/image';
 
@@ -28,6 +28,12 @@ const formatHour = (value?: string | null) => {
   const d = value.includes('T') ? new Date(value) : new Date(`1970-01-01T${value}`);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+};
+
+const timeValue = (value?: string | null) => {
+  if (!value) return '';
+  if (value.includes('T')) return value.slice(11, 16);
+  return value;
 };
 
 const STATUS_OPTIONS: { value: InterventionStatus | 'all'; label: string }[] = [
@@ -103,9 +109,14 @@ export const InterventionsPage: React.FC = () => {
   const [photoDraft, setPhotoDraft] = useState<string[]>([]);
   const [savingObservation, setSavingObservation] = useState(false);
   const [viewAttendances, setViewAttendances] = useState<Attendance[]>([]);
+  const needsReviewCount = useMemo(
+    () => interventions.filter((i) => i.status === 'NEEDS_REVIEW').length,
+    [interventions],
+  );
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const [attendanceEdits, setAttendanceEdits] = useState<Record<string, { checkInTime?: string; checkOutTime?: string }>>({});
   const attendanceByAgent = React.useMemo(() => {
     const map = new Map<string, Attendance>();
     viewAttendances.forEach((att) => {
@@ -190,6 +201,32 @@ export const InterventionsPage: React.FC = () => {
       })
       .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger les interventions', 'error'))
       .finally(() => setLoading(false));
+  };
+
+  const exportCsv = () => {
+    const rows = [
+      ['Date', 'Site', 'Début', 'Fin', 'Type', 'Statut', 'Agents', 'Camions'],
+      ...interventions.map((i) => [
+        i.date,
+        i.siteName,
+        i.startTime,
+        i.endTime,
+        i.type,
+        i.status,
+        i.agents.map((a) => a.name).join(' / '),
+        i.truckLabels.join(' / '),
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `interventions-${filters.startDate || 'all'}-${filters.endDate || 'all'}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -344,6 +381,21 @@ export const InterventionsPage: React.FC = () => {
         <Button type="button" onClick={openCreateForm}>
           Nouvelle intervention
         </Button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
+          <span className="pill" style={{ background: '#fff5e0', color: '#b15b00' }}>
+            À valider : {needsReviewCount}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setFilters((prev) => ({ ...prev, status: 'NEEDS_REVIEW' }))}
+          >
+            Filtrer "À valider"
+          </Button>
+          <Button type="button" variant="ghost" onClick={exportCsv}>
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="filter-grid" role="search">
@@ -671,6 +723,27 @@ export const InterventionsPage: React.FC = () => {
                         >
                           Visualiser
                         </Button>
+                        {intervention.status === 'NEEDS_REVIEW' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="btn--compact"
+                            onClick={async () => {
+                              if (!token) return;
+                              try {
+                                const updated = await updateIntervention(token, intervention.id, {
+                                  status: 'COMPLETED',
+                                });
+                                setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+                                notify('Intervention validée');
+                              } catch (err) {
+                                notify(err instanceof Error ? err.message : 'Validation impossible', 'error');
+                              }
+                            }}
+                          >
+                            Valider
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           variant="ghost"
@@ -807,15 +880,46 @@ export const InterventionsPage: React.FC = () => {
                         const fallback = filterAttendanceForIntervention(attendanceByAgent, viewing).find(
                           (att) => att.agent.id === agent.id,
                         );
+                        const attendanceId = agent.attendanceId ?? fallback?.id;
                         const arrival = formatHour(agent.arrivalTime);
-                        const start = formatHour(agent.checkInTime);
-                        const end = formatHour(agent.checkOutTime);
+                        const startValue = attendanceEdits[attendanceId ?? '']?.checkInTime ?? timeValue(agent.checkInTime);
+                        const endValue = attendanceEdits[attendanceId ?? '']?.checkOutTime ?? timeValue(agent.checkOutTime);
                         return (
                           <tr key={agent.id}>
                             <td>{agent.name}</td>
                             <td>{arrival}</td>
-                            <td>{start}</td>
-                            <td>{end}</td>
+                            <td>
+                              {viewing.status === 'NEEDS_REVIEW' && attendanceId ? (
+                                <input
+                                  type="time"
+                                  value={startValue}
+                                  onChange={(e) =>
+                                    setAttendanceEdits((prev) => ({
+                                      ...prev,
+                                      [attendanceId]: { ...prev[attendanceId], checkInTime: e.target.value },
+                                    }))
+                                  }
+                                />
+                              ) : (
+                                formatHour(agent.checkInTime)
+                              )}
+                            </td>
+                            <td>
+                              {viewing.status === 'NEEDS_REVIEW' && attendanceId ? (
+                                <input
+                                  type="time"
+                                  value={endValue}
+                                  onChange={(e) =>
+                                    setAttendanceEdits((prev) => ({
+                                      ...prev,
+                                      [attendanceId]: { ...prev[attendanceId], checkOutTime: e.target.value },
+                                    }))
+                                  }
+                                />
+                              ) : (
+                                formatHour(agent.checkOutTime)
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
@@ -829,6 +933,62 @@ export const InterventionsPage: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+                {viewing.status === 'NEEDS_REVIEW' && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setAttendanceEdits({})}
+                    >
+                      Réinitialiser
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={async () => {
+                        if (!token) return;
+                        const entries = Object.entries(attendanceEdits).filter(
+                          ([, edit]) => edit.checkInTime || edit.checkOutTime,
+                        );
+                        for (const [attId, edit] of entries) {
+                          await updateAttendanceApi(token, attId, {
+                            checkInTime: edit.checkInTime,
+                            checkOutTime: edit.checkOutTime,
+                          });
+                        }
+                        // recharger les pointages et l'intervention
+                        if (viewing) {
+                          const refreshed = await listAttendance(token, {
+                            siteId: viewing.siteId,
+                            startDate: viewing.date,
+                            endDate: viewing.date,
+                            status: 'all',
+                          });
+                          const items = (refreshed as any)?.items ?? (refreshed as any);
+                          setViewAttendances(items);
+                          setAttendanceEdits({});
+                          const refreshedIntervention = interventions.find((i) => i.id === viewing.id);
+                          if (refreshedIntervention) {
+                            setViewing({
+                              ...refreshedIntervention,
+                              agents: refreshedIntervention.agents.map((a) => {
+                                const att = items.find((x: any) => x.agent.id === a.id);
+                                return att
+                                  ? {
+                                      ...a,
+                                      checkInTime: att.checkInTime,
+                                      checkOutTime: att.checkOutTime,
+                                    }
+                                  : a;
+                              }),
+                            });
+                          }
+                        }
+                      }}
+                    >
+                      Enregistrer corrections
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>

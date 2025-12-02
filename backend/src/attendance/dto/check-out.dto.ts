@@ -5,8 +5,7 @@ export class CheckOutDto {
   userId!: string;
 
   @IsString()
-  @IsOptional()
-  interventionId?: string;
+  interventionId!: string;
 
   @IsString()
   @IsOptional()

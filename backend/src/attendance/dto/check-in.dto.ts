@@ -14,10 +14,9 @@ export class CheckInDto {
   longitude!: number;
 
   @IsString()
-  @IsOptional()
-  interventionId?: string;
+  interventionId!: string;
 
-   @IsString()
-   @IsOptional()
-   attendanceId?: string;
+  @IsString()
+  @IsOptional()
+  attendanceId?: string;
 }

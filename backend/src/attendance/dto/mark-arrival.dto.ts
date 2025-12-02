@@ -14,8 +14,7 @@ export class MarkArrivalDto {
   longitude!: number;
 
   @IsString()
-  @IsOptional()
-  interventionId?: string;
+  interventionId!: string;
 
   @IsString()
   @IsOptional()
