@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AbsenceEntity, AbsenceStatus, AbsenceType } from './entities/absence.entity';
 import { UsersService } from '../users/users.service';
@@ -97,9 +97,11 @@ export class AbsencesService {
     if (filters.status && filters.status !== 'all') where.status = filters.status;
     if (filters.type && filters.type !== 'all') where.type = filters.type;
     const role = viewer?.role?.toString().trim().toUpperCase();
-    const forcedUserId = role === 'AGENT' ? viewer?.id : undefined;
-    if (forcedUserId) {
-      where.userId = forcedUserId;
+    if (role === 'AGENT') {
+      if (!viewer?.id) {
+        throw new UnauthorizedException('Utilisateur requis');
+      }
+      where.userId = viewer.id;
     } else if (filters.userId) {
       where.userId = filters.userId;
     }
