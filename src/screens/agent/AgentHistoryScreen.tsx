@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Easing, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
@@ -34,6 +34,7 @@ export default function HistoryScreen() {
   const { token, user } = useAuthContext();
   const navigation = useNavigation();
   const now = useMemo(() => new Date(), []);
+  const animRefs = useRef<Animated.Value[]>([]);
   const loadData = React.useCallback(
     async (showLoader = true) => {
       if (!token || !user) {
@@ -91,92 +92,99 @@ export default function HistoryScreen() {
       title="Historique des interventions"
       subtitle="Synthèse des 4 dernières semaines"
       accent="Récap des heures"
-      onRefresh={() => {
-        setRefreshing(true);
-        // relancer le chargement (sans blocage spinner global)
-        const reload = async () => {
-          if (!token || !user) {
-            setRefreshing(false);
-            return;
-          }
-          try {
-            const [history, weekHours, monthHours] = await Promise.all([
-              listInterventionsByRange(token, 'past', user.id),
-              computeHoursForRange(token, user.id, 'week', now),
-              computeHoursForRange(token, user.id, 'month', now),
-            ]);
-            setInterventions(history);
-            setHours({ week: weekHours, month: monthHours });
-          } catch (err) {
-            setError(err instanceof Error ? err.message : 'Impossible de charger les interventions');
-            setInterventions([]);
-          } finally {
-            setRefreshing(false);
-          }
-        };
-        reload();
-      }}
-      refreshing={refreshing}
     >
-      <View style={styles.summaryCard}>
-        <View>
-          <Text style={styles.summaryLabel}>Semaine courante</Text>
-          <Text style={styles.summaryValue}>{stats.week.toFixed(1)} h</Text>
-        </View>
-        <View>
-          <Text style={styles.summaryLabel}>Mois en cours</Text>
-          <Text style={styles.summaryValue}>{stats.month.toFixed(1)} h</Text>
-        </View>
-      </View>
-
-      <View style={styles.filters}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {TYPE_FILTERS.map((filter) => {
-            const active = typeFilter === filter.value;
-            return (
-              <Pressable
-                key={filter.value}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-                onPress={() => setTypeFilter(filter.value)}
-              >
-                <Text style={[styles.filterText, active && styles.filterTextActive]}>{filter.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {STATUS_FILTERS.map((filter) => {
-            const active = statusFilter === filter.value;
-            return (
-              <Pressable
-                key={filter.value}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-                onPress={() => setStatusFilter(filter.value)}
-              >
-                <Text style={[styles.filterText, active && styles.filterTextActive]}>{filter.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {isLoading ? (
-        <ActivityIndicator color={theme.colors.primary} />
-      ) : error ? (
-        <Text style={styles.error}>{error}</Text>
-      ) : filtered.length === 0 ? (
-        <Text style={styles.empty}>Aucune intervention pour ces filtres.</Text>
-      ) : (
-        filtered.map((intervention) => (
-          <HistoryCard
-            key={intervention.id}
-            intervention={intervention}
-            onPress={() =>
-              navigation.navigate('AgentIntervention' as never, { id: intervention.id } as never)
-            }
+      <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              loadData(false);
+            }}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
           />
-        ))
-      )}
+        }
+        contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
+      >
+        <View style={styles.summaryCard}>
+          <View>
+            <Text style={styles.summaryLabel}>Semaine courante</Text>
+            <Text style={styles.summaryValue}>{stats.week.toFixed(1)} h</Text>
+          </View>
+          <View>
+            <Text style={styles.summaryLabel}>Mois en cours</Text>
+            <Text style={styles.summaryValue}>{stats.month.toFixed(1)} h</Text>
+          </View>
+        </View>
+
+        <View style={styles.filters}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            {TYPE_FILTERS.map((filter) => {
+              const active = typeFilter === filter.value;
+              return (
+                <Pressable
+                  key={filter.value}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setTypeFilter(filter.value)}
+                >
+                  <Text style={[styles.filterText, active && styles.filterTextActive]}>{filter.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            {STATUS_FILTERS.map((filter) => {
+              const active = statusFilter === filter.value;
+              return (
+                <Pressable
+                  key={filter.value}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setStatusFilter(filter.value)}
+                >
+                  <Text style={[styles.filterText, active && styles.filterTextActive]}>{filter.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {isLoading ? (
+          <ActivityIndicator color={theme.colors.primary} />
+        ) : error ? (
+          <Text style={styles.error}>{error}</Text>
+        ) : filtered.length === 0 ? (
+          <Text style={styles.empty}>Aucune intervention pour ces filtres.</Text>
+        ) : (
+          filtered.map((intervention, index) => {
+            if (!animRefs.current[index]) {
+              animRefs.current[index] = new Animated.Value(0);
+              Animated.timing(animRefs.current[index], {
+                toValue: 1,
+                duration: 220,
+                delay: index * 60,
+                easing: Easing.out(Easing.ease),
+                useNativeDriver: true,
+              }).start();
+            }
+            const opacity = animRefs.current[index];
+            const translateY = opacity.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+            return (
+              <Animated.View
+                key={intervention.id}
+                style={{ opacity, transform: [{ translateY }], marginBottom: theme.spacing.sm }}
+              >
+                <HistoryCard
+                  intervention={intervention}
+                  onPress={() =>
+                    navigation.navigate('AgentIntervention' as never, { id: intervention.id } as never)
+                  }
+                />
+              </Animated.View>
+            );
+          })
+        )}
+      </ScrollView>
     </HeaderLayout>
   );
 }

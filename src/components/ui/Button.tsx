@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import React, { useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text } from 'react-native';
 import { theme } from '../../config/theme';
 
 type Props = {
@@ -9,29 +9,47 @@ type Props = {
   disabled?: boolean;
 };
 
-export const Button: React.FC<Props> = ({ title, onPress, variant = 'primary', disabled }) => (
-  <Pressable
-    style={[
-      styles.base,
-      variant === 'ghost' && styles.ghost,
-      disabled && styles.disabled,
-      disabled && variant === 'ghost' && styles.ghostDisabled,
-    ]}
-    onPress={disabled ? undefined : onPress}
-    accessibilityState={disabled ? { disabled: true } : undefined}
-  >
-    <Text
-      style={[
-        styles.label,
-        variant === 'ghost' && styles.labelGhost,
-        disabled && variant !== 'ghost' && styles.labelDisabled,
-        disabled && variant === 'ghost' && styles.labelGhostDisabled,
+export const Button: React.FC<Props> = ({ title, onPress, variant = 'primary', disabled }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const animateTo = (value: number) => {
+    Animated.timing(scale, {
+      toValue: value,
+      duration: 120,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <Pressable
+      android_ripple={{ color: '#00000010', borderless: false }}
+      style={({ pressed }) => [
+        styles.base,
+        variant === 'ghost' && styles.ghost,
+        disabled && styles.disabled,
+        disabled && variant === 'ghost' && styles.ghostDisabled,
+        pressed && { opacity: 0.9 },
       ]}
+      onPressIn={() => !disabled && animateTo(0.97)}
+      onPressOut={() => animateTo(1)}
+      onPress={disabled ? undefined : onPress}
+      accessibilityState={disabled ? { disabled: true } : undefined}
     >
-      {title}
-    </Text>
-  </Pressable>
-);
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Text
+          style={[
+            styles.label,
+            variant === 'ghost' && styles.labelGhost,
+            disabled && variant !== 'ghost' && styles.labelDisabled,
+            disabled && variant === 'ghost' && styles.labelGhostDisabled,
+          ]}
+        >
+          {title}
+        </Text>
+      </Animated.View>
+    </Pressable>
+  );
+};
 
 const styles = StyleSheet.create({
   base: {

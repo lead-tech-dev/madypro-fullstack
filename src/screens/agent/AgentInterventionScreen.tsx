@@ -11,6 +11,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Animated,
+  Easing,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
@@ -77,6 +79,10 @@ export default function InterventionDetailScreen() {
   const [now, setNow] = React.useState<Date>(() => new Date());
   const [startPersisted, setStartPersisted] = React.useState<string | null>(null);
   const [currentId, setCurrentId] = React.useState<string | null>(null);
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const pulseAnim = React.useRef(new Animated.Value(1)).current;
+  const glowAnim = React.useRef(new Animated.Value(0)).current;
+  const progressAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     if (!id || !token) {
@@ -160,6 +166,45 @@ export default function InterventionDetailScreen() {
     () => intervention?.agents?.find((a) => a.id === user?.id) ?? null,
     [intervention?.agents, user?.id],
   );
+  const hasStarted = Boolean(userAttendance?.checkInTime);
+
+  React.useEffect(() => {
+    fadeAnim.setValue(0);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 350,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim, currentId]);
+
+  React.useEffect(() => {
+    if (!isRunning) {
+      pulseAnim.setValue(1);
+      glowAnim.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.05, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    const glowLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 0.8, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    glowLoop.start();
+    return () => {
+      loop.stop();
+      glowLoop.stop();
+      pulseAnim.setValue(1);
+      glowAnim.setValue(0);
+    };
+  }, [isRunning, pulseAnim, glowAnim]);
   const startDate = React.useMemo(() => {
     if (!intervention) {
       return null;
@@ -178,6 +223,10 @@ export default function InterventionDetailScreen() {
     if (!intervention?.date || !intervention?.startTime) return null;
     return buildDateTime(intervention.date, intervention.startTime);
   }, [intervention?.date, intervention?.startTime]);
+  const plannedEnd = React.useMemo(() => {
+    if (!intervention?.date || !intervention?.endTime) return null;
+    return buildDateTime(intervention.date, intervention.endTime);
+  }, [intervention?.date, intervention?.endTime]);
 
   const arrivalAllowedFrom = React.useMemo(() => {
     if (!plannedStart) return null;
@@ -205,6 +254,26 @@ export default function InterventionDetailScreen() {
     if (userAttendance?.checkOutTime) return formatTime(new Date(userAttendance.checkOutTime));
     return null;
   }, [intervention?.actualEndTime, userAttendance?.checkOutTime]);
+
+  React.useEffect(() => {
+    if (!plannedStart || !plannedEnd) {
+      progressAnim.setValue(0);
+      return;
+    }
+    const durationMs = plannedEnd.getTime() - plannedStart.getTime();
+    if (durationMs <= 0) {
+      progressAnim.setValue(0);
+      return;
+    }
+    const nowTs = isRunning ? Date.now() : plannedStart.getTime();
+    const target = Math.min(1, Math.max(0, (nowTs - plannedStart.getTime()) / durationMs));
+    Animated.timing(progressAnim, {
+      toValue: target,
+      duration: 300,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }, [plannedStart, plannedEnd, isRunning, progressAnim]);
 
   React.useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30 * 1000);
@@ -275,6 +344,15 @@ export default function InterventionDetailScreen() {
               status: 'IN_PROGRESS',
               actualStartTime: prev.actualStartTime ?? displayTime,
               actualStartAt: prev.actualStartAt ?? now.toISOString(),
+              agents: prev.agents.map((a) =>
+                a.id === user.id
+                  ? {
+                      ...a,
+                      attendanceStatus: 'IN_PROGRESS',
+                      checkInTime: a.checkInTime ?? now.toISOString(),
+                    }
+                  : a,
+              ),
             }
           : prev,
       );
@@ -527,11 +605,22 @@ export default function InterventionDetailScreen() {
         </View>
       }
     >
-      <ScrollView
-        style={styles.sectionStack}
-        contentContainerStyle={{ gap: theme.spacing.lg }}
-        showsVerticalScrollIndicator={false}
+      <Animated.View
+        style={{
+          flex: 1,
+          opacity: fadeAnim,
+          transform: [
+            {
+              translateY: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }),
+            },
+          ],
+        }}
       >
+        <ScrollView
+          style={styles.sectionStack}
+          contentContainerStyle={{ gap: theme.spacing.lg }}
+          showsVerticalScrollIndicator={false}
+        >
         {hasPendingSync && (
           <View style={styles.syncBanner}>
             <Text style={styles.syncBannerTitle}>Intervention en attente de synchronisation</Text>
@@ -543,11 +632,35 @@ export default function InterventionDetailScreen() {
           </View>
         )}
         {isRunning && (
-          <View style={styles.runningPanel}>
+          <Animated.View style={[styles.runningPanel, { transform: [{ scale: pulseAnim }] }]}>
+            <Animated.View
+              style={[
+                styles.glow,
+                {
+                  opacity: glowAnim,
+                  transform: [{ scale: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.2] }) }],
+                },
+              ]}
+            />
             <Text style={styles.runningLabel}>Intervention en cours</Text>
             <Text style={styles.timerValue}>{elapsed}</Text>
             <Text style={styles.textMuted}>Temps écoulé</Text>
-          </View>
+            {plannedStart && plannedEnd && (
+              <View style={styles.progressContainer}>
+                <Animated.View
+                  style={[
+                    styles.progressBar,
+                    {
+                      width: progressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%'],
+                      }),
+                    },
+                  ]}
+                />
+              </View>
+            )}
+          </Animated.View>
         )}
 
         <Section title="Type d’intervention">
@@ -623,9 +736,10 @@ export default function InterventionDetailScreen() {
             </Text>
           </Section>
         )}
-      </ScrollView>
+        </ScrollView>
+      </Animated.View>
 
-      <View style={styles.actions}>
+      <Animated.View style={[styles.actions, { opacity: fadeAnim }]}>
         {!arrivalRecorded && !canMarkArrival && arrivalAllowedFrom && (
           <Text style={styles.textMuted}>
             Arrivée possible dès {formatTime(arrivalAllowedFrom)} (30 min avant le début).
@@ -643,18 +757,18 @@ export default function InterventionDetailScreen() {
             <Text style={styles.verifyingText}>Enregistrement de présence...</Text>
           </View>
         )}
-        {isPlanned && (
+        {!isCompleted && !hasStarted && (
           <Button
             title="Démarrer l’intervention"
             onPress={handleStart}
             disabled={isVerifying || !arrivalRecorded}
           />
         )}
-        {isRunning && !(isCompleted || userAttendance?.attendanceStatus === 'COMPLETED') && (
+        {!isCompleted && hasStarted && !(userAttendance?.attendanceStatus === 'COMPLETED') && (
           <Button title="Terminer l’intervention" onPress={handleFinish} disabled={isVerifying} />
         )}
         <Button title="Signaler un problème" variant="ghost" onPress={handleProblem} />
-      </View>
+      </Animated.View>
       <ProblemModal
         visible={isProblemModalVisible}
         onClose={() => setProblemModalVisible(false)}
@@ -836,6 +950,17 @@ const styles = StyleSheet.create({
     padding: theme.spacing.xl,
     alignItems: 'center',
     gap: theme.spacing.xs,
+    overflow: 'hidden',
+  },
+  glow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: theme.colors.primary,
+    opacity: 0.15,
+    zIndex: -1,
   },
   runningLabel: {
     fontSize: 14,
@@ -847,6 +972,18 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     color: theme.colors.ink,
+  },
+  progressContainer: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#e8eef5',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 999,
   },
   section: {
     backgroundColor: '#fff',
