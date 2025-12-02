@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { listAbsences } from '@/services/api/absences.api';
+import { listMyAbsences } from '@/services/api/absences.api';
 import { Absence } from '@/types/absences';
 import { theme } from '@/config/theme';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
@@ -41,7 +41,7 @@ export default function RequestsScreen() {
     setLoading(true);
     setAbsences([]);
     try {
-      const data = await listAbsences(token, { agentId: user.id });
+      const data = await listMyAbsences(token);
       setAbsences(Array.isArray(data) ? data : []);
     } finally {
       setLoading(false);
