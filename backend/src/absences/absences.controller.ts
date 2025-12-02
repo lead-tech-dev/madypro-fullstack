@@ -40,6 +40,32 @@ export class AbsencesController {
     );
   }
 
+  @Roles('AGENT')
+  @Get('me')
+  listMine(
+    @Req() req: any,
+    @Query('status') status?: string,
+    @Query('type') type?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page: string = '1',
+    @Query('pageSize') pageSize: string = '20',
+  ) {
+    const viewer = req.user;
+    return this.service.list(
+      {
+        status: (status as any) ?? 'all',
+        type: (type as any) ?? 'all',
+        userId: viewer?.sub,
+        startDate,
+        endDate,
+        page: parseInt(page, 10) || 1,
+        pageSize: parseInt(pageSize, 10) || 20,
+      },
+      { id: viewer?.sub, role: 'AGENT' },
+    );
+  }
+
   @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
   @Get(':id')
   async detail(@Req() req: any, @Param('id') id: string) {
