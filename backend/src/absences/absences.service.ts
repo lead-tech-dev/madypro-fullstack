@@ -8,6 +8,7 @@ import { CreateManualAbsenceDto } from './dto/create-manual-absence.dto';
 import { UpdateAbsenceStatusDto } from './dto/update-absence-status.dto';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../database/prisma.service';
+import { BadRequestException } from '@nestjs/common';
 
 type AbsenceFilters = {
   status?: AbsenceStatus | 'all';
@@ -143,6 +144,9 @@ export class AbsencesService {
   }
 
   async request(data: CreateAbsenceRequestDto) {
+    if (!data.userId) {
+      throw new BadRequestException('userId requis');
+    }
     const record = await this.prisma.absence.create({
       data: {
         userId: data.userId,

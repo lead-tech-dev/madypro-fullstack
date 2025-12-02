@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CreateAbsenceRequestDto } from './dto/create-absence-request.dto';
 import { CreateManualAbsenceDto } from './dto/create-manual-absence.dto';
 import { UpdateAbsenceStatusDto } from './dto/update-absence-status.dto';
+import { BadRequestException } from '@nestjs/common';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('absences')
@@ -81,6 +82,9 @@ export class AbsencesController {
   request(@Req() req: any, @Body() body: CreateAbsenceRequestDto) {
     const viewer = req.user;
     const enforcedUserId = viewer?.role?.toUpperCase() === 'AGENT' ? viewer.sub : body.userId;
+    if (!enforcedUserId) {
+      throw new BadRequestException('userId requis');
+    }
     return this.service.request({ ...body, userId: enforcedUserId });
   }
 
