@@ -16,6 +16,8 @@ export type AgentTabParamList = {
 export type AgentStackParamList = {
   AgentTabs: NavigatorScreenParams<AgentTabParamList>;
   AgentIntervention: { id: string };
+  AgentAbsenceForm: undefined;
+  AgentChangePassword: undefined;
 };
 
 export type RootStackParamList = {

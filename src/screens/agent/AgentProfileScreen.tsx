@@ -5,10 +5,14 @@ import { useAuthContext } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { theme } from '@/config/theme';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { AgentStackParamList } from '@/navigation/types';
 
 export default function AgentProfileScreen() {
   const { user, logout } = useAuthContext();
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(false);
+  const navigation = useNavigation<NativeStackNavigationProp<AgentStackParamList>>();
 
   React.useEffect(() => {
     Notifications.getPermissionsAsync().then(({ status }) => {
@@ -60,6 +64,11 @@ export default function AgentProfileScreen() {
             thumbColor={notificationsEnabled ? theme.colors.primary : '#f4f3f4'}
           />
         </View>
+        <Button
+          title="Modifier le mot de passe"
+          variant="ghost"
+          onPress={() => navigation.navigate('AgentChangePassword')}
+        />
       </View>
 
       <Button

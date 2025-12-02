@@ -12,9 +12,11 @@ import { AgentTabBar } from '@/components/navigation/AgentTabBar';
 import AgentHomeScreen from '@/screens/agent/AgentHomeScreen';
 import AgentHistoryScreen from '@/screens/agent/AgentHistoryScreen';
 import AgentRequestsScreen from '@/screens/agent/AgentRequestsScreen';
+import AgentAbsenceFormScreen from '@/screens/agent/AgentAbsenceFormScreen';
 import AgentNotificationsScreen from '@/screens/agent/AgentNotificationsScreen';
 import AgentProfileScreen from '@/screens/agent/AgentProfileScreen';
 import AgentInterventionScreen from '@/screens/agent/AgentInterventionScreen';
+import AgentChangePasswordScreen from '@/screens/agent/AgentChangePasswordScreen';
 import OnboardingScreen from '@/screens/OnboardingScreen';
 import LoginScreen from '@/screens/auth/LoginScreen';
 import ForgotPasswordScreen from '@/screens/auth/ForgotPasswordScreen';
@@ -83,6 +85,8 @@ function AgentNavigator() {
     <AgentStack.Navigator screenOptions={{ headerShown: false }}>
       <AgentStack.Screen name="AgentTabs" component={AgentTabNavigator} />
       <AgentStack.Screen name="AgentIntervention" component={AgentInterventionScreen} />
+      <AgentStack.Screen name="AgentAbsenceForm" component={AgentAbsenceFormScreen} />
+      <AgentStack.Screen name="AgentChangePassword" component={AgentChangePasswordScreen} />
     </AgentStack.Navigator>
   );
 }
