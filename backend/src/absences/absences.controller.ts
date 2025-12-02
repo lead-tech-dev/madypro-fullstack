@@ -25,7 +25,7 @@ export class AbsencesController {
     @Query('pageSize') pageSize: string = '20',
   ) {
     const viewer = req.user;
-    const enforcedUserId = viewer?.role === 'AGENT' ? viewer.sub : userId;
+    const enforcedUserId = viewer?.role?.toUpperCase() === 'AGENT' ? viewer.sub : userId;
     return this.service.list({
       status: (status as any) ?? 'all',
       type: (type as any) ?? 'all',
@@ -49,8 +49,10 @@ export class AbsencesController {
 
   @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
   @Post('request')
-  request(@Body() body: CreateAbsenceRequestDto) {
-    return this.service.request(body);
+  request(@Req() req: any, @Body() body: CreateAbsenceRequestDto) {
+    const viewer = req.user;
+    const enforcedUserId = viewer?.role?.toUpperCase() === 'AGENT' ? viewer.sub : body.userId;
+    return this.service.request({ ...body, userId: enforcedUserId });
   }
 
   @Roles('ADMIN', 'SUPERVISOR')
