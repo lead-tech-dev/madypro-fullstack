@@ -26,7 +26,7 @@ export class AbsencesController {
     @Query('pageSize') pageSize: string = '20',
   ) {
     const viewer = req.user;
-    const enforcedUserId = viewer?.role?.toUpperCase() === 'AGENT' ? viewer.sub : userId;
+    const enforcedUserId = viewer?.role?.toUpperCase() === 'AGENT' ? viewer.userId : userId;
     return this.service.list(
       {
         status: (status as any) ?? 'all',
@@ -37,7 +37,7 @@ export class AbsencesController {
         page: parseInt(page, 10) || 1,
         pageSize: parseInt(pageSize, 10) || 20,
       },
-      { id: viewer?.sub, role: viewer?.role },
+      { id: viewer?.userId, role: viewer?.role },
     );
   }
 
@@ -57,13 +57,13 @@ export class AbsencesController {
       {
         status: (status as any) ?? 'all',
         type: (type as any) ?? 'all',
-        userId: viewer?.sub,
+        userId: viewer?.userId,
         startDate,
         endDate,
         page: parseInt(page, 10) || 1,
         pageSize: parseInt(pageSize, 10) || 20,
       },
-      { id: viewer?.sub, role: 'AGENT' },
+      { id: viewer?.userId, role: 'AGENT' },
     );
   }
 
@@ -71,7 +71,7 @@ export class AbsencesController {
   @Get(':id')
   async detail(@Req() req: any, @Param('id') id: string) {
     const absence = await this.service.detail(id);
-    if (req.user?.role === 'AGENT' && absence.agent.id !== req.user.sub) {
+    if (req.user?.role === 'AGENT' && absence.agent.id !== req.user.userId) {
       throw new ForbiddenException('Accès refusé');
     }
     return absence;
@@ -81,7 +81,7 @@ export class AbsencesController {
   @Post('request')
   request(@Req() req: any, @Body() body: CreateAbsenceRequestDto) {
     const viewer = req.user;
-    const enforcedUserId = viewer?.role?.toUpperCase() === 'AGENT' ? viewer.sub : body.userId;
+    const enforcedUserId = viewer?.role?.toUpperCase() === 'AGENT' ? viewer.userId : body.userId;
     if (!enforcedUserId) {
       throw new BadRequestException('userId requis');
     }
