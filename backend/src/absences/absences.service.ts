@@ -92,11 +92,17 @@ export class AbsencesService {
     };
   }
 
-  async list(filters: AbsenceFilters = {}) {
+  async list(filters: AbsenceFilters = {}, viewer?: { id?: string; role?: string }) {
     const where: Prisma.AbsenceWhereInput = {};
     if (filters.status && filters.status !== 'all') where.status = filters.status;
     if (filters.type && filters.type !== 'all') where.type = filters.type;
-    if (filters.userId) where.userId = filters.userId;
+    const role = viewer?.role?.toString().trim().toUpperCase();
+    const forcedUserId = role === 'AGENT' ? viewer?.id : undefined;
+    if (forcedUserId) {
+      where.userId = forcedUserId;
+    } else if (filters.userId) {
+      where.userId = filters.userId;
+    }
     if (filters.startDate) {
       where.to = { gte: this.toDateOnly(filters.startDate) };
     }

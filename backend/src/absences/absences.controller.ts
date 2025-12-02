@@ -26,15 +26,18 @@ export class AbsencesController {
   ) {
     const viewer = req.user;
     const enforcedUserId = viewer?.role?.toUpperCase() === 'AGENT' ? viewer.sub : userId;
-    return this.service.list({
-      status: (status as any) ?? 'all',
-      type: (type as any) ?? 'all',
-      userId: enforcedUserId,
-      startDate,
-      endDate,
-      page: parseInt(page, 10) || 1,
-      pageSize: parseInt(pageSize, 10) || 20,
-    });
+    return this.service.list(
+      {
+        status: (status as any) ?? 'all',
+        type: (type as any) ?? 'all',
+        userId: enforcedUserId,
+        startDate,
+        endDate,
+        page: parseInt(page, 10) || 1,
+        pageSize: parseInt(pageSize, 10) || 20,
+      },
+      { id: viewer?.sub, role: viewer?.role },
+    );
   }
 
   @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
