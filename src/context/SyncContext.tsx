@@ -28,6 +28,11 @@ type SyncContextValue = {
   pendingEvents: SyncEvent[];
   queueEvent: (input: QueueInput) => Promise<void>;
   flush: () => Promise<void>;
+  clearQueue: () => void;
+  removeEvent: (id: string) => void;
+  pendingStarts: SyncEvent[];
+  pendingEnds: SyncEvent[];
+  lastError: string | null;
 };
 
 const SyncContext = createContext<SyncContextValue | undefined>(undefined);
@@ -35,6 +40,7 @@ const SyncContext = createContext<SyncContextValue | undefined>(undefined);
 export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [pendingEvents, setPendingEvents] = useState<SyncEvent[]>([]);
   const [isOnline, setIsOnline] = useState(true);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
@@ -71,7 +77,9 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await mockUpload(event);
         setPendingEvents((prev) => prev.filter((item) => item.id !== event.id));
+        setLastError(null);
       } catch (error) {
+        setLastError(error instanceof Error ? error.message : 'Synchronisation impossible');
         break;
       }
     }
@@ -93,8 +101,10 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isOnline) {
         try {
           await mockUpload(event);
+          setLastError(null);
           return;
         } catch (error) {
+          setLastError(error instanceof Error ? error.message : 'Synchronisation impossible');
           // fallthrough to queueing locally
         }
       }
@@ -104,14 +114,31 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [isOnline, mockUpload],
   );
 
+  const clearQueue = useCallback(() => {
+    setPendingEvents([]);
+    setLastError(null);
+  }, []);
+
+  const removeEvent = useCallback((id: string) => {
+    setPendingEvents((prev) => prev.filter((evt) => evt.id !== id));
+  }, []);
+
+  const pendingStarts = useMemo(() => pendingEvents.filter((e) => e.type === 'START'), [pendingEvents]);
+  const pendingEnds = useMemo(() => pendingEvents.filter((e) => e.type === 'END'), [pendingEvents]);
+
   const value = useMemo(
     () => ({
       isOnline,
       pendingEvents,
       queueEvent,
       flush,
+      clearQueue,
+      removeEvent,
+      pendingStarts,
+      pendingEnds,
+      lastError,
     }),
-    [isOnline, pendingEvents, queueEvent, flush],
+    [isOnline, pendingEvents, queueEvent, flush, clearQueue, removeEvent, pendingStarts, pendingEnds, lastError],
   );
 
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;

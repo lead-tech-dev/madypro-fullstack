@@ -71,7 +71,7 @@ export default function InterventionDetailScreen() {
   const [problemDescription, setProblemDescription] = React.useState('');
   const [problemPhotos, setProblemPhotos] = React.useState<string[]>([]);
   const [isSubmittingProblem, setSubmittingProblem] = React.useState(false);
-  const { isOnline, pendingEvents, queueEvent } = useSyncContext();
+  const { isOnline, pendingEvents, pendingStarts, pendingEnds, queueEvent, clearQueue, lastError } = useSyncContext();
   const { token, user } = useAuthContext();
   const [site, setSite] = React.useState<Site | null>(null);
   const [isMarkingArrival, setMarkingArrival] = React.useState(false);
@@ -629,6 +629,13 @@ export default function InterventionDetailScreen() {
                 ? 'Synchronisation en cours…'
                 : 'Hors connexion, envoi dès le retour réseau.'}
             </Text>
+            <Text style={styles.syncBannerText}>
+              Événements en attente : {pendingStarts.length} démarrage(s), {pendingEnds.length} fin(s)
+            </Text>
+            {lastError && <Text style={[styles.syncBannerText, { color: '#c62828' }]}>Dernière erreur : {lastError}</Text>}
+            {pendingEvents.length > 0 && (
+              <Button title="Purger la file locale" variant="ghost" onPress={clearQueue} />
+            )}
           </View>
         )}
         {isRunning && (
@@ -699,11 +706,53 @@ export default function InterventionDetailScreen() {
 
         <Section title="Agents assignés">
           {intervention.agents?.length ? (
-            intervention.agents.map((agent) => (
-              <Text key={agent.id} style={styles.row}>
-                • {agent.name}
-              </Text>
-            ))
+            intervention.agents.map((agent) => {
+              const isCurrent = agent.id === user?.id;
+              const status = agent.attendanceStatus ?? (agent.checkOutTime ? 'COMPLETED' : agent.checkInTime ? 'IN_PROGRESS' : 'PENDING');
+              const statusLabel =
+                status === 'COMPLETED'
+                  ? 'Terminé'
+                  : status === 'IN_PROGRESS'
+                  ? 'En cours'
+                  : 'En attente';
+              return (
+                <View key={agent.id} style={styles.agentRow}>
+                  <View>
+                    <Text style={styles.row}>
+                      • {agent.name} {isCurrent ? '(vous)' : ''}
+                    </Text>
+                    <Text style={styles.textMuted}>
+                      Arrivée : {agent.arrivalTime ? formatTime(new Date(agent.arrivalTime)) : '—'} · Début :{' '}
+                      {agent.checkInTime ? formatTime(new Date(agent.checkInTime)) : '—'} · Fin :{' '}
+                      {agent.checkOutTime ? formatTime(new Date(agent.checkOutTime)) : '—'}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.agentBadge,
+                      status === 'COMPLETED'
+                        ? styles.badgeSuccess
+                        : status === 'IN_PROGRESS'
+                        ? styles.badgeWarning
+                        : styles.badgeInfo,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.agentBadgeText,
+                        status === 'COMPLETED'
+                          ? styles.badgeSuccessText
+                          : status === 'IN_PROGRESS'
+                          ? styles.badgeWarningText
+                          : styles.badgeInfoText,
+                      ]}
+                    >
+                      {statusLabel}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })
           ) : (
             <Text style={styles.textMuted}>Aucun agent associé.</Text>
           )}
@@ -998,6 +1047,42 @@ const styles = StyleSheet.create({
   highlight: {
     fontWeight: '600',
     color: theme.colors.ink,
+  },
+  agentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  agentBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  agentBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  badgeSuccess: {
+    backgroundColor: '#def5eb',
+  },
+  badgeSuccessText: {
+    color: '#0b874b',
+  },
+  badgeWarning: {
+    backgroundColor: '#fff5e0',
+  },
+  badgeWarningText: {
+    color: '#b15b00',
+  },
+  badgeInfo: {
+    backgroundColor: '#e5f1ff',
+  },
+  badgeInfoText: {
+    color: '#1e5aa6',
   },
   textMuted: {
     color: theme.colors.muted,
