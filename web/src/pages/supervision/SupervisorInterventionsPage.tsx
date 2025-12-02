@@ -8,6 +8,7 @@ import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { ImageSlider } from '../../components/ui/ImageSlider';
+import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { compressImageFile } from '../../utils/image';
 import { formatDateTime } from '../../utils/datetime';
 
@@ -38,6 +39,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewing, setViewing] = useState<Intervention | null>(null);
+  const [observationDraft, setObservationDraft] = useState('');
   const [photoDraft, setPhotoDraft] = useState<string[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [attendanceEdits, setAttendanceEdits] = useState<Record<string, { checkInTime?: string; checkOutTime?: string }>>({});
@@ -107,6 +109,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
 
   useEffect(() => {
     if (viewing) {
+      setObservationDraft(viewing.observation ?? '');
       setPhotoDraft(viewing.photos ?? []);
       fetchAttendanceForViewing(viewing);
     }
@@ -489,45 +492,54 @@ export const SupervisorInterventionsPage: React.FC = () => {
                     const entries = Object.entries(attendanceEdits).filter(
                       ([, edit]) => edit.checkInTime || edit.checkOutTime,
                     );
-                    for (const [attId, edit] of entries) {
-                      await updateAttendanceApi(token, attId, {
-                        checkInTime: edit.checkInTime,
-                        checkOutTime: edit.checkOutTime,
-                      });
+                    if (entries.length === 0) {
+                      notify('Aucune modification détectée', 'info');
+                      return;
                     }
-                    const refreshed = await listAttendance(token, {
-                      siteId: viewing.siteId,
-                      startDate: viewing.date,
-                      endDate: viewing.date,
-                      status: 'all',
-                      pageSize: 200,
-                    });
-                    const items = (refreshed as any)?.items ?? (Array.isArray(refreshed) ? refreshed : []);
-                    const allowedAgents = new Set(viewing.agents.map((a) => a.id).filter(Boolean));
-                    const filtered = allowedAgents.size
-                      ? items.filter((att: any) => allowedAgents.has(att.agent?.id || att.agentId))
-                      : items;
-                    setAttendance(filtered);
-                    setAttendanceEdits({});
-                    setViewing((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            agents: prev.agents.map((agent) => {
-                              const att = filtered.find((a: any) => a.agent?.id === agent.id);
-                              return att
-                                ? {
-                                    ...agent,
-                                    arrivalTime: att.arrivalTime ?? agent.arrivalTime,
-                                    checkInTime: att.checkInTime ?? agent.checkInTime,
-                                    checkOutTime: att.checkOutTime ?? agent.checkOutTime,
-                                  }
-                                : agent;
-                            }),
-                          }
-                        : prev,
-                    );
-                    notify('Corrections enregistrées');
+                    try {
+                      for (const [attId, edit] of entries) {
+                        await updateAttendanceApi(token, attId, {
+                          checkInTime: edit.checkInTime,
+                          checkOutTime: edit.checkOutTime,
+                        });
+                      }
+                      const refreshed = await listAttendance(token, {
+                        siteId: viewing.siteId,
+                        startDate: viewing.date,
+                        endDate: viewing.date,
+                        status: 'all',
+                        pageSize: 200,
+                      });
+                      const items = (refreshed as any)?.items ?? (Array.isArray(refreshed) ? refreshed : []);
+                      const allowedAgents = new Set(viewing.agents.map((a) => a.id).filter(Boolean));
+                      const filtered = allowedAgents.size
+                        ? items.filter((att: any) => allowedAgents.has(att.agent?.id || att.agentId))
+                        : items;
+                      setAttendance(filtered);
+                      setAttendanceEdits({});
+                      setViewing((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              agents: prev.agents.map((agent) => {
+                                const att = filtered.find((a: any) => a.agent?.id === agent.id);
+                                return att
+                                  ? {
+                                      ...agent,
+                                      arrivalTime: att.arrivalTime ?? agent.arrivalTime,
+                                      checkInTime: att.checkInTime ?? agent.checkInTime,
+                                      checkOutTime: att.checkOutTime ?? agent.checkOutTime,
+                                    }
+                                  : agent;
+                              }),
+                            }
+                          : prev,
+                      );
+                      notify('Corrections enregistrées');
+                    } catch (err) {
+                      const message = err instanceof Error ? err.message : 'Impossible d’enregistrer les corrections';
+                      notify(message, 'error');
+                    }
                   }}
                 >
                   Enregistrer corrections
@@ -535,10 +547,49 @@ export const SupervisorInterventionsPage: React.FC = () => {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-              <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                Fermer
-              </Button>
+            <div style={{ marginTop: '1.5rem', display: 'grid', gap: '0.75rem' }}>
+              <div>
+                <h4>Observation</h4>
+                <RichTextEditor
+                  value={observationDraft}
+                  onChange={(value) => setObservationDraft(value)}
+                  placeholder="Ajouter une observation"
+                />
+              </div>
+              <div>
+                <h4>Photos</h4>
+                <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
+                {photoDraft.length > 0 && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <ImageSlider images={photoDraft} />
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
+                  Fermer
+                </Button>
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    if (!token || !viewing) return;
+                    try {
+                      const updated = await updateIntervention(token, viewing.id, {
+                        observation: observationDraft,
+                        photos: photoDraft,
+                      });
+                      setViewing(updated);
+                      setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+                      notify('Observation mise à jour');
+                    } catch (err) {
+                      const message = err instanceof Error ? err.message : 'Impossible de sauvegarder';
+                      notify(message, 'error');
+                    }
+                  }}
+                >
+                  Sauvegarder obs / photos
+                </Button>
+              </div>
             </div>
         </div>
       </div>

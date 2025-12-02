@@ -165,6 +165,22 @@ export class UsersService implements OnModuleInit {
     return { password: nextPassword };
   }
 
+  findEntityById(id: string): UserEntity {
+    return this.ensureExists(id);
+  }
+
+  async updatePassword(id: string, newPassword: string) {
+    const user = this.ensureExists(id);
+    const hashed = await bcrypt.hash(newPassword, 10);
+    const record = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashed },
+    });
+    const updated = this.mapRecord(record);
+    this.upsertCache(updated);
+    return this.toPublic(updated);
+  }
+
   findByEmail(email: string): UserEntity | undefined {
     return this.users.find((user) => user.email === email);
   }
