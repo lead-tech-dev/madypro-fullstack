@@ -23,6 +23,7 @@ import { UsersService } from '../users/users.service';
 import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ConfigService } from '@nestjs/config';
 
 export type InterventionFilters = {
   startDate?: string;
@@ -61,6 +62,9 @@ type PersistedInterventionType = 'REGULAR' | 'PUNCTUAL';
 export class InterventionsService implements OnModuleInit {
   private readonly logger = new Logger(InterventionsService.name);
   private generatingRules = false;
+  private AUTO_CLOSE_GRACE_MS = 30 * 60 * 1000; // 30 minutes de marge après l'heure de fin planifiée
+  private AUTO_CLOSE_ENABLED = true;
+  private AUTO_CLOSE_INCOMPLETE_STATUS: InterventionStatus = 'NEEDS_REVIEW';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -68,15 +72,31 @@ export class InterventionsService implements OnModuleInit {
     private readonly usersService: UsersService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
+    private readonly configService: ConfigService,
   ) {}
 
   async onModuleInit() {
+    const graceMinutes = this.configService.get<number>('app.autoCloseGraceMinutes');
+    const enabled = this.configService.get<boolean>('app.autoCloseEnabled');
+    const incompleteStatus = (this.configService.get<string>('app.autoCloseIncompleteStatus') ??
+      'NEEDS_REVIEW') as InterventionStatus;
+    this.AUTO_CLOSE_GRACE_MS = (graceMinutes && graceMinutes > 0 ? graceMinutes : 30) * 60 * 1000;
+    this.AUTO_CLOSE_ENABLED = enabled !== false;
+    this.AUTO_CLOSE_INCOMPLETE_STATUS = incompleteStatus;
+
     await this.generateFromRules();
     setInterval(() => {
       this.generateFromRules().catch((error) =>
         this.logger.error('Erreur lors de la génération automatique des interventions', error.stack),
       );
     }, 1000 * 60 * 60 * 6);
+    // Clôture automatique des interventions dépassées
+    setInterval(() => {
+      if (!this.AUTO_CLOSE_ENABLED) return;
+      this.autoCloseExpired().catch((error) =>
+        this.logger.error('Erreur lors de la clôture automatique des interventions', error.stack),
+      );
+    }, 5 * 60 * 1000); // toutes les 5 minutes
   }
 
   private toDateOnly(value: string) {
@@ -89,6 +109,55 @@ export class InterventionsService implements OnModuleInit {
 
   private combine(dateStr: string, time: string) {
     return new Date(`${dateStr}T${time}:00`);
+  }
+
+  /**
+   * Clôture les interventions dont l'heure de fin planifiée + marge est dépassée.
+   * Si tous les agents affectés ont pointé (status COMPLETED + checkOut), on passe à COMPLETED,
+   * sinon on passe à NEEDS_REVIEW.
+   */
+  private async autoCloseExpired() {
+    const now = new Date();
+    const dayBefore = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const candidates = await this.prisma.intervention.findMany({
+      where: {
+        status: { in: ['PLANNED', 'IN_PROGRESS'] },
+        date: { gte: dayBefore },
+      },
+      include: { assignments: true, attendances: true },
+    });
+
+    for (const intervention of candidates) {
+      const end = this.combine(
+        intervention.date.toISOString().slice(0, 10),
+        intervention.endTime ?? '00:00',
+      );
+      if (now.getTime() <= end.getTime() + this.AUTO_CLOSE_GRACE_MS) continue;
+
+      const assignedUserIds = intervention.assignments.map((a) => a.userId);
+      if (assignedUserIds.length === 0) {
+        await this.prisma.intervention.update({
+          where: { id: intervention.id },
+          data: { status: 'COMPLETED' },
+        });
+        continue;
+      }
+      const attForAgents = intervention.attendances.filter((att: any) =>
+        assignedUserIds.includes(att.userId),
+      );
+      const completedUsers = new Set(
+        attForAgents
+          .filter((att) => att.status === 'COMPLETED' && att.checkOutTime != null)
+          .map((att) => att.userId),
+      );
+      const allDone = assignedUserIds.every((uid) => completedUsers.has(uid));
+      const targetStatus = allDone ? 'COMPLETED' : this.AUTO_CLOSE_INCOMPLETE_STATUS;
+
+      await this.prisma.intervention.update({
+        where: { id: intervention.id },
+        data: { status: targetStatus as any },
+      });
+    }
   }
 
   private toEntity(record: InterventionRecord): InterventionEntity {

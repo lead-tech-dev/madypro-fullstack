@@ -444,64 +444,10 @@ export const SupervisorInterventionsPage: React.FC = () => {
              </div>
            </div>
 
-            <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>
-              {['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(viewing.status) ? (
-                <div style={{ display: 'grid', gap: '0.5rem' }}>
-                  <h4>Observation superviseur / admin</h4>
-                  <RichTextEditor
-                    value={observationDraft}
-                    onChange={(value) => setObservationDraft(value)}
-                    placeholder="Ajouter une observation"
-                  />
-                  <div style={{ display: 'grid', gap: '0.35rem' }}>
-                    <p className="card__meta">Photos</p>
-                    <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
-                    {photoDraft.length > 0 && <ImageSlider images={photoDraft} />}
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                    <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                      Fermer
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={async () => {
-                        if (!token || !viewing) return;
-                        try {
-                          const payload: any = {
-                            observation: observationDraft,
-                          };
-                          if (photoDraft && photoDraft.length > 0) {
-                            payload.photos = photoDraft;
-                          }
-                          const updated = await updateIntervention(token, viewing.id, payload);
-                          setInterventions((prev) => prev.map((i) => (i.id === viewing.id ? updated : i)));
-                          setViewing(updated);
-                          notify('Observation mise à jour');
-                        } catch (err) {
-                          const message = err instanceof Error ? err.message : 'Mise à jour impossible';
-                          notify(message, 'error');
-                        }
-                      }}
-                    >
-                      Enregistrer
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {photoDraft.length > 0 ? (
-                    <div style={{ flex: 1 }}>
-                      <h4 style={{ marginBottom: '0.5rem' }}>Photos</h4>
-                      <ImageSlider images={photoDraft} />
-                    </div>
-                  ) : (
-                    <div />
-                  )}
-                  <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                    Fermer
-                  </Button>
-                </div>
-              )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+              <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
+                Fermer
+              </Button>
             </div>
         </div>
       </div>
