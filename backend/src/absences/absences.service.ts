@@ -121,9 +121,12 @@ export class AbsencesService {
       }),
       this.prisma.absence.count({ where }),
     ]);
+    // filet de sécurité : si AGENT, on ne retourne que ses propres demandes même si un filtre incorrect est passé
+    const filteredRecords =
+      role === 'AGENT' && viewer?.id ? records.filter((r) => r.userId === viewer.id) : records;
     return {
-      items: records.map((record) => this.toView(this.toEntity(record))),
-      total,
+      items: filteredRecords.map((record) => this.toView(this.toEntity(record))),
+      total: role === 'AGENT' ? filteredRecords.length : total,
       page,
       pageSize,
     };
