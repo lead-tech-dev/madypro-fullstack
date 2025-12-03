@@ -33,13 +33,20 @@ const STATUS_OPTIONS: { value: AbsenceStatus | 'all'; label: string }[] = [
 
 const formatDate = (date: Date) => date.toISOString().slice(0, 10);
 
-const initialFilters = () => ({
-  startDate: formatDate(new Date(new Date().setMonth(new Date().getMonth() - 1))),
-  endDate: formatDate(new Date()),
-  agentId: 'all',
-  type: 'all' as AbsenceType | 'all',
-  status: 'all' as AbsenceStatus | 'all',
-});
+const initialFilters = () => {
+  const now = new Date();
+  const start = new Date(now);
+  start.setMonth(start.getMonth() - 1);
+  const end = new Date(now);
+  end.setMonth(end.getMonth() + 3); // inclut les absences futures
+  return {
+    startDate: formatDate(start),
+    endDate: formatDate(end),
+    agentId: 'all',
+    type: 'all' as AbsenceType | 'all',
+    status: 'all' as AbsenceStatus | 'all',
+  };
+};
 
 type ManualFormState = {
   userId: string;
