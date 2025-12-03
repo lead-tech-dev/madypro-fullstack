@@ -50,7 +50,11 @@ export class AbsencesService {
   ) {}
 
   private toDateOnly(value: string) {
-    return new Date(`${value}T00:00:00.000Z`);
+    const d = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException('Date invalide');
+    }
+    return d;
   }
 
   private toEntity(record: AbsenceRecord): AbsenceEntity {
@@ -147,14 +151,19 @@ export class AbsencesService {
     if (!data.userId) {
       throw new BadRequestException('userId requis');
     }
+    const fromDate = this.toDateOnly(data.from);
+    const toDate = this.toDateOnly(data.to);
+    if (fromDate > toDate) {
+      throw new BadRequestException('La date de début doit être avant la date de fin');
+    }
     const record = await this.prisma.absence.create({
       data: {
         userId: data.userId,
         siteId: data.siteId,
         type: data.type,
         status: 'PENDING',
-        from: this.toDateOnly(data.from),
-        to: this.toDateOnly(data.to),
+        from: fromDate,
+        to: toDate,
         reason: data.reason,
         note: data.note,
         manual: false,
@@ -172,14 +181,19 @@ export class AbsencesService {
   }
 
   async createManual(data: CreateManualAbsenceDto) {
+    const fromDate = this.toDateOnly(data.from);
+    const toDate = this.toDateOnly(data.to);
+    if (fromDate > toDate) {
+      throw new BadRequestException('La date de début doit être avant la date de fin');
+    }
     const record = await this.prisma.absence.create({
       data: {
         userId: data.userId,
         siteId: data.siteId,
         type: data.type,
         status: 'APPROVED',
-        from: this.toDateOnly(data.from),
-        to: this.toDateOnly(data.to),
+        from: fromDate,
+        to: toDate,
         reason: data.reason,
         note: data.note,
         manual: true,
