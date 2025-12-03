@@ -50,7 +50,8 @@ export class AbsencesService {
   ) {}
 
   private toDateOnly(value: string) {
-    const d = new Date(`${value}T00:00:00.000Z`);
+    const normalized = (value ?? '').trim();
+    const d = new Date(`${normalized}T00:00:00.000Z`);
     if (Number.isNaN(d.getTime())) {
       throw new BadRequestException('Date invalide');
     }
