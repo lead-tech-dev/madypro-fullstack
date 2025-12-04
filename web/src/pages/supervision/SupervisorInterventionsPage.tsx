@@ -246,7 +246,10 @@ export const SupervisorInterventionsPage: React.FC = () => {
               </thead>
               <tbody>
                 {filtered.map((intervention) => (
-                  <tr key={intervention.id}>
+                  <tr
+                    key={intervention.id}
+                    className={intervention.status === 'IN_PROGRESS' ? 'row-pulse' : undefined}
+                  >
                     <td>
                       <strong>{intervention.siteName}</strong>
                     </td>
@@ -264,7 +267,6 @@ export const SupervisorInterventionsPage: React.FC = () => {
                           CANCELLED: 'Annulée',
                           NO_SHOW: 'Non effectuée',
                         }[intervention.status] || intervention.status}
-                        {intervention.status === 'IN_PROGRESS' && <span className="heartbeat" aria-hidden="true">❤️</span>}
                       </span>
                     </td>
                     <td>{intervention.agents.map((a) => a.name).join(', ') || '—'}</td>

@@ -158,28 +158,19 @@
   color: #0b4b71;
 }
 
-.status-chip .heartbeat {
-  display: inline-block;
-  margin-left: 6px;
-  font-size: 0.9rem;
-  animation: heartbeat 1s ease-in-out infinite;
+.row-pulse {
+  animation: rowPulse 1.6s ease-in-out infinite;
 }
 
-@keyframes heartbeat {
+@keyframes rowPulse {
   0% {
-    transform: scale(1);
-  }
-  25% {
-    transform: scale(1.15);
+    background-color: rgba(255, 243, 218, 0.4);
   }
   50% {
-    transform: scale(0.95);
-  }
-  75% {
-    transform: scale(1.08);
+    background-color: rgba(255, 243, 218, 0.85);
   }
   100% {
-    transform: scale(1);
+    background-color: rgba(255, 243, 218, 0.4);
   }
 }
 

@@ -690,7 +690,10 @@ export const InterventionsPage: React.FC = () => {
               </thead>
               <tbody>
                 {interventions.map((intervention) => (
-                  <tr key={intervention.id}>
+                  <tr
+                    key={intervention.id}
+                    className={intervention.status === 'IN_PROGRESS' ? 'row-pulse' : undefined}
+                  >
                     <td>{intervention.date}</td>
                     <td>
                       {intervention.startTime} – {intervention.endTime}
@@ -715,7 +718,6 @@ export const InterventionsPage: React.FC = () => {
                           CANCELLED: 'Annulée',
                           NO_SHOW: 'Non effectuée',
                         }[intervention.status] || intervention.status}
-                        {intervention.status === 'IN_PROGRESS' && <span className="heartbeat" aria-hidden="true">❤️</span>}
                       </span>
                     </td>
                     <td>
