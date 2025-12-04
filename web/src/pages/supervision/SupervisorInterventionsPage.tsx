@@ -74,6 +74,30 @@ export const SupervisorInterventionsPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [token, filters.date, notify]);
 
+  useEffect(() => {
+    if (!token) return;
+    const id = setInterval(() => {
+      setLoading(true);
+      Promise.all([
+        listInterventions(token, {
+          startDate: filters.date,
+          endDate: filters.date,
+          status: filters.status !== 'all' ? (filters.status as any) : undefined,
+          pageSize: 200,
+        }).catch(() => ({
+          items: [],
+        })),
+        listSites(token, { pageSize: 200 }).catch(() => ({ items: [] as Site[] })),
+      ])
+        .then(([intRes, sitesRes]) => {
+          setInterventions((intRes as any).items ?? (Array.isArray(intRes) ? intRes : []));
+          setSites((sitesRes as any).items ?? (sitesRes as Site[]));
+        })
+        .finally(() => setLoading(false));
+    }, 20000);
+    return () => clearInterval(id);
+  }, [token, filters.date, filters.status]);
+
   const supervisedSiteIds = useMemo(() => {
     if (!user || user.role?.toUpperCase() !== 'SUPERVISOR') return null;
     const ids = sites.filter((s) => s.supervisorIds?.includes(user.id)).map((s) => s.id);
@@ -240,6 +264,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
                           CANCELLED: 'Annulée',
                           NO_SHOW: 'Non effectuée',
                         }[intervention.status] || intervention.status}
+                        {intervention.status === 'IN_PROGRESS' && <span className="heartbeat" aria-hidden="true">❤️</span>}
                       </span>
                     </td>
                     <td>{intervention.agents.map((a) => a.name).join(', ') || '—'}</td>

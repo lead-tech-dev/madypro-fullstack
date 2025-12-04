@@ -234,6 +234,14 @@ export const InterventionsPage: React.FC = () => {
   }, [token, filters.startDate, filters.endDate, filters.siteId, filters.type, filters.subType, filters.agentId, filters.status, page]);
 
   useEffect(() => {
+    if (!token) return;
+    const id = setInterval(() => {
+      fetchInterventions();
+    }, 20000);
+    return () => clearInterval(id);
+  }, [token, filters.startDate, filters.endDate, filters.siteId, filters.type, filters.subType, filters.agentId, filters.status, page]);
+
+  useEffect(() => {
     if (!token || !viewing) return;
     listAttendance(token, {
       siteId: viewing.siteId,
@@ -707,6 +715,7 @@ export const InterventionsPage: React.FC = () => {
                           CANCELLED: 'Annulée',
                           NO_SHOW: 'Non effectuée',
                         }[intervention.status] || intervention.status}
+                        {intervention.status === 'IN_PROGRESS' && <span className="heartbeat" aria-hidden="true">❤️</span>}
                       </span>
                     </td>
                     <td>

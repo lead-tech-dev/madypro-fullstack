@@ -158,6 +158,31 @@
   color: #0b4b71;
 }
 
+.status-chip .heartbeat {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.9rem;
+  animation: heartbeat 1s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.15);
+  }
+  50% {
+    transform: scale(0.95);
+  }
+  75% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .rte {
   border: 1px solid var(--color-border);
   border-radius: 12px;
