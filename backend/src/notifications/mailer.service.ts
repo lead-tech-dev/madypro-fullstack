@@ -1,42 +1,42 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
+import fetch from 'node-fetch';
 
 @Injectable()
 export class MailerService {
   private readonly logger = new Logger(MailerService.name);
 
-  private buildTransporter() {
-    const host = process.env.SMTP_HOST;
-    const port = Number(process.env.SMTP_PORT ?? 587);
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
-    const secure =
-      (process.env.SMTP_SECURE ?? '').toLowerCase() === 'true' || port === 465;
-
-    if (!host) {
-      this.logger.warn('SMTP_HOST non configuré, email non envoyé');
-      return null;
-    }
-    if (!user || !pass) {
-      this.logger.warn('SMTP_USER ou SMTP_PASS manquant, email non envoyé');
-      return null;
-    }
-
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-    });
-  }
-
   async send(to: string, subject: string, html: string) {
-    const transporter = this.buildTransporter();
-    if (!transporter) {
+    const domain = process.env.MAILGUN_DOMAIN;
+    const apiKey = process.env.MAILGUN_API_KEY;
+    const from = process.env.MAILGUN_FROM || 'Madypro Clean <no-reply@madyproclean.com>';
+
+    if (!domain || !apiKey) {
+      this.logger.warn('MAILGUN_DOMAIN ou MAILGUN_API_KEY manquant, email non envoyé');
       return { skipped: true };
     }
-    const from = process.env.SMTP_FROM || 'no-reply@madyproclean.com';
-    await transporter.sendMail({ from, to, subject, html });
+
+    const auth = Buffer.from(`api:${apiKey}`).toString('base64');
+    const body = new URLSearchParams();
+    body.append('from', from);
+    body.append('to', to);
+    body.append('subject', subject);
+    body.append('html', html);
+
+    const res = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      const message = `Mailgun error: ${res.status} ${text}`;
+      this.logger.error(message);
+      throw new Error(message);
+    }
     return { sent: true };
   }
 }

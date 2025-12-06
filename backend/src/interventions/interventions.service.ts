@@ -544,7 +544,7 @@ export class InterventionsService implements OnModuleInit {
     if (!record) {
       throw new NotFoundException('Intervention introuvable');
     }
-    const allowedForAgent: InterventionStatus[] = ['IN_PROGRESS', 'COMPLETED', 'NO_SHOW', 'NEEDS_REVIEW'];
+    const allowedForAgent: InterventionStatus[] = ['IN_PROGRESS', 'NO_SHOW', 'NEEDS_REVIEW'];
     if (viewer.role === 'AGENT') {
       const assigned = record.assignments.some((a) => a.userId === viewer.id);
       if (!assigned) {
@@ -552,6 +552,20 @@ export class InterventionsService implements OnModuleInit {
       }
       if (!allowedForAgent.includes(status)) {
         throw new BadRequestException('Statut non autorisé');
+      }
+    }
+    if (viewer.role === 'AGENT' && status === 'COMPLETED') {
+      throw new BadRequestException('Un agent ne peut pas terminer l’intervention globale. Seul son pointage est clôturé.');
+    }
+    if (status === 'COMPLETED' && !['SUPERVISOR', 'ADMIN'].includes(viewer.role)) {
+      throw new ForbiddenException('Seuls le superviseur ou un admin peuvent valider une intervention');
+    }
+    if (status === 'COMPLETED' && viewer.role === 'AGENT') {
+      const endDateTime = new Date(`${record.date.toISOString().slice(0, 10)}T${record.endTime || '23:59'}:00.000Z`);
+      const now = new Date();
+      const graceMs = 30 * 60 * 1000;
+      if (now.getTime() < endDateTime.getTime() + graceMs) {
+        throw new BadRequestException("L'intervention ne peut pas être terminée avant la fin planifiée + 30 minutes");
       }
     }
     const updated = await this.prisma.intervention.update({

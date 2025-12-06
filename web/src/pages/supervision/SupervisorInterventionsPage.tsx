@@ -258,7 +258,15 @@ export const SupervisorInterventionsPage: React.FC = () => {
                     </td>
                     <td>{intervention.type === 'REGULAR' ? 'Régulière' : 'Ponctuelle'}</td>
                     <td>
-                      <span className={`status-chip ${intervention.status === 'COMPLETED' ? 'status-chip--success' : intervention.status === 'IN_PROGRESS' ? 'status-chip--warning' : 'status-chip--info'}`}>
+                      <span
+                        className={`status-chip ${
+                          intervention.status === 'COMPLETED'
+                            ? 'status-chip--success'
+                            : intervention.status === 'IN_PROGRESS'
+                            ? 'status-chip--warning'
+                            : 'status-chip--info'
+                        } ${intervention.status === 'IN_PROGRESS' ? 'status-pulse' : ''}`}
+                      >
                         {{
                           PLANNED: 'Planifiée',
                           IN_PROGRESS: 'En cours',

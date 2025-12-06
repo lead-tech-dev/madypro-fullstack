@@ -709,7 +709,11 @@ export const InterventionsPage: React.FC = () => {
                     <td>{intervention.agents.map((agent) => agent.name).join(', ') || '—'}</td>
                     <td>{intervention.truckLabels.join(', ') || '—'}</td>
                     <td>
-                      <span className={`status-chip ${intervention.status === 'PLANNED' ? 'status-chip--info' : intervention.status === 'COMPLETED' ? 'status-chip--success' : 'status-chip--warning'}`}>
+                      <span
+                        className={`status-chip ${intervention.status === 'PLANNED' ? 'status-chip--info' : intervention.status === 'COMPLETED' ? 'status-chip--success' : 'status-chip--warning'} ${
+                          intervention.status === 'IN_PROGRESS' ? 'status-pulse' : ''
+                        }`}
+                      >
                         {{
                           PLANNED: 'Planifiée',
                           IN_PROGRESS: 'En cours',
@@ -734,27 +738,6 @@ export const InterventionsPage: React.FC = () => {
                         >
                           Visualiser
                         </Button>
-                        {intervention.status === 'NEEDS_REVIEW' && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="btn--compact"
-                            onClick={async () => {
-                              if (!token) return;
-                              try {
-                                const updated = await updateIntervention(token, intervention.id, {
-                                  status: 'COMPLETED',
-                                });
-                                setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-                                notify('Intervention validée');
-                              } catch (err) {
-                                notify(err instanceof Error ? err.message : 'Validation impossible', 'error');
-                              }
-                            }}
-                          >
-                            Valider
-                          </Button>
-                        )}
                         <Button
                           type="button"
                           variant="ghost"
@@ -1001,6 +984,30 @@ export const InterventionsPage: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {viewing.status === 'NEEDS_REVIEW' && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
+                  <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
+                    Fermer
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      if (!token || !viewing) return;
+                      try {
+                        const updated = await updateIntervention(token, viewing.id, { status: 'COMPLETED' });
+                        setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+                        setViewing(updated);
+                        notify('Intervention validée');
+                      } catch (err) {
+                        notify(err instanceof Error ? err.message : 'Validation impossible', 'error');
+                      }
+                    }}
+                  >
+                    Valider
+                  </Button>
+                </div>
+              )}
 
               <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>
                 {['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(viewing.status) ? (

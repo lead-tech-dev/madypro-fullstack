@@ -158,19 +158,19 @@
   color: #0b4b71;
 }
 
-.row-pulse {
-  animation: rowPulse 1.6s ease-in-out infinite;
+.status-pulse {
+  animation: statusPulse 1.6s ease-in-out infinite;
 }
 
-@keyframes rowPulse {
+@keyframes statusPulse {
   0% {
-    background-color: rgba(255, 243, 218, 0.4);
+    box-shadow: 0 0 0 0 rgba(255, 174, 0, 0.45);
   }
   50% {
-    background-color: rgba(255, 243, 218, 0.85);
+    box-shadow: 0 0 0 6px rgba(255, 174, 0, 0.15);
   }
   100% {
-    background-color: rgba(255, 243, 218, 0.4);
+    box-shadow: 0 0 0 0 rgba(255, 174, 0, 0.45);
   }
 }
 
