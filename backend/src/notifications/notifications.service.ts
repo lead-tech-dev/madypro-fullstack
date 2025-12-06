@@ -51,12 +51,16 @@ export class NotificationsService {
     };
   }
 
-  registerToken(userId: string | undefined, token: string) {
+  registerToken(userId: string | undefined, expoToken?: string, deviceToken?: string) {
     if (!userId) {
       throw new BadRequestException('Utilisateur requis');
     }
     const tokens = this.deviceTokens.get(userId) ?? new Set<string>();
-    tokens.add(token);
+    if (expoToken) tokens.add(expoToken);
+    if (deviceToken) tokens.add(deviceToken);
+    if (!expoToken && !deviceToken) {
+      throw new BadRequestException('Aucun token fourni');
+    }
     this.deviceTokens.set(userId, tokens);
     return { success: true };
   }

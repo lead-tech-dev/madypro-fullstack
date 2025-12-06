@@ -37,6 +37,6 @@ export class NotificationsController {
   @Post('register-token')
   registerToken(@Req() req: any, @Body() dto: RegisterTokenDto) {
     const userId = req.user?.sub ?? req.user?.userId;
-    return this.service.registerToken(userId, dto.token);
+    return this.service.registerToken(userId, dto.expoToken || dto.token, dto.deviceToken);
   }
 }

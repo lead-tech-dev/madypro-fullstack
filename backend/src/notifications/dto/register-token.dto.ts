@@ -1,6 +1,15 @@
-import { IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class RegisterTokenDto {
+  @IsOptional()
   @IsString()
-  token!: string;
+  token?: string; // compat legacy
+
+  @IsOptional()
+  @IsString()
+  expoToken?: string;
+
+  @IsOptional()
+  @IsString()
+  deviceToken?: string;
 }
