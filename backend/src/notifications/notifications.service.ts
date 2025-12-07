@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import fetch from 'node-fetch';
 import { NotificationEntity, NotificationAudience } from './entities/notification.entity';
 import { SendNotificationDto } from './dto/send-notification.dto';
@@ -12,6 +12,7 @@ export class NotificationsService {
   private notifications: NotificationEntity[] = [];
   private expoTokens = new Map<string, Set<string>>();
   private deviceTokens = new Map<string, Set<string>>(); // FCM/APNs
+  private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
     private readonly usersService: UsersService,
