@@ -1,42 +1,38 @@
 import { Injectable, Logger } from '@nestjs/common';
-import fetch from 'node-fetch';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailerService {
   private readonly logger = new Logger(MailerService.name);
 
   async send(to: string, subject: string, html: string) {
-    const domain = process.env.MAILGUN_DOMAIN;
-    const apiKey = process.env.MAILGUN_API_KEY;
-    const from = process.env.MAILGUN_FROM || 'Madypro Clean <no-reply@madyproclean.com>';
+    // SMTP uniquement (ex: Gmail)
+    const host = process.env.SMTP_HOST;
+    const port = Number(process.env.SMTP_PORT ?? 587);
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
+    const secure = (process.env.SMTP_SECURE ?? '').toLowerCase() === 'true' || port === 465;
+    const from = process.env.SMTP_FROM || 'Madypro Clean <no-reply@madyproclean.com>';
 
-    if (!domain || !apiKey) {
-      this.logger.warn('MAILGUN_DOMAIN ou MAILGUN_API_KEY manquant, email non envoyé');
+    if (!host || !user || !pass) {
+      this.logger.warn('SMTP non configuré (SMTP_HOST/USER/PASS manquants)');
       return { skipped: true };
     }
 
-    const auth = Buffer.from(`api:${apiKey}`).toString('base64');
-    const body = new URLSearchParams();
-    body.append('from', from);
-    body.append('to', to);
-    body.append('subject', subject);
-    body.append('html', html);
-
-    const res = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: body.toString(),
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
     });
 
-    if (!res.ok) {
-      const text = await res.text();
-      const message = `Mailgun error: ${res.status} ${text}`;
-      this.logger.error(message);
-      throw new Error(message);
-    }
-    return { sent: true };
+    await transporter.sendMail({
+      from,
+      to,
+      subject,
+      html,
+    });
+    this.logger.log(`Mail envoyé via SMTP (Gmail) à ${to}`);
+    return { sent: true, provider: 'smtp' };
   }
 }
