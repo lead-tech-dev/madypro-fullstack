@@ -130,9 +130,11 @@ export class InterventionsService implements OnModuleInit {
         include: { assignments: true },
     });
 
+    this.logger.log(`[Push] Upcoming check: ${records.length} interventions candidates, window ${now.toISOString()} -> ${horizon.toISOString()}`);
+
     for (const record of records) {
       if (!record.startTime) continue;
-      const startAt = this.startDateTime(record as any);
+      const startAt = this.combine(record.date.toISOString().slice(0, 10), record.startTime);
       if (startAt.getTime() < now.getTime() || startAt.getTime() > horizon.getTime()) {
         continue;
       }
@@ -141,6 +143,13 @@ export class InterventionsService implements OnModuleInit {
         if (this.upcomingNotified.has(key)) continue;
         this.upcomingNotified.add(key);
         try {
+          const tokens =
+            (this as any).notifications?.['deviceTokens']?.get(assignment.userId)?.size ||
+            (this as any).notifications?.['expoTokens']?.get(assignment.userId)?.size ||
+            0;
+          if (!tokens) {
+            this.logger.warn(`[Push] Aucun token pour agent ${assignment.userId} (intervention ${record.id})`);
+          }
           await this.notifications.send({
             title: 'Intervention à venir',
             message: `Début à ${record.startTime} sur ${record.label || record.subType || 'le site'}`,
@@ -158,7 +167,9 @@ export class InterventionsService implements OnModuleInit {
     for (const key of Array.from(this.upcomingNotified)) {
       const [itvId] = key.split(':');
       const rec = records.find((r) => r.id === itvId);
-      const startAt = rec ? this.startDateTime(rec as any).getTime() : 0;
+      const startAt = rec
+        ? this.combine(rec.date.toISOString().slice(0, 10), rec.startTime ?? '00:00').getTime()
+        : 0;
       if (startAt < cutoff) {
         this.upcomingNotified.delete(key);
       }
