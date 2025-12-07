@@ -65,6 +65,8 @@ export class InterventionsService implements OnModuleInit {
   private AUTO_CLOSE_GRACE_MS = 30 * 60 * 1000; // 30 minutes de marge après l'heure de fin planifiée
   private AUTO_CLOSE_ENABLED = true;
   private AUTO_CLOSE_INCOMPLETE_STATUS: InterventionStatus = 'NEEDS_REVIEW';
+  private UPCOMING_WINDOW_MS = 15 * 60 * 1000;
+  private readonly upcomingNotified = new Set<string>(); // key: interventionId:userId
 
   constructor(
     private readonly prisma: PrismaService,
@@ -83,6 +85,10 @@ export class InterventionsService implements OnModuleInit {
     this.AUTO_CLOSE_GRACE_MS = (graceMinutes && graceMinutes > 0 ? graceMinutes : 30) * 60 * 1000;
     this.AUTO_CLOSE_ENABLED = enabled !== false;
     this.AUTO_CLOSE_INCOMPLETE_STATUS = incompleteStatus;
+    const upcomingMinutes = Number(process.env.UPCOMING_WINDOW_MINUTES ?? '15');
+    if (Number.isFinite(upcomingMinutes) && upcomingMinutes > 0) {
+      this.UPCOMING_WINDOW_MS = upcomingMinutes * 60 * 1000;
+    }
 
     await this.generateFromRules();
     setInterval(() => {
@@ -97,6 +103,65 @@ export class InterventionsService implements OnModuleInit {
         this.logger.error('Erreur lors de la clôture automatique des interventions', error.stack),
       );
     }, 5 * 60 * 1000); // toutes les 5 minutes
+
+    // Notifications "intervention imminente"
+    setInterval(() => {
+      this.notifyUpcomingStarts().catch((err) =>
+        this.logger.warn('Erreur notification début imminent', err),
+      );
+    }, 2 * 60 * 1000);
+  }
+
+  /**
+   * Notifie les agents lorsque l'heure de début approche (dans la fenêtre UPCOMING_WINDOW_MS).
+   * Une seule notification par agent/intervention.
+   */
+  private async notifyUpcomingStarts() {
+    const now = new Date();
+    const horizon = new Date(now.getTime() + this.UPCOMING_WINDOW_MS);
+    const today = now.toISOString().slice(0, 10);
+
+    const records = await this.prisma.intervention.findMany({
+      where: {
+        status: 'PLANNED',
+        date: today,
+      },
+      include: { assignments: true },
+    });
+
+    for (const record of records) {
+      if (!record.startTime) continue;
+      const startAt = this.startDateTime(record as any);
+      if (startAt.getTime() < now.getTime() || startAt.getTime() > horizon.getTime()) {
+        continue;
+      }
+      for (const assignment of record.assignments) {
+        const key = `${record.id}:${assignment.userId}`;
+        if (this.upcomingNotified.has(key)) continue;
+        this.upcomingNotified.add(key);
+        try {
+          await this.notifications.send({
+            title: 'Intervention à venir',
+            message: `Début à ${record.startTime} sur ${record.label || record.subType || 'le site'}`,
+            audience: 'AGENT',
+            targetId: assignment.userId,
+          });
+        } catch (err) {
+          this.logger.warn(`Notif début imminent échouée (${record.id} -> ${assignment.userId}): ${err?.message || err}`);
+        }
+      }
+    }
+
+    // nettoyage des clés anciennes pour éviter la croissance infinie
+    const cutoff = now.getTime() - this.UPCOMING_WINDOW_MS * 2;
+    for (const key of Array.from(this.upcomingNotified)) {
+      const [itvId] = key.split(':');
+      const rec = records.find((r) => r.id === itvId);
+      const startAt = rec ? this.startDateTime(rec as any).getTime() : 0;
+      if (startAt < cutoff) {
+        this.upcomingNotified.delete(key);
+      }
+    }
   }
 
   private toDateOnly(value: string) {
@@ -109,6 +174,12 @@ export class InterventionsService implements OnModuleInit {
 
   private combine(dateStr: string, time: string) {
     return new Date(`${dateStr}T${time}:00`);
+  }
+
+  private startDateTime(record: InterventionRecord) {
+    const dateStr = record.date.toISOString().slice(0, 10);
+    const start = record.startTime ?? '00:00';
+    return new Date(`${dateStr}T${start}:00.000Z`);
   }
 
   /**
