@@ -1,38 +1,41 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
+import fetch from 'node-fetch';
 
 @Injectable()
 export class MailerService {
   private readonly logger = new Logger(MailerService.name);
 
   async send(to: string, subject: string, html: string) {
-    // SMTP uniquement (ex: Gmail)
-    const host = process.env.SMTP_HOST;
-    const port = Number(process.env.SMTP_PORT ?? 587);
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
-    const secure = (process.env.SMTP_SECURE ?? '').toLowerCase() === 'true' || port === 465;
-    const from = process.env.SMTP_FROM || 'Madypro Clean <no-reply@madyproclean.com>';
+    const apiKey = process.env.SENDGRID_API_KEY;
+    const from = process.env.SENDGRID_FROM || 'Madypro Clean <no-reply@madyproclean.com>';
 
-    if (!host || !user || !pass) {
-      this.logger.warn('SMTP non configuré (SMTP_HOST/USER/PASS manquants)');
+    if (!apiKey) {
+      this.logger.warn('SENDGRID_API_KEY manquant, email non envoyé');
       return { skipped: true };
     }
 
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
+    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: from },
+        subject,
+        content: [{ type: 'text/html', value: html }],
+      }),
     });
 
-    await transporter.sendMail({
-      from,
-      to,
-      subject,
-      html,
-    });
-    this.logger.log(`Mail envoyé via SMTP (Gmail) à ${to}`);
-    return { sent: true, provider: 'smtp' };
+    if (!res.ok) {
+      const text = await res.text();
+      const message = `SendGrid error: ${res.status} ${text}`;
+      this.logger.error(message);
+      throw new Error(message);
+    }
+
+    this.logger.log(`Mail envoyé via SendGrid à ${to}`);
+    return { sent: true, provider: 'sendgrid' };
   }
 }
