@@ -66,6 +66,9 @@ export class NotificationsService {
     }
     this.expoTokens.set(userId, expo);
     this.deviceTokens.set(userId, native);
+    this.logger.log(
+      `[Push] Tokens enregistrés pour ${userId}: expo=${expoToken ? 'oui' : 'non'}, fcm=${deviceToken ? 'oui' : 'non'}`,
+    );
     return { success: true };
   }
 
@@ -136,6 +139,9 @@ export class NotificationsService {
     }
     const expoTokens = targetUserIds.flatMap((userId) => Array.from(this.expoTokens.get(userId) ?? []));
     const nativeTokens = targetUserIds.flatMap((userId) => Array.from(this.deviceTokens.get(userId) ?? []));
+    this.logger.log(
+      `[Push] Dispatch notification ${notification.id} -> expo=${expoTokens.length} fcm=${nativeTokens.length}`,
+    );
     this.dispatchExpo(notification, expoTokens);
     this.dispatchFcm(notification, nativeTokens);
   }
@@ -205,7 +211,7 @@ export class NotificationsService {
             },
           };
           try {
-            await fetch(url, {
+            const res = await fetch(url, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -213,6 +219,10 @@ export class NotificationsService {
               },
               body: JSON.stringify(payload),
             });
+            if (!res.ok) {
+              const txt = await res.text();
+              this.logger.warn(`[Push] FCM v1 response ${res.status}: ${txt}`);
+            }
           } catch (err) {
             console.warn('FCM v1 push error', err?.message || err);
           }
