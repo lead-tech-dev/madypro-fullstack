@@ -119,14 +119,15 @@ export class InterventionsService implements OnModuleInit {
   private async notifyUpcomingStarts() {
     const now = new Date();
     const horizon = new Date(now.getTime() + this.UPCOMING_WINDOW_MS);
-    const today = now.toISOString().slice(0, 10);
+    const dayStart = this.toDateOnly(now.toISOString().slice(0, 10));
+    const dayEnd = this.endOfDay(now.toISOString().slice(0, 10));
 
     const records = await this.prisma.intervention.findMany({
       where: {
         status: 'PLANNED',
-        date: today,
+        date: { gte: dayStart, lte: dayEnd },
       },
-      include: { assignments: true },
+        include: { assignments: true },
     });
 
     for (const record of records) {
