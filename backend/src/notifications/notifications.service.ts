@@ -6,96 +6,96 @@ import { UsersService } from '../users/users.service';
 import { SitesService } from '../sites/sites.service';
 import { AuditService } from '../audit/audit.service';
 import * as crypto from 'crypto';
+import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
 export class NotificationsService {
-  private notifications: NotificationEntity[] = [];
-  private expoTokens = new Map<string, Set<string>>();
-  private deviceTokens = new Map<string, Set<string>>(); // FCM/APNs
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
     private readonly usersService: UsersService,
     private readonly sitesService: SitesService,
     private readonly auditService: AuditService,
-  ) {
-    this.seed();
-  }
+    private readonly prisma: PrismaService,
+  ) {}
 
-  private seed() {
-    this.notifications = [
-      {
-        id: 'notif-1',
-        title: 'Brief Matinal',
-        message: 'Point sécurité + rotation pour Viva Retail 8h00',
-        audience: 'SITE_AGENTS',
-        targetId: 'site-viva',
-        targetName: 'Siège Viva Retail',
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4),
-      },
-      {
-        id: 'notif-2',
-        title: 'Rappel badge',
-        message: 'Merci de badger à l’arrivée sur Atelier Genève',
-        audience: 'ALL_AGENTS',
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
-      },
-    ];
-  }
-
-  list(page = 1, pageSize = 20) {
-    const start = (page - 1) * pageSize;
-    const items = this.notifications.slice(start, start + pageSize);
+  async list(page = 1, pageSize = 20) {
+    const [items, total] = await Promise.all([
+      this.prisma.notification.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.notification.count(),
+    ]);
     return {
       items,
-      total: this.notifications.length,
+      total,
       page,
       pageSize,
     };
   }
 
-  registerToken(userId: string | undefined, expoToken?: string, deviceToken?: string) {
+  async registerToken(userId: string | undefined, expoToken?: string, deviceToken?: string) {
     if (!userId) {
       throw new BadRequestException('Utilisateur requis');
     }
-    const expo = this.expoTokens.get(userId) ?? new Set<string>();
-    const native = this.deviceTokens.get(userId) ?? new Set<string>();
-    if (expoToken) expo.add(expoToken);
-    if (deviceToken) native.add(deviceToken);
     if (!expoToken && !deviceToken) {
       throw new BadRequestException('Aucun token fourni');
     }
-    this.expoTokens.set(userId, expo);
-    this.deviceTokens.set(userId, native);
-    this.logger.log(
-      `[Push] Tokens enregistrés pour ${userId}: expo=${expoToken ? 'oui' : 'non'}, fcm=${deviceToken ? 'oui' : 'non'}`,
-    );
+    // on upsert sur expoToken/fcmToken pour garantir l'unicité
+    const existing = await this.prisma.pushToken.findFirst({
+      where: {
+        OR: [
+          expoToken ? { expoToken } : undefined,
+          deviceToken ? { fcmToken: deviceToken } : undefined,
+        ].filter(Boolean) as any,
+      },
+    });
+    if (existing) {
+      await this.prisma.pushToken.update({
+        where: { id: existing.id },
+        data: {
+          userId,
+          expoToken: expoToken ?? existing.expoToken,
+          fcmToken: deviceToken ?? existing.fcmToken,
+        },
+      });
+    } else {
+      await this.prisma.pushToken.create({
+        data: {
+          userId,
+          expoToken: expoToken ?? null,
+          fcmToken: deviceToken ?? null,
+        },
+      });
+    }
+    this.logger.log(`[Push] Tokens enregistrés pour ${userId}: expo=${expoToken ? 'oui' : 'non'}, fcm=${deviceToken ? 'oui' : 'non'}`);
     return { success: true };
   }
 
-  feed(user: { sub: string; role: string }) {
+  async feed(user: { sub: string; role: string }) {
     if (!user) {
       return [];
     }
     if (user.role === 'ADMIN' || user.role === 'SUPERVISOR') {
-      return this.notifications;
+      return this.prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
     }
-    return this.notifications.filter((notification) => {
-      if (notification.audience === 'ALL_AGENTS') {
-        return true;
-      }
-      if (notification.audience === 'AGENT') {
-        return notification.targetId === user.sub;
-      }
-      if (notification.audience === 'SITE_AGENTS') {
-        // TODO: filter by real site assignments
-        return true;
-      }
-      return false;
+    return this.prisma.notification.findMany({
+      where: {
+        OR: [
+          { audience: 'ALL_AGENTS' },
+          { audience: 'AGENT', targetId: user.sub },
+          // SITE_AGENTS: sans mapping site/agent, on envoie tout
+          { audience: 'SITE_AGENTS' },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
     });
   }
 
-  send(dto: SendNotificationDto) {
+  async send(dto: SendNotificationDto) {
     let targetName: string | undefined;
     if (dto.audience === 'SITE_AGENTS') {
       if (!dto.targetId) {
@@ -112,16 +112,14 @@ export class NotificationsService {
       targetName = user?.name ?? 'Agent';
     }
 
-    const notification: NotificationEntity = {
-      id: `notif-${Date.now()}`,
-      title: dto.title,
-      message: dto.message,
-      audience: dto.audience,
-      targetId: dto.targetId,
-      targetName,
-      createdAt: new Date(),
-    };
-    this.notifications.unshift(notification);
+    const notification = await this.prisma.notification.create({
+      data: {
+        title: dto.title,
+        message: dto.message,
+        audience: dto.audience,
+        targetId: dto.targetId ?? null,
+      },
+    });
     this.auditService.record({
       actorId: 'admin@madyproclean.com',
       action: 'CREATE_NOTIFICATION',
@@ -129,32 +127,36 @@ export class NotificationsService {
       entityId: notification.id,
       details: dto.title,
     });
-    this.dispatch(notification);
+    this.dispatch({
+      id: notification.id,
+      title: notification.title,
+      message: notification.message,
+      audience: notification.audience as NotificationAudience,
+      targetId: notification.targetId ?? undefined,
+      targetName,
+      createdAt: notification.createdAt,
+    });
     return notification;
   }
 
-  private dispatch(notification: NotificationEntity) {
-    const targetUserIds = this.resolveTargets(notification);
-    if (!targetUserIds.length) {
-      return;
+  private async dispatch(notification: NotificationEntity) {
+    // Récupère les tokens en fonction de l'audience
+    let tokens;
+    if (notification.audience === 'AGENT' && notification.targetId) {
+      tokens = await this.prisma.pushToken.findMany({ where: { userId: notification.targetId } });
+    } else {
+      // ALL_AGENTS et SITE_AGENTS : faute de mapping agent/site fiable ici,
+      // on envoie à tous les tokens enregistrés
+      tokens = await this.prisma.pushToken.findMany();
     }
-    const expoTokens = targetUserIds.flatMap((userId) => Array.from(this.expoTokens.get(userId) ?? []));
-    const nativeTokens = targetUserIds.flatMap((userId) => Array.from(this.deviceTokens.get(userId) ?? []));
+    if (!tokens.length) return;
+    const expoTokens = tokens.map((t) => t.expoToken).filter(Boolean) as string[];
+    const nativeTokens = tokens.map((t) => t.fcmToken).filter(Boolean) as string[];
     this.logger.log(
       `[Push] Dispatch notification ${notification.id} -> expo=${expoTokens.length} fcm=${nativeTokens.length}`,
     );
     this.dispatchExpo(notification, expoTokens);
     this.dispatchFcm(notification, nativeTokens);
-  }
-
-  private resolveTargets(notification: NotificationEntity): string[] {
-    if (notification.audience === 'ALL_AGENTS' || notification.audience === 'SITE_AGENTS') {
-      return Array.from(new Set([...this.expoTokens.keys(), ...this.deviceTokens.keys()]));
-    }
-    if (notification.audience === 'AGENT' && notification.targetId) {
-      return [notification.targetId];
-    }
-    return [];
   }
 
   private dispatchExpo(notification: NotificationEntity, tokens: string[]) {
