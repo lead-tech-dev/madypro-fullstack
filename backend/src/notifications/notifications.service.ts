@@ -40,37 +40,26 @@ export class NotificationsService {
     if (!userId) {
       throw new BadRequestException('Utilisateur requis');
     }
-    if (!expoToken && !deviceToken) {
+    const tokens = [expoToken, deviceToken].filter(Boolean) as string[];
+    if (!tokens.length) {
       throw new BadRequestException('Aucun token fourni');
     }
-    // on upsert sur expoToken/fcmToken pour garantir l'unicité
-    const existing = await this.prisma.pushToken.findFirst({
-      where: {
-        OR: [
-          expoToken ? { expoToken } : undefined,
-          deviceToken ? { fcmToken: deviceToken } : undefined,
-        ].filter(Boolean) as any,
-      },
-    });
-    if (existing) {
-      await this.prisma.pushToken.update({
-        where: { id: existing.id },
-        data: {
-          userId,
-          expoToken: expoToken ?? existing.expoToken,
-          fcmToken: deviceToken ?? existing.fcmToken,
-        },
-      });
-    } else {
-      await this.prisma.pushToken.create({
-        data: {
-          userId,
-          expoToken: expoToken ?? null,
-          fcmToken: deviceToken ?? null,
-        },
-      });
+    for (const token of tokens) {
+      const existing = await this.prisma.pushToken.findUnique({ where: { token } });
+      if (existing) {
+        await this.prisma.pushToken.update({
+          where: { token },
+          data: { userId },
+        });
+      } else {
+        await this.prisma.pushToken.create({
+          data: { userId, token },
+        });
+      }
     }
-    this.logger.log(`[Push] Tokens enregistrés pour ${userId}: expo=${expoToken ? 'oui' : 'non'}, fcm=${deviceToken ? 'oui' : 'non'}`);
+    this.logger.log(
+      `[Push] Tokens enregistrés pour ${userId}: expo=${expoToken ? 'oui' : 'non'}, fcm=${deviceToken ? 'oui' : 'non'}`,
+    );
     return { success: true };
   }
 
@@ -150,13 +139,17 @@ export class NotificationsService {
       tokens = await this.prisma.pushToken.findMany();
     }
     if (!tokens.length) return;
-    const expoTokens = tokens.map((t) => t.expoToken).filter(Boolean) as string[];
-    const nativeTokens = tokens.map((t) => t.fcmToken).filter(Boolean) as string[];
+    const expoTokens = tokens.map((t) => t.token).filter((t) => this.isExpoToken(t));
+    const nativeTokens = tokens.map((t) => t.token).filter((t) => !this.isExpoToken(t));
     this.logger.log(
       `[Push] Dispatch notification ${notification.id} -> expo=${expoTokens.length} fcm=${nativeTokens.length}`,
     );
     this.dispatchExpo(notification, expoTokens);
     this.dispatchFcm(notification, nativeTokens);
+  }
+
+  private isExpoToken(token: string) {
+    return token.startsWith('ExponentPushToken[');
   }
 
   private dispatchExpo(notification: NotificationEntity, tokens: string[]) {
