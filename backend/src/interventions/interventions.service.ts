@@ -67,6 +67,10 @@ export class InterventionsService implements OnModuleInit {
   private AUTO_CLOSE_INCOMPLETE_STATUS: InterventionStatus = 'NEEDS_REVIEW';
   private UPCOMING_WINDOW_MS = 15 * 60 * 1000;
   private readonly upcomingNotified = new Set<string>(); // key: interventionId:userId
+  private END_REMINDER_WINDOW_MS = 10 * 60 * 1000;
+  private readonly endReminderNotified = new Set<string>(); // key: interventionId:userId
+  private DAILY_SUMMARY_HOUR = 18; // heure locale
+  private lastSummaryDay: string | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -89,6 +93,14 @@ export class InterventionsService implements OnModuleInit {
     if (Number.isFinite(upcomingMinutes) && upcomingMinutes > 0) {
       this.UPCOMING_WINDOW_MS = upcomingMinutes * 60 * 1000;
     }
+    const endReminderMinutes = Number(process.env.END_REMINDER_MINUTES ?? '10');
+    if (Number.isFinite(endReminderMinutes) && endReminderMinutes > 0) {
+      this.END_REMINDER_WINDOW_MS = endReminderMinutes * 60 * 1000;
+    }
+    const dailyHour = Number(process.env.DAILY_SUMMARY_HOUR ?? '18');
+    if (Number.isFinite(dailyHour) && dailyHour >= 0 && dailyHour < 24) {
+      this.DAILY_SUMMARY_HOUR = dailyHour;
+    }
 
     await this.generateFromRules();
     setInterval(() => {
@@ -110,6 +122,20 @@ export class InterventionsService implements OnModuleInit {
         this.logger.warn('Erreur notification début imminent', err),
       );
     }, 2 * 60 * 1000);
+
+    // Rappel de fin imminente
+    setInterval(() => {
+      this.notifyUpcomingEnds().catch((err) =>
+        this.logger.warn('Erreur notification fin imminente', err),
+      );
+    }, 2 * 60 * 1000);
+
+    // Résumé quotidien admin/superviseur
+    setInterval(() => {
+      this.sendDailySummary().catch((err) =>
+        this.logger.warn('Erreur envoi résumé quotidien', err),
+      );
+    }, 5 * 60 * 1000);
   }
 
   /**
@@ -186,6 +212,124 @@ export class InterventionsService implements OnModuleInit {
 
   private combine(dateStr: string, time: string) {
     return new Date(`${dateStr}T${time}:00`);
+  }
+
+  /**
+   * Envoie un résumé quotidien aux admins/superviseurs : interventions en retard et à valider.
+   */
+  private async sendDailySummary() {
+    const now = new Date();
+    const dayKey = now.toISOString().slice(0, 10);
+    const localHour = now.getHours();
+    if (localHour < this.DAILY_SUMMARY_HOUR) return;
+    if (this.lastSummaryDay === dayKey) return; // déjà envoyé aujourd'hui
+
+    const todayEnd = this.endOfDay(dayKey);
+    const records = await this.prisma.intervention.findMany({
+      where: {
+        date: { lte: todayEnd },
+        status: { in: ['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_REVIEW'] },
+      },
+      select: { id: true, date: true, endTime: true, status: true },
+    });
+
+    let lateCount = 0;
+    let toValidateCount = 0;
+    for (const r of records) {
+      const dateStr = r.date.toISOString().slice(0, 10);
+      const endAt = r.endTime ? this.combine(dateStr, r.endTime) : null;
+      if (endAt && endAt.getTime() < now.getTime() && ['PLANNED', 'IN_PROGRESS'].includes(r.status)) {
+        lateCount++;
+      }
+      if (['COMPLETED', 'NEEDS_REVIEW'].includes(r.status)) {
+        toValidateCount++;
+      }
+    }
+
+    const message = `En retard: ${lateCount} | À valider: ${toValidateCount}`;
+    const admins = this.usersService.findAll({ role: 'ADMIN' }).items;
+    const supervisors = this.usersService.findAll({ role: 'SUPERVISOR' }).items;
+    const targets = [...admins, ...supervisors];
+    if (!targets.length) {
+      this.lastSummaryDay = dayKey;
+      return;
+    }
+
+    for (const user of targets) {
+      try {
+        await this.notifications.send({
+          audience: 'AGENT',
+          targetId: user.id,
+          title: 'Résumé quotidien',
+          message,
+        });
+      } catch (err) {
+        this.logger.warn(`Résumé quotidien non envoyé à ${user.id}: ${err?.message || err}`);
+      }
+    }
+
+    this.lastSummaryDay = dayKey;
+  }
+
+  /**
+   * Notifie les agents quand l'heure de fin planifiée approche (dans END_REMINDER_WINDOW_MS).
+   */
+  private async notifyUpcomingEnds() {
+    const now = new Date();
+    const horizon = new Date(now.getTime() + this.END_REMINDER_WINDOW_MS);
+    const dayStart = this.toDateOnly(now.toISOString().slice(0, 10));
+    const dayEnd = this.endOfDay(now.toISOString().slice(0, 10));
+
+    const records: Prisma.InterventionGetPayload<{ include: { assignments: true } }>[] =
+      await this.prisma.intervention.findMany({
+      where: {
+        status: 'IN_PROGRESS',
+        date: { gte: dayStart, lte: dayEnd },
+      },
+      include: { assignments: true },
+    });
+
+    this.logger.log(
+      `[Push] End reminder check: ${records.length} interventions candidates, window ${now.toISOString()} -> ${horizon.toISOString()}`,
+    );
+
+    for (const record of records) {
+      if (!record.endTime) continue;
+      const endAt = this.combine(record.date.toISOString().slice(0, 10), record.endTime);
+      if (endAt.getTime() < now.getTime() || endAt.getTime() > horizon.getTime()) {
+        continue;
+      }
+      for (const assignment of record.assignments) {
+        const key = `${record.id}:${assignment.userId}`;
+        if (this.endReminderNotified.has(key)) continue;
+        this.endReminderNotified.add(key);
+        try {
+          await this.notifications.send({
+            title: 'Fin d’intervention à venir',
+            message: `Fin prévue à ${record.endTime}. Pensez à terminer.`,
+            audience: 'AGENT',
+            targetId: assignment.userId,
+          });
+        } catch (err) {
+          this.logger.warn(
+            `Notif fin imminente échouée (${record.id} -> ${assignment.userId}): ${err?.message || err}`,
+          );
+        }
+      }
+    }
+
+    // nettoyage des clés anciennes pour éviter la croissance
+    const cutoff = now.getTime() - this.END_REMINDER_WINDOW_MS * 2;
+    for (const key of Array.from(this.endReminderNotified)) {
+      const [itvId] = key.split(':');
+      const rec = records.find((r) => r.id === itvId);
+      const endAt = rec
+        ? this.combine(rec.date.toISOString().slice(0, 10), rec.endTime ?? '00:00').getTime()
+        : 0;
+      if (endAt < cutoff) {
+        this.endReminderNotified.delete(key);
+      }
+    }
   }
 
   private startDateTime(record: InterventionRecord) {
@@ -622,7 +766,7 @@ export class InterventionsService implements OnModuleInit {
   async updateStatus(id: string, status: InterventionStatus, viewer: { id: string; role: string }) {
     const record = await this.prisma.intervention.findUnique({
       where: { id },
-      include: { assignments: true, trucks: true },
+      include: { assignments: true, trucks: true, attendances: true },
     });
     if (!record) {
       throw new NotFoundException('Intervention introuvable');
@@ -651,6 +795,29 @@ export class InterventionsService implements OnModuleInit {
         throw new BadRequestException("L'intervention ne peut pas être terminée avant la fin planifiée + 30 minutes");
       }
     }
+    if (status === 'COMPLETED' && ['SUPERVISOR', 'ADMIN'].includes(viewer.role)) {
+      const assignedIds = record.assignments.map((a) => a.userId);
+      const attForAssigned = (record as any).attendances?.filter((a: any) =>
+        assignedIds.includes(a.userId),
+      ) as any[];
+      const missingStart = attForAssigned.filter((a) => !a.arrivalTime && !a.checkInTime);
+      const missingEnd = attForAssigned.filter((a) => !a.checkOutTime);
+      const pending = attForAssigned.filter((a) => a.status !== 'COMPLETED');
+      if (missingStart.length || missingEnd.length || pending.length) {
+        const names = (list: any[]) =>
+          list
+            .map((a) => this.usersService.findOne(a.userId)?.name ?? a.userId)
+            .join(', ');
+        const parts: string[] = [];
+        if (missingStart.length) parts.push(`Heures manquantes (début) : ${names(missingStart)}`);
+        if (missingEnd.length) parts.push(`Heures manquantes (fin) : ${names(missingEnd)}`);
+        if (pending.length) parts.push(`Agents encore en cours : ${names(pending)}`);
+        throw new BadRequestException(
+          `Validation impossible : ${parts.join(' | ') || 'données incomplètes'}`,
+        );
+      }
+    }
+
     const updated = await this.prisma.intervention.update({
       where: { id },
       data: { status },

@@ -56,6 +56,9 @@ export class AttendanceService implements OnModuleInit {
   private readonly TZ_OFFSET_MINUTES = Number.isFinite(Number(process.env.TIMEZONE_OFFSET_MINUTES))
     ? Number(process.env.TIMEZONE_OFFSET_MINUTES)
     : 120; // default Europe/Paris (UTC+1/+2)
+  private TIME_DRIFT_MS = 60 * 60 * 1000; // 60 minutes tolérance hors créneau
+  private START_REMINDER_MS = 5 * 60 * 1000;
+  private readonly startReminderSent = new Set<string>(); // attendanceId
 
   constructor(
     private readonly prisma: PrismaService,
@@ -67,9 +70,22 @@ export class AttendanceService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    const startReminderMinutes = Number(process.env.START_REMINDER_MINUTES ?? '5');
+    if (Number.isFinite(startReminderMinutes) && startReminderMinutes > 0) {
+      this.START_REMINDER_MS = startReminderMinutes * 60 * 1000;
+    }
+    const timeDriftMinutes = Number(process.env.TIME_DRIFT_MINUTES ?? '60');
+    if (Number.isFinite(timeDriftMinutes) && timeDriftMinutes >= 0) {
+      this.TIME_DRIFT_MS = timeDriftMinutes * 60 * 1000;
+    }
     setInterval(() => {
       this.checkOutsideAgents().catch((err) => console.warn('Drift monitor error', err));
     }, 20 * 60 * 1000);
+
+    // Relance si présence enregistrée mais intervention non démarrée
+    setInterval(() => {
+      this.remindPendingStart().catch((err) => this.logger.warn('Relance start error', err));
+    }, 2 * 60 * 1000);
   }
 
   private toDateOnly(value: string) {
@@ -78,6 +94,57 @@ export class AttendanceService implements OnModuleInit {
 
   private endOfDay(value: string) {
     return new Date(`${value}T23:59:59.999Z`);
+  }
+
+  /**
+   * Rappelle aux agents ayant enregistré leur présence mais pas démarré l'intervention.
+   */
+  private async remindPendingStart() {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - this.START_REMINDER_MS);
+    const dayStart = this.toDateOnly(now.toISOString().slice(0, 10));
+    const dayEnd = this.endOfDay(now.toISOString().slice(0, 10));
+
+    const pending = await this.prisma.attendance.findMany({
+      where: {
+        status: 'PENDING',
+        arrivalTime: { not: null, lte: cutoff },
+        checkInTime: null,
+        date: { gte: dayStart, lte: dayEnd },
+      },
+      select: { id: true, userId: true, interventionId: true, arrivalTime: true },
+    });
+
+    if (pending.length) {
+      this.logger.log(`[Push] Relance start: ${pending.length} attendances à relancer`);
+    }
+
+    for (const att of pending) {
+      if (this.startReminderSent.has(att.id)) continue;
+      this.startReminderSent.add(att.id);
+      try {
+        await this.notifications.send({
+          audience: 'AGENT',
+          targetId: att.userId,
+          title: "Intervention à démarrer",
+          message: "Présence enregistrée : pensez à démarrer l'intervention.",
+        } as any);
+      } catch (err) {
+        this.logger.warn(
+          `Relance start échouée (${att.id} -> ${att.userId}): ${err?.message || err}`,
+        );
+      }
+    }
+
+    // Nettoyage des clés anciennes pour éviter la croissance du set
+    if (this.startReminderSent.size) {
+      const stillPendingIds = new Set(pending.map((p) => p.id));
+      for (const key of Array.from(this.startReminderSent)) {
+        if (!stillPendingIds.has(key)) {
+          this.startReminderSent.delete(key);
+        }
+      }
+    }
   }
 
   private toEntity(record: AttendanceRecord): AttendanceEntity {
@@ -353,6 +420,15 @@ export class AttendanceService implements OnModuleInit {
     );
     if (distance != null && distance > this.MAX_DISTANCE_METERS) {
       throw new BadRequestException("Vous êtes trop loin du site pour démarrer l'intervention.");
+    }
+    // Anomalie horaire : check-in en dehors du créneau planifié (tolérance TIME_DRIFT_MS)
+    const interventionDate = intervention.date.toISOString().slice(0, 10);
+    const plannedStart = this.combine(interventionDate, intervention.startTime ?? '00:00');
+    const plannedEnd = this.combine(interventionDate, intervention.endTime ?? '23:59');
+    if (now.getTime() < plannedStart.getTime() - this.TIME_DRIFT_MS || now.getTime() > plannedEnd.getTime() + this.TIME_DRIFT_MS) {
+      this.logger.warn(
+        `[Anomalie horaire] Check-in hors plage (user=${dto.userId}, intervention=${intervention.id}, now=${now.toISOString()}, planned=${intervention.startTime}-${intervention.endTime})`,
+      );
     }
     if (intervention) {
       await this.prisma.intervention.update({
