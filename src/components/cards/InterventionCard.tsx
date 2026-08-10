@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Intervention } from '../../types/intervention';
 import { theme } from '../../config/theme';
+import { Card } from '../ui/Card';
+import { StatusPill, StatusTone } from '../ui/StatusPill';
 
 type Props = {
   intervention: Intervention;
@@ -21,12 +23,12 @@ const TYPE_META = {
 };
 
 const STATUS_META = {
-  PLANNED: { label: 'Planifiée', color: theme.colors.primary, background: theme.colors.primarySoft },
-  IN_PROGRESS: { label: 'En cours', color: '#1e5aa6', background: '#e2ecff' },
-  COMPLETED: { label: 'Terminée', color: '#0b874b', background: '#def5eb' },
-  CANCELLED: { label: 'Annulée', color: '#7a7a7a', background: '#eeeeef' },
-  NO_SHOW: { label: 'Non effectuée', color: '#d93025', background: '#fdecea' },
-  NEEDS_REVIEW: { label: 'À valider', color: '#b15b00', background: '#fff2e1' },
+  PLANNED: { label: 'Planifiée', tone: 'info' as StatusTone },
+  IN_PROGRESS: { label: 'En cours', tone: 'info' as StatusTone },
+  COMPLETED: { label: 'Terminée', tone: 'success' as StatusTone },
+  CANCELLED: { label: 'Annulée', tone: 'neutral' as StatusTone },
+  NO_SHOW: { label: 'Non effectuée', tone: 'danger' as StatusTone },
+  NEEDS_REVIEW: { label: 'À valider', tone: 'warning' as StatusTone },
 };
 
 function formatDate(dateISO: string) {
@@ -47,39 +49,36 @@ export const InterventionCard: React.FC<Props> = ({ intervention, onPress }) => 
       : intervention.subType ?? typeMeta.label;
 
   return (
-    <Pressable style={styles.card} onPress={() => onPress?.(intervention)}>
-      <View style={styles.header}>
-        <View style={styles.timeBlock}>
-          <Text style={styles.time}>{intervention.startTime}</Text>
-          <Text style={styles.arrow}>→</Text>
-          <Text style={styles.time}>{intervention.endTime}</Text>
+    <Pressable onPress={() => onPress?.(intervention)}>
+      <Card style={styles.card}>
+        <View style={styles.header}>
+          <View style={styles.timeBlock}>
+            <Text style={styles.time}>{intervention.startTime}</Text>
+            <Text style={styles.arrow}>→</Text>
+            <Text style={styles.time}>{intervention.endTime}</Text>
+          </View>
+          <StatusPill label={statusMeta.label} tone={statusMeta.tone} />
         </View>
-        <View style={[styles.badge, { backgroundColor: statusMeta.background }]}>
-          <Text style={[styles.badgeText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
-        </View>
-      </View>
 
-      <Text style={styles.site}>{intervention.siteName}</Text>
+        <Text style={styles.site}>{intervention.siteName}</Text>
 
-      <View style={styles.metaRow}>
-        <View style={styles.metaItem}>
-          <Ionicons name={typeMeta.icon} size={18} color={theme.colors.ink} />
-          <Text style={styles.metaText}>{typeLabel}</Text>
+        <View style={styles.metaRow}>
+          <View style={styles.metaItem}>
+            <Ionicons name={typeMeta.icon} size={18} color={theme.colors.ink} />
+            <Text style={styles.metaText}>{typeLabel}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="calendar-outline" size={18} color={theme.colors.ink} />
+            <Text style={styles.metaText}>{formatDate(intervention.date)}</Text>
+          </View>
         </View>
-        <View style={styles.metaItem}>
-          <Ionicons name="calendar-outline" size={18} color={theme.colors.ink} />
-          <Text style={styles.metaText}>{formatDate(intervention.date)}</Text>
-        </View>
-      </View>
+      </Card>
     </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing.xl,
     gap: theme.spacing.md,
   },
   header: {
@@ -94,26 +93,15 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
     color: theme.colors.ink,
   },
   arrow: {
     color: theme.colors.muted,
   },
-  badge: {
-    borderRadius: theme.radii.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
   site: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
     color: theme.colors.ink,
   },
   metaRow: {

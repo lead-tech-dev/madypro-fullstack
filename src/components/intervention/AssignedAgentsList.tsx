@@ -3,10 +3,17 @@ import { StyleSheet, Text, View } from 'react-native';
 import { theme } from '@/config/theme';
 import { Intervention } from '@/types/intervention';
 import { formatTime } from '@/utils/interventionTime';
+import { StatusPill, StatusTone } from '@/components/ui/StatusPill';
 
 type AssignedAgentsListProps = {
   agents: Intervention['agents'];
   currentUserId?: string;
+};
+
+const STATUS_META: Record<'COMPLETED' | 'IN_PROGRESS' | 'PENDING', { label: string; tone: StatusTone }> = {
+  COMPLETED: { label: 'Terminé', tone: 'success' },
+  IN_PROGRESS: { label: 'En cours', tone: 'info' },
+  PENDING: { label: 'En attente', tone: 'neutral' },
 };
 
 export const AssignedAgentsList: React.FC<AssignedAgentsListProps> = ({ agents, currentUserId }) => {
@@ -19,15 +26,15 @@ export const AssignedAgentsList: React.FC<AssignedAgentsListProps> = ({ agents, 
       {agents.map((agent) => {
         const isCurrent = agent.id === currentUserId;
         const status = agent.attendanceStatus ?? (agent.checkOutTime ? 'COMPLETED' : agent.checkInTime ? 'IN_PROGRESS' : 'PENDING');
-        const statusLabel = status === 'COMPLETED' ? 'Terminé' : status === 'IN_PROGRESS' ? 'En cours' : 'En attente';
-        const statusColor =
-          status === 'COMPLETED' ? '#0b874b' : status === 'IN_PROGRESS' ? theme.colors.primary : theme.colors.muted;
+        const meta = STATUS_META[status as keyof typeof STATUS_META] ?? STATUS_META.PENDING;
         return (
           <View key={agent.id} style={styles.agentRow}>
-            <Text style={styles.row}>
-              • {agent.name} {isCurrent ? '(vous)' : ''}
-            </Text>
-            <Text style={[styles.statusInline, { color: statusColor }]}>({statusLabel})</Text>
+            <View style={styles.agentHeader}>
+              <Text style={styles.row}>
+                • {agent.name} {isCurrent ? '(vous)' : ''}
+              </Text>
+              <StatusPill label={meta.label} tone={meta.tone} />
+            </View>
             <Text style={styles.textMuted}>
               Arrivée : {agent.arrivalTime ? formatTime(new Date(agent.arrivalTime)) : '—'} · Début :{' '}
               {agent.checkInTime ? formatTime(new Date(agent.checkInTime)) : '—'} · Fin :{' '}
@@ -46,9 +53,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 4,
   },
-  statusInline: {
-    color: theme.colors.muted,
-    fontStyle: 'italic',
+  agentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   textMuted: {
     color: theme.colors.muted,

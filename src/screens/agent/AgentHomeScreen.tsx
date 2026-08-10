@@ -17,6 +17,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { theme } from '@/config/theme';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
 import { InterventionCard } from '@/components/cards/InterventionCard';
 import { Intervention } from '@/types/intervention';
@@ -24,11 +25,56 @@ import { listInterventionsByRange } from '@/services/api/interventions.api';
 import { useAuthContext } from '@/context/AuthContext';
 import { AgentStackParamList, AgentTabParamList } from '@/navigation/types';
 import { useSyncContext } from '@/context/SyncContext';
+import { buildDateTime, formatTime } from '@/utils/interventionTime';
 
 type Navigation = CompositeNavigationProp<
   BottomTabNavigationProp<AgentTabParamList, 'AgentHome'>,
   NativeStackNavigationProp<AgentStackParamList>
 >;
+
+type PriorityMoment =
+  | { kind: 'in-progress'; intervention: Intervention; since?: string }
+  | { kind: 'upcoming'; intervention: Intervention; startsAt: Date }
+  | { kind: 'none' };
+
+function computePriorityMoment(interventions: Intervention[], userId?: string): PriorityMoment {
+  if (!userId) return { kind: 'none' };
+  const now = new Date();
+
+  const inProgress = interventions.find((intervention) => {
+    const mine = intervention.agents?.find((a) => a.id === userId);
+    return Boolean(mine?.checkInTime) && !mine?.checkOutTime;
+  });
+  if (inProgress) {
+    const mine = inProgress.agents.find((a) => a.id === userId);
+    return { kind: 'in-progress', intervention: inProgress, since: mine?.checkInTime };
+  }
+
+  const upcoming = interventions
+    .filter((intervention) => {
+      const mine = intervention.agents?.find((a) => a.id === userId);
+      return !mine?.checkOutTime && intervention.status !== 'CANCELLED';
+    })
+    .map((intervention) => ({ intervention, startsAt: buildDateTime(intervention.date, intervention.startTime) }))
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+    .find(({ startsAt }) => startsAt.getTime() > now.getTime() - 60 * 60 * 1000); // garde les missions du jour même si l'heure est légèrement dépassée
+
+  if (upcoming) {
+    return { kind: 'upcoming', intervention: upcoming.intervention, startsAt: upcoming.startsAt };
+  }
+
+  return { kind: 'none' };
+}
+
+function formatCountdown(target: Date, now: Date) {
+  const diffMs = target.getTime() - now.getTime();
+  if (diffMs <= 0) return 'maintenant';
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 60) return `dans ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `dans ${hours} h${rest ? ` ${rest}` : ''}`;
+}
 
 export default function AgentHomeScreen() {
   const [scope, setScope] = React.useState<'today' | 'week'>('today');
@@ -39,6 +85,7 @@ export default function AgentHomeScreen() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [now, setNow] = React.useState(() => new Date());
 
   const navigation = useNavigation<Navigation>();
   const { token, user } = useAuthContext();
@@ -77,6 +124,16 @@ export default function AgentHomeScreen() {
     }, [loadInterventions]),
   );
 
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 30 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const priority = React.useMemo(
+    () => computePriorityMoment(interventions.today, user?.id),
+    [interventions.today, user?.id],
+  );
+
   const displayed = scope === 'today' ? interventions.today : interventions.week;
   const emptyLabel =
     scope === 'today'
@@ -93,9 +150,14 @@ export default function AgentHomeScreen() {
     }
   }, [flush, loadInterventions]);
 
+  const goToIntervention = (intervention: Intervention) =>
+    navigation.navigate('AgentIntervention', { id: intervention.id });
+
+  const firstName = user?.name?.split(' ')[0] ?? 'Agent';
+
   return (
     <HeaderLayout
-      title="Vos missions du jour"
+      title={`Bonjour, ${firstName}`}
       subtitle="Retrouvez interventions, sites et absences en un clin d'œil."
       accent="Agent Madypro Clean"
     >
@@ -105,27 +167,54 @@ export default function AgentHomeScreen() {
         }
         contentContainerStyle={{ gap: theme.spacing.lg }}
       >
-        <View style={styles.segmented}>
-          {[
-            { label: 'Aujourd’hui', value: 'today' as const },
-            { label: 'Cette semaine', value: 'week' as const },
-          ].map((tab) => {
-            const active = scope === tab.value;
-            return (
-              <TouchableOpacity
-                key={tab.value}
-                style={[styles.segmentButton, active && styles.segmentButtonActive]}
-                onPress={() => setScope(tab.value)}
-              >
-                <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {isLoading ? (
+          <ActivityIndicator color={theme.colors.primary} />
+        ) : priority.kind === 'in-progress' ? (
+          <Card style={styles.heroCard}>
+            <Text style={styles.heroLabel}>Mission en cours</Text>
+            <Text style={styles.heroSite}>{priority.intervention.siteName}</Text>
+            <Text style={styles.heroTime}>
+              {priority.intervention.startTime} – {priority.intervention.endTime}
+              {priority.since ? ` · débutée à ${priority.since}` : ''}
+            </Text>
+            <Button title="Voir l'intervention" onPress={() => goToIntervention(priority.intervention)} />
+          </Card>
+        ) : priority.kind === 'upcoming' ? (
+          <Card style={styles.heroCard}>
+            <Text style={styles.heroLabel}>Prochaine mission · {formatCountdown(priority.startsAt, now)}</Text>
+            <Text style={styles.heroSite}>{priority.intervention.siteName}</Text>
+            <Text style={styles.heroTime}>
+              {priority.intervention.startTime} – {priority.intervention.endTime}
+            </Text>
+            <Button title="Voir l'intervention" onPress={() => goToIntervention(priority.intervention)} />
+          </Card>
+        ) : (
+          <Card style={styles.heroCardEmpty}>
+            <Text style={styles.heroEmptyText}>Rien de prévu pour l'instant. Profitez-en !</Text>
+          </Card>
+        )}
 
         <View style={styles.block}>
+          <View style={styles.segmented}>
+            {[
+              { label: 'Aujourd’hui', value: 'today' as const },
+              { label: 'Cette semaine', value: 'week' as const },
+            ].map((tab) => {
+              const active = scope === tab.value;
+              return (
+                <TouchableOpacity
+                  key={tab.value}
+                  style={[styles.segmentButton, active && styles.segmentButtonActive]}
+                  onPress={() => setScope(tab.value)}
+                >
+                  <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <Text style={styles.sectionTitle}>
             {scope === 'today' ? 'Planning du jour' : 'Planning à venir'}
           </Text>
@@ -141,11 +230,7 @@ export default function AgentHomeScreen() {
                 <InterventionCard
                   key={intervention.id}
                   intervention={intervention}
-                  onPress={(item) =>
-                    navigation.navigate('AgentIntervention', {
-                      id: item.id,
-                    })
-                  }
+                  onPress={goToIntervention}
                 />
               ))}
             </View>
@@ -161,12 +246,41 @@ export default function AgentHomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  heroCard: {
+    backgroundColor: theme.colors.ink,
+    gap: theme.spacing.xs,
+  },
+  heroCardEmpty: {
+    backgroundColor: theme.colors.primarySoft,
+  },
+  heroLabel: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: theme.colors.sage,
+    fontFamily: theme.fonts.bodySemiBold,
+  },
+  heroSite: {
+    fontSize: 22,
+    fontFamily: theme.fonts.display,
+    color: '#fff',
+    marginTop: 2,
+  },
+  heroTime: {
+    color: theme.colors.sage,
+    marginBottom: theme.spacing.md,
+  },
+  heroEmptyText: {
+    color: theme.colors.primary,
+    fontFamily: theme.fonts.bodySemiBold,
+    textAlign: 'center',
+  },
   block: {
     gap: theme.spacing.md,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
     marginBottom: theme.spacing.md,
   },
   stack: {
@@ -200,7 +314,7 @@ const styles = StyleSheet.create({
   },
   segmentLabel: {
     color: theme.colors.muted,
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
   },
   segmentLabelActive: {
     color: theme.colors.primary,
