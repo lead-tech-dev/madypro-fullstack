@@ -17,6 +17,7 @@ type SyncEvent = {
   type: SyncEventType;
   timestamp: string;
   coordinates?: { latitude: number; longitude: number } | null;
+  photo?: string;
   status: SyncStatus;
   error?: string | null;
 };
@@ -28,6 +29,7 @@ type QueueInput = {
   type: SyncEventType;
   timestamp: string;
   coordinates?: { latitude: number; longitude: number } | null;
+  photo?: string;
 };
 
 type SyncContextValue = {
@@ -95,16 +97,19 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (event.type === 'START') {
         if (!event.coordinates) throw new Error('Coordonnées manquantes');
+        if (!event.photo) throw new Error('Photo manquante');
         return checkIn(token, {
           userId: event.userId,
           siteId: event.siteId,
           latitude: event.coordinates.latitude,
           longitude: event.coordinates.longitude,
           interventionId: event.interventionId,
+          photo: event.photo,
         });
       }
       if (event.type === 'END') {
-        return checkOut(token, { userId: event.userId, interventionId: event.interventionId });
+        if (!event.photo) throw new Error('Photo manquante');
+        return checkOut(token, { userId: event.userId, interventionId: event.interventionId, photo: event.photo });
       }
     },
     [token, user],

@@ -45,6 +45,7 @@ type CheckInPayload = {
   latitude: number;
   longitude: number;
   interventionId?: string;
+  photo: string;
 };
 
 export async function checkIn(token: string, payload: CheckInPayload) {
@@ -80,6 +81,7 @@ export async function markArrival(token: string, payload: MarkArrivalPayload) {
 type CheckOutPayload = {
   userId: string;
   interventionId?: string;
+  photo: string;
 };
 
 export type HeartbeatPayload = {

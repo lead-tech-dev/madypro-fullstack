@@ -34,10 +34,21 @@ import { RunningTimer } from '@/components/intervention/RunningTimer';
 import { AssignedAgentsList } from '@/components/intervention/AssignedAgentsList';
 import { ProblemModal } from '@/components/intervention/ProblemModal';
 import { getActualDate, buildDateTime, formatTime } from '@/utils/interventionTime';
+import { capturePhotoBase64 } from '@/utils/photo';
+import { StatusPill, StatusTone } from '@/components/ui/StatusPill';
 
 const TYPE_LABELS = {
   REGULAR: 'Intervention régulière',
   PUNCTUAL: 'Intervention ponctuelle',
+};
+
+const STATUS_TONE: Record<Intervention['status'], StatusTone> = {
+  PLANNED: 'info',
+  IN_PROGRESS: 'info',
+  COMPLETED: 'success',
+  CANCELLED: 'neutral',
+  NO_SHOW: 'danger',
+  NEEDS_REVIEW: 'warning',
 };
 
 const STATUS_LABELS: Record<Intervention['status'], string> = {
@@ -270,6 +281,11 @@ export default function InterventionDetailScreen() {
       return;
     }
     const startAction = async () => {
+      const photo = await capturePhotoBase64();
+      if (!photo) {
+        Alert.alert('Photo requise', 'Une photo est nécessaire pour démarrer la mission.');
+        return;
+      }
       const coords = await getCurrentCoordinates().catch(() => null);
       const now = new Date();
       if (!coords) {
@@ -284,6 +300,7 @@ export default function InterventionDetailScreen() {
             latitude: coords.latitude,
             longitude: coords.longitude,
             interventionId: target.id,
+            photo,
           });
         } catch (err: any) {
           Alert.alert('Démarrage hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.");
@@ -295,6 +312,7 @@ export default function InterventionDetailScreen() {
             type: 'START',
             timestamp: now.toISOString(),
             coordinates: coords,
+            photo,
           });
         }
       } else {
@@ -305,6 +323,7 @@ export default function InterventionDetailScreen() {
           type: 'START',
           timestamp: now.toISOString(),
           coordinates: coords,
+          photo,
         });
       }
       const displayTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -343,10 +362,15 @@ export default function InterventionDetailScreen() {
       return;
     }
     const finishAction = async () => {
+      const photo = await capturePhotoBase64();
+      if (!photo) {
+        Alert.alert('Photo requise', 'Une photo de fin de mission est nécessaire pour terminer.');
+        return;
+      }
       const now = new Date();
       if (isOnline) {
         try {
-          await checkOut(token, { userId: user.id, interventionId: target.id });
+          await checkOut(token, { userId: user.id, interventionId: target.id, photo });
         } catch (err: any) {
           Alert.alert('Fin hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.");
           const coords = await getCurrentCoordinates().catch(() => null);
@@ -357,6 +381,7 @@ export default function InterventionDetailScreen() {
             type: 'END',
             timestamp: now.toISOString(),
             coordinates: coords ?? undefined,
+            photo,
           });
         }
       } else {
@@ -368,6 +393,7 @@ export default function InterventionDetailScreen() {
           type: 'END',
           timestamp: now.toISOString(),
           coordinates: coords ?? undefined,
+          photo,
         });
       }
       const displayTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -638,6 +664,10 @@ export default function InterventionDetailScreen() {
               <Button title="Purger la file locale" variant="ghost" onPress={clearQueue} />
             )}
           </View>
+        )}
+
+        {!isRunning && (
+          <StatusPill label={STATUS_LABELS[intervention.status]} tone={STATUS_TONE[intervention.status]} />
         )}
 
         <RunningTimer isRunning={isRunning} startDate={startDate} plannedStart={plannedStart} plannedEnd={plannedEnd} />
