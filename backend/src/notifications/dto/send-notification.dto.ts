@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import type { NotificationAudience } from '../entities/notification.entity';
 
 export class SendNotificationDto {
@@ -14,4 +14,21 @@ export class SendNotificationDto {
   @IsOptional()
   @IsString()
   targetId?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsIn(['LOW', 'NORMAL', 'HIGH', 'URGENT'])
+  priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+
+  @IsOptional()
+  @IsDateString()
+  scheduledFor?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  escalateAfterMinutes?: number;
 }

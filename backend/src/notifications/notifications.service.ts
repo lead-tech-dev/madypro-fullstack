@@ -1,7 +1,8 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import fetch from 'node-fetch';
 import { NotificationEntity, NotificationAudience } from './entities/notification.entity';
 import { SendNotificationDto } from './dto/send-notification.dto';
+import { CreateNotificationTemplateDto } from './dto/create-notification-template.dto';
 import { UsersService } from '../users/users.service';
 import { SitesService } from '../sites/sites.service';
 import { AuditService } from '../audit/audit.service';
@@ -9,7 +10,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
@@ -18,6 +19,33 @@ export class NotificationsService {
     private readonly auditService: AuditService,
     private readonly prisma: PrismaService,
   ) {}
+
+  onModuleInit() {
+    setInterval(() => {
+      this.dispatchDueScheduled().catch((err) => this.logger.warn('Erreur envoi différé', err));
+    }, 60 * 1000);
+
+    setInterval(() => {
+      this.escalateUnread().catch((err) => this.logger.warn('Erreur escalade notifications', err));
+    }, 5 * 60 * 1000);
+
+    const digestHour = Number(process.env.NOTIFICATION_DIGEST_HOUR ?? '8');
+    let lastDailyDigestDate: string | null = null;
+    let lastWeeklyDigestDate: string | null = null;
+    setInterval(() => {
+      const now = new Date();
+      if (now.getHours() !== digestHour) return;
+      const todayKey = now.toISOString().slice(0, 10);
+      if (lastDailyDigestDate !== todayKey) {
+        lastDailyDigestDate = todayKey;
+        this.sendDigest('daily').catch((err) => this.logger.warn('Erreur digest quotidien', err));
+      }
+      if (now.getDay() === 1 && lastWeeklyDigestDate !== todayKey) {
+        lastWeeklyDigestDate = todayKey;
+        this.sendDigest('weekly').catch((err) => this.logger.warn('Erreur digest hebdomadaire', err));
+      }
+    }, 5 * 60 * 1000);
+  }
 
   async list(page = 1, pageSize = 20) {
     const [items, total] = await Promise.all([
@@ -107,12 +135,21 @@ export class NotificationsService {
       targetName = user?.name ?? 'Agent';
     }
 
+    const scheduledFor = dto.scheduledFor ? new Date(dto.scheduledFor) : null;
+    const isFuture = scheduledFor && scheduledFor.getTime() > Date.now();
+
     const notification = await this.prisma.notification.create({
       data: {
         title: dto.title,
         message: dto.message,
         audience: dto.audience,
         targetId: dto.targetId ?? null,
+        targetName,
+        category: dto.category,
+        priority: dto.priority ?? 'NORMAL',
+        scheduledFor,
+        sentAt: isFuture ? null : new Date(),
+        escalateAfterMinutes: dto.escalateAfterMinutes,
       },
     });
     this.auditService.record({
@@ -122,16 +159,134 @@ export class NotificationsService {
       entityId: notification.id,
       details: dto.title,
     });
-    this.dispatch({
-      id: notification.id,
-      title: notification.title,
-      message: notification.message,
-      audience: notification.audience as NotificationAudience,
-      targetId: notification.targetId ?? undefined,
-      targetName,
-      createdAt: notification.createdAt,
-    });
+    if (!isFuture) {
+      this.dispatch({
+        id: notification.id,
+        title: notification.title,
+        message: notification.message,
+        audience: notification.audience as NotificationAudience,
+        targetId: notification.targetId ?? undefined,
+        targetName,
+        createdAt: notification.createdAt,
+      });
+    }
     return notification;
+  }
+
+  private async dispatchDueScheduled() {
+    const due = await this.prisma.notification.findMany({
+      where: { sentAt: null, scheduledFor: { lte: new Date() } },
+    });
+    for (const notification of due) {
+      await this.prisma.notification.update({ where: { id: notification.id }, data: { sentAt: new Date() } });
+      this.dispatch({
+        id: notification.id,
+        title: notification.title,
+        message: notification.message,
+        audience: notification.audience as NotificationAudience,
+        targetId: notification.targetId ?? undefined,
+        targetName: notification.targetName ?? undefined,
+        createdAt: notification.createdAt,
+      });
+    }
+  }
+
+  private async escalateUnread() {
+    const candidates = await this.prisma.notification.findMany({
+      where: {
+        audience: 'AGENT',
+        escalateAfterMinutes: { not: null },
+        escalatedAt: null,
+        sentAt: { not: null },
+      },
+    });
+    const admins = this.usersService.findAll({ role: 'ADMIN', status: 'active', pageSize: 100 }).items;
+    for (const notification of candidates) {
+      if (!notification.targetId || !notification.sentAt || !notification.escalateAfterMinutes) continue;
+      const dueAt = notification.sentAt.getTime() + notification.escalateAfterMinutes * 60 * 1000;
+      if (Date.now() < dueAt) continue;
+      const read = await this.prisma.notificationRead.findUnique({
+        where: { notificationId_userId: { notificationId: notification.id, userId: notification.targetId } },
+      });
+      if (read) {
+        await this.prisma.notification.update({ where: { id: notification.id }, data: { escalatedAt: new Date() } });
+        continue;
+      }
+      const agent = this.usersService.findOne(notification.targetId);
+      for (const admin of admins) {
+        const escalation = await this.prisma.notification.create({
+          data: {
+            title: `⚠️ Non lue : ${notification.title}`,
+            message: `${agent?.name ?? 'Un agent'} n'a pas lu « ${notification.title} » après ${notification.escalateAfterMinutes} min.`,
+            audience: 'AGENT',
+            targetId: admin.id,
+            targetName: admin.name,
+            priority: 'HIGH',
+            category: 'escalation',
+            sentAt: new Date(),
+          },
+        });
+        this.dispatch({
+          id: escalation.id,
+          title: escalation.title,
+          message: escalation.message,
+          audience: 'AGENT',
+          targetId: admin.id,
+          targetName: admin.name,
+          createdAt: escalation.createdAt,
+        });
+      }
+      await this.prisma.notification.update({ where: { id: notification.id }, data: { escalatedAt: new Date() } });
+    }
+  }
+
+  private async sendDigest(period: 'daily' | 'weekly') {
+    const since = new Date(Date.now() - (period === 'daily' ? 1 : 7) * 24 * 60 * 60 * 1000);
+    const agents = this.usersService.findAll({ role: 'AGENT', status: 'active', pageSize: 500 }).items;
+    for (const agent of agents) {
+      const unread = await this.prisma.notification.findMany({
+        where: {
+          createdAt: { gte: since },
+          sentAt: { not: null },
+          OR: [{ audience: 'ALL_AGENTS' }, { audience: 'SITE_AGENTS' }, { audience: 'AGENT', targetId: agent.id }],
+          reads: { none: { userId: agent.id } },
+        },
+      });
+      if (!unread.length) continue;
+      const notification = await this.prisma.notification.create({
+        data: {
+          title: period === 'daily' ? 'Résumé du jour' : 'Résumé de la semaine',
+          message: `${unread.length} notification(s) non lue(s) : ${unread.slice(0, 5).map((n) => n.title).join(', ')}${unread.length > 5 ? '…' : ''}`,
+          audience: 'AGENT',
+          targetId: agent.id,
+          targetName: agent.name,
+          category: 'digest',
+          sentAt: new Date(),
+        },
+      });
+      this.dispatch({
+        id: notification.id,
+        title: notification.title,
+        message: notification.message,
+        audience: 'AGENT',
+        targetId: agent.id,
+        targetName: agent.name,
+        createdAt: notification.createdAt,
+      });
+    }
+  }
+
+  listTemplates() {
+    return this.prisma.notificationTemplate.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  createTemplate(dto: CreateNotificationTemplateDto) {
+    return this.prisma.notificationTemplate.create({ data: dto });
+  }
+
+  async removeTemplate(id: string) {
+    await this.prisma.notificationTemplate.delete({ where: { id } }).catch(() => undefined);
+    return { deleted: true };
   }
 
   private async dispatch(notification: NotificationEntity) {

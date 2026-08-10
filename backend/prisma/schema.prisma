@@ -129,6 +129,8 @@ model User {
   onboardingItems       UserOnboardingItem[]
   availabilities        Availability[]
   leaveAllocations      LeaveAllocation[]
+  chatThread            ChatMessage[]     @relation("ChatThread")
+  chatMessagesSent      ChatMessage[]     @relation("ChatSender")
 }
 
 model Certification {
@@ -436,14 +438,49 @@ model BlockedPeriod {
 }
 
 model Notification {
-  id         String               @id @default(cuid())
-  title      String
-  message    String
-  audience   NotificationAudience
-  targetId   String?
-  targetName String?
-  createdAt  DateTime             @default(now())
-  reads      NotificationRead[]
+  id                  String               @id @default(cuid())
+  title               String
+  message             String
+  audience            NotificationAudience
+  targetId            String?
+  targetName          String?
+  category            String?
+  priority            NotificationPriority @default(NORMAL)
+  scheduledFor        DateTime?
+  sentAt              DateTime?
+  escalateAfterMinutes Int?
+  escalatedAt         DateTime?
+  createdAt           DateTime             @default(now())
+  reads               NotificationRead[]
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model NotificationTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  title     String
+  message   String
+  category  String?
+  priority  NotificationPriority @default(NORMAL)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChatMessage {
+  id           String    @id @default(cuid())
+  threadUserId String
+  threadUser   User      @relation("ChatThread", fields: [threadUserId], references: [id], onDelete: Cascade)
+  senderId     String
+  sender       User      @relation("ChatSender", fields: [senderId], references: [id], onDelete: Cascade)
+  body         String
+  createdAt    DateTime  @default(now())
+  readAt       DateTime?
 }
 
 model NotificationRead {

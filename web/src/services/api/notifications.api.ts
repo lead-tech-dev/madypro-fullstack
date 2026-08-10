@@ -1,4 +1,4 @@
-import { Notification, NotificationAudience } from '../../types/notification';
+import { Notification, NotificationAudience, NotificationPriority, NotificationTemplate } from '../../types/notification';
 import { apiFetch } from './client';
 
 export type SendNotificationPayload = {
@@ -6,6 +6,10 @@ export type SendNotificationPayload = {
   message: string;
   audience: NotificationAudience;
   targetId?: string;
+  category?: string;
+  priority?: NotificationPriority;
+  scheduledFor?: string;
+  escalateAfterMinutes?: number;
 };
 
 export type NotificationPage = {
@@ -50,4 +54,19 @@ export type NotificationReadStats = {
 
 export async function getNotificationReadStats(token: string, id: string) {
   return apiFetch<NotificationReadStats>({ path: `notifications/${id}/read-stats`, token });
+}
+
+export async function listNotificationTemplates(token: string) {
+  return apiFetch<NotificationTemplate[]>({ path: 'notifications/templates/list', token });
+}
+
+export async function createNotificationTemplate(
+  token: string,
+  payload: { name: string; title: string; message: string; category?: string; priority?: NotificationPriority },
+) {
+  return apiFetch<NotificationTemplate>({
+    path: 'notifications/templates',
+    token,
+    options: { method: 'POST', body: JSON.stringify(payload) },
+  });
 }

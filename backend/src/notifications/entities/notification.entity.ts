@@ -7,5 +7,7 @@ export class NotificationEntity {
   audience!: NotificationAudience;
   targetId?: string;
   targetName?: string;
+  category?: string;
+  priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   createdAt!: Date;
 }

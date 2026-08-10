@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
-import { Notification, NotificationAudience } from '../../types/notification';
+import { Notification, NotificationAudience, NotificationPriority, NotificationTemplate } from '../../types/notification';
 import {
+  createNotificationTemplate,
   getNotificationReadStats,
   listNotifications,
+  listNotificationTemplates,
   NotificationReadStats,
   sendNotification,
   SendNotificationPayload,
@@ -22,6 +24,16 @@ const audienceOptions: { value: NotificationAudience; label: string }[] = [
   { value: 'SITE_AGENTS', label: 'Agents d\'un site' },
   { value: 'AGENT', label: 'Agent spécifique' },
 ];
+
+const priorityOptions: { value: NotificationPriority; label: string; color: string }[] = [
+  { value: 'LOW', label: 'Basse', color: '#8a97a8' },
+  { value: 'NORMAL', label: 'Normale', color: '#3b82f6' },
+  { value: 'HIGH', label: 'Haute', color: '#e08a1e' },
+  { value: 'URGENT', label: 'Urgente', color: '#dc2626' },
+];
+
+const priorityMeta = (priority?: NotificationPriority) =>
+  priorityOptions.find((p) => p.value === priority) ?? priorityOptions[1];
 
 export const NotificationsPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -42,8 +54,13 @@ export const NotificationsPage: React.FC = () => {
     title: '',
     message: '',
     audience: 'ALL_AGENTS',
+    priority: 'NORMAL',
   });
   const [readStats, setReadStats] = useState<Record<string, NotificationReadStats | 'loading'>>({});
+  const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
 
   const toggleReadStats = async (id: string) => {
     if (!token) return;
@@ -71,11 +88,17 @@ export const NotificationsPage: React.FC = () => {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    Promise.all([listNotifications(token, page, pageSize), listUsers(token, { role: 'AGENT', status: 'active' }), listSites(token)])
-      .then(([history, agentList, sitePage]) => {
+    Promise.all([
+      listNotifications(token, page, pageSize),
+      listUsers(token, { role: 'AGENT', status: 'active' }),
+      listSites(token),
+      listNotificationTemplates(token).catch(() => []),
+    ])
+      .then(([history, agentList, sitePage, templateList]) => {
         setPageData(history);
         setUsers(agentList.items ?? (agentList as any));
         setSites(sitePage.items ?? (sitePage as any));
+        setTemplates(templateList);
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : 'Impossible de charger les notifications';
@@ -83,6 +106,19 @@ export const NotificationsPage: React.FC = () => {
       })
       .finally(() => setLoading(false));
   }, [token, notify, page, pageSize]);
+
+  const applyTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return;
+    setForm((prev) => ({
+      ...prev,
+      title: template.title,
+      message: template.message,
+      category: template.category,
+      priority: template.priority ?? 'NORMAL',
+    }));
+  };
 
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -108,9 +144,30 @@ export const NotificationsPage: React.FC = () => {
     }
     setSending(true);
     try {
-      await sendNotification(token, form);
+      const payload: SendNotificationPayload = {
+        ...form,
+        scheduledFor: form.scheduledFor ? new Date(form.scheduledFor).toISOString() : undefined,
+      };
+      await sendNotification(token, payload);
+      if (saveAsTemplate && templateName.trim()) {
+        try {
+          const created = await createNotificationTemplate(token, {
+            name: templateName.trim(),
+            title: form.title,
+            message: form.message,
+            category: form.category,
+            priority: form.priority,
+          });
+          setTemplates((prev) => [...prev, created]);
+        } catch {
+          // le modèle n'a pas pu être sauvegardé, la notification est déjà partie
+        }
+      }
       notify('Notification envoyée');
-      setForm({ title: '', message: '', audience: form.audience });
+      setForm({ title: '', message: '', audience: form.audience, priority: 'NORMAL' });
+      setSaveAsTemplate(false);
+      setTemplateName('');
+      setSelectedTemplateId('');
       const history = await listNotifications(token, page, pageSize);
       setPageData(history);
     } catch (err) {
@@ -233,6 +290,19 @@ export const NotificationsPage: React.FC = () => {
               onSubmit={handleSubmit}
               style={{ boxShadow: 'none', padding: '0.75rem', marginTop: '1rem', display: 'grid', gap: '1rem' }}
             >
+              {templates.length > 0 && (
+                <label className="form-field">
+                  <span>Modèle réutilisable</span>
+                  <select value={selectedTemplateId} onChange={(event) => applyTemplate(event.target.value)}>
+                    <option value="">— Partir de zéro —</option>
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="form-field">
                 <span>Cible</span>
                 <select
@@ -268,9 +338,74 @@ export const NotificationsPage: React.FC = () => {
                   required
                 />
               </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <label className="form-field">
+                  <span>Priorité</span>
+                  <select
+                    name="priority"
+                    value={form.priority ?? 'NORMAL'}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, priority: event.target.value as NotificationPriority }))
+                    }
+                  >
+                    {priorityOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Input
+                  id="notifCategory"
+                  name="category"
+                  label="Catégorie (optionnel)"
+                  value={form.category ?? ''}
+                  onChange={handleChange}
+                  placeholder="ex. sécurité, planning..."
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <Input
+                  id="notifScheduledFor"
+                  name="scheduledFor"
+                  type="datetime-local"
+                  label="Envoi différé (optionnel)"
+                  value={form.scheduledFor ?? ''}
+                  onChange={handleChange}
+                />
+                {form.audience === 'AGENT' && (
+                  <Input
+                    id="notifEscalate"
+                    name="escalateAfterMinutes"
+                    type="number"
+                    min={1}
+                    label="Escalader si non lue après (min)"
+                    value={form.escalateAfterMinutes ?? ''}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        escalateAfterMinutes: event.target.value ? Number(event.target.value) : undefined,
+                      }))
+                    }
+                  />
+                )}
+              </div>
+              <label className="form-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
+                <input type="checkbox" checked={saveAsTemplate} onChange={(e) => setSaveAsTemplate(e.target.checked)} />
+                <span>Enregistrer comme modèle réutilisable</span>
+              </label>
+              {saveAsTemplate && (
+                <Input
+                  id="notifTemplateName"
+                  label="Nom du modèle"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="ex. Rappel consignes sécurité"
+                />
+              )}
               <div className="form-actions" style={{ marginTop: '0.5rem' }}>
                 <Button type="submit" disabled={sending}>
-                  {sending ? 'Envoi...' : 'Envoyer'}
+                  {sending ? 'Envoi...' : form.scheduledFor ? 'Programmer' : 'Envoyer'}
                 </Button>
               </div>
             </form>
@@ -288,6 +423,7 @@ export const NotificationsPage: React.FC = () => {
               <thead>
                 <tr>
                   <th>Date</th>
+                  <th>Priorité</th>
                   <th>Titre</th>
                   <th>Message</th>
                   <th>Cible</th>
@@ -297,10 +433,30 @@ export const NotificationsPage: React.FC = () => {
               <tbody>
                 {pageData.items.map((notification) => {
                   const stats = readStats[notification.id];
+                  const meta = priorityMeta(notification.priority);
                   return (
                     <React.Fragment key={notification.id}>
                       <tr>
-                        <td>{formatDateTime(notification.createdAt)}</td>
+                        <td>
+                          {notification.scheduledFor && !notification.sentAt
+                            ? `Programmée · ${formatDateTime(notification.scheduledFor)}`
+                            : formatDateTime(notification.createdAt)}
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '0.15rem 0.6rem',
+                              borderRadius: '999px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: '#fff',
+                              background: meta.color,
+                            }}
+                          >
+                            {meta.label}
+                          </span>
+                        </td>
                         <td>{notification.title}</td>
                         <td>{notification.message}</td>
                         <td>
@@ -318,7 +474,7 @@ export const NotificationsPage: React.FC = () => {
                       </tr>
                       {stats && stats !== 'loading' && (
                         <tr>
-                          <td colSpan={5} style={{ background: 'var(--color-bg)' }}>
+                          <td colSpan={6} style={{ background: 'var(--color-bg)' }}>
                             {stats.readers.length ? (
                               <div className="chips">
                                 {stats.readers.map((reader) => (

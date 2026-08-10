@@ -132,18 +132,18 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 10 (S19-S20) — Notifications & communication
+## Sprint 10 (S19-S20) — Notifications & communication ✅ terminé
 
 **Back-office**
-- [ ] Templates de notification réutilisables
-- [ ] Catégories et priorité visuelle des notifications
-- [ ] Envoi différé des notifications
-- [ ] Digest quotidien/hebdomadaire consolidé
-- [ ] Centre de notifications côté web (équivalent admin du push mobile)
-- [ ] Escalade automatique si alerte non lue après un délai
+- [x] Templates de notification réutilisables — `NotificationTemplate`, sélection dans le formulaire web pour préremplir titre/message/catégorie/priorité
+- [x] Catégories et priorité visuelle des notifications — champs `category`/`priority` (LOW/NORMAL/HIGH/URGENT), badge coloré dans l'historique web
+- [x] Envoi différé des notifications — `scheduledFor`/`sentAt`, job toutes les 60s qui dispatch les notifications dues, champ datetime dans le formulaire web
+- [x] Digest quotidien/hebdomadaire consolidé — job qui regroupe les notifications non lues par agent et envoie un résumé unique (quotidien à l'heure configurée, hebdomadaire le lundi)
+- [x] Centre de notifications côté web — page existante enrichie (priorité, catégorie, envoi différé, escalade, modèles) plutôt que reconstruite de zéro
+- [x] Escalade automatique si alerte non lue après un délai — `escalateAfterMinutes`, job toutes les 5 min qui notifie les admins si l'agent ciblé n'a pas lu à temps
 
 **Mobile**
-- [ ] Chat interne agent ↔ superviseur
+- [x] Chat interne agent ↔ superviseur — `ChatMessage` (thread par agent), écran `AgentChatScreen` (polling 15s), liste des threads côté web/API pour les superviseurs
 
 ---
 

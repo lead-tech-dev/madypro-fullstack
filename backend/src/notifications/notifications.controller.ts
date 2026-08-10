@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, Req } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { SendNotificationDto } from './dto/send-notification.dto';
 import { RegisterTokenDto } from './dto/register-token.dto';
+import { CreateNotificationTemplateDto } from './dto/create-notification-template.dto';
 import { Query } from '@nestjs/common';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -51,5 +52,23 @@ export class NotificationsController {
   @Get(':id/read-stats')
   getReadStats(@Param('id') id: string) {
     return this.service.getReadStats(id);
+  }
+
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('templates/list')
+  listTemplates() {
+    return this.service.listTemplates();
+  }
+
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Post('templates')
+  createTemplate(@Body() dto: CreateNotificationTemplateDto) {
+    return this.service.createTemplate(dto);
+  }
+
+  @Roles('ADMIN')
+  @Delete('templates/:id')
+  removeTemplate(@Param('id') id: string) {
+    return this.service.removeTemplate(id);
   }
 }
