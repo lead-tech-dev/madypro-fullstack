@@ -147,15 +147,16 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 11 (S21-S22) — Sites enrichis
+## Sprint 11 (S21-S22) — Sites enrichis ✅ terminé
 
 **Back-office**
-- [ ] Géofencing configurable par site
-- [ ] Contrats/SLA associés au site + alertes d'échéance
-- [ ] Score de satisfaction/qualité par site
-- [ ] Multi-zones par site (bâtiment A/B, étages)
-- [ ] Historique/timeline des incidents par site
-- [ ] Plan des locaux avec zones à traiter
+- [x] Géofencing configurable par site — déjà couvert par `gpsDistanceMeters` (Sprint 6), rayon par site réellement appliqué au check-in/check-out (rejet si hors zone), pas de nouveau travail nécessaire
+- [x] Contrats/SLA associés au site + alertes d'échéance — `SiteContract`, endpoint `GET /sites/contracts/expiring`
+- [x] Score de satisfaction/qualité par site — calculé (non stocké) sur 90 jours glissants à partir du taux de complétion, des no-show et des anomalies
+- [x] Multi-zones par site (bâtiment A/B, étages) — `SiteZone` (label, étage, ordre, statut traité)
+- [x] Historique/timeline des incidents par site — agrégation chronologique des `Anomaly` liées aux interventions du site
+- [x] Plan des locaux avec zones à traiter — `Site.planImageUrl` (base64) + `SiteZone.completed`
+- [ ] UI web back-office pour ces écrans — API uniquement dans ce sprint
 
 ---
 

@@ -86,4 +86,88 @@ export class SitesController {
   removeChecklistItem(@Param('id') id: string, @Param('itemId') itemId: string, @Req() req: Request) {
     return this.service.removeChecklistItem(id, itemId, (req.user as any)?.sub);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('contracts/expiring')
+  findExpiringContracts(@Query('days') days?: string) {
+    return this.service.findExpiringContracts(days ? Number(days) : 30);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get(':id/contracts')
+  listContracts(@Param('id') id: string) {
+    return this.service.listContracts(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Post(':id/contracts')
+  createContract(
+    @Param('id') id: string,
+    @Body() dto: { label: string; startDate: string; endDate: string; slaDetails?: string; documentUrl?: string },
+  ) {
+    return this.service.createContract(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Delete(':id/contracts/:contractId')
+  removeContract(@Param('id') id: string, @Param('contractId') contractId: string) {
+    return this.service.removeContract(id, contractId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Get(':id/zones')
+  listZones(@Param('id') id: string) {
+    return this.service.listZones(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Post(':id/zones')
+  createZone(@Param('id') id: string, @Body() dto: { label: string; floor?: string; order?: number }) {
+    return this.service.createZone(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Patch(':id/zones/:zoneId')
+  updateZone(
+    @Param('id') id: string,
+    @Param('zoneId') zoneId: string,
+    @Body() dto: { label?: string; floor?: string; order?: number; completed?: boolean },
+  ) {
+    return this.service.updateZone(id, zoneId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Delete(':id/zones/:zoneId')
+  removeZone(@Param('id') id: string, @Param('zoneId') zoneId: string) {
+    return this.service.removeZone(id, zoneId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Patch(':id/plan')
+  setPlanImage(@Param('id') id: string, @Body() dto: { planImageUrl: string | null }) {
+    return this.service.setPlanImage(id, dto.planImageUrl);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get(':id/incidents')
+  getIncidentTimeline(@Param('id') id: string) {
+    return this.service.getIncidentTimeline(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get(':id/quality-score')
+  getQualityScore(@Param('id') id: string) {
+    return this.service.getQualityScore(id);
+  }
 }

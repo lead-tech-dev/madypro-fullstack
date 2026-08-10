@@ -259,4 +259,129 @@ export class SitesService implements OnModuleInit {
     });
     return { success: true };
   }
+
+  listContracts(siteId: string) {
+    this.ensureExists(siteId);
+    return this.prisma.siteContract.findMany({ where: { siteId }, orderBy: { endDate: 'asc' } });
+  }
+
+  findExpiringContracts(days = 30) {
+    const now = new Date();
+    const horizon = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    return this.prisma.siteContract.findMany({
+      where: { endDate: { gte: now, lte: horizon } },
+      orderBy: { endDate: 'asc' },
+      include: { site: { select: { id: true, name: true } } },
+    });
+  }
+
+  createContract(
+    siteId: string,
+    dto: { label: string; startDate: string; endDate: string; slaDetails?: string; documentUrl?: string },
+  ) {
+    this.ensureExists(siteId);
+    return this.prisma.siteContract.create({
+      data: {
+        siteId,
+        label: dto.label,
+        startDate: new Date(dto.startDate),
+        endDate: new Date(dto.endDate),
+        slaDetails: dto.slaDetails,
+        documentUrl: dto.documentUrl,
+      },
+    });
+  }
+
+  async removeContract(siteId: string, contractId: string) {
+    this.ensureExists(siteId);
+    const existing = await this.prisma.siteContract.findFirst({ where: { id: contractId, siteId } });
+    if (!existing) {
+      throw new NotFoundException('Contrat introuvable');
+    }
+    await this.prisma.siteContract.delete({ where: { id: contractId } });
+    return { deleted: true };
+  }
+
+  listZones(siteId: string) {
+    this.ensureExists(siteId);
+    return this.prisma.siteZone.findMany({ where: { siteId }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] });
+  }
+
+  createZone(siteId: string, dto: { label: string; floor?: string; order?: number }) {
+    this.ensureExists(siteId);
+    return this.prisma.siteZone.create({
+      data: { siteId, label: dto.label, floor: dto.floor, order: dto.order ?? 0 },
+    });
+  }
+
+  async updateZone(siteId: string, zoneId: string, dto: { label?: string; floor?: string; order?: number; completed?: boolean }) {
+    this.ensureExists(siteId);
+    const existing = await this.prisma.siteZone.findFirst({ where: { id: zoneId, siteId } });
+    if (!existing) {
+      throw new NotFoundException('Zone introuvable');
+    }
+    return this.prisma.siteZone.update({ where: { id: zoneId }, data: dto });
+  }
+
+  async removeZone(siteId: string, zoneId: string) {
+    this.ensureExists(siteId);
+    const existing = await this.prisma.siteZone.findFirst({ where: { id: zoneId, siteId } });
+    if (!existing) {
+      throw new NotFoundException('Zone introuvable');
+    }
+    await this.prisma.siteZone.delete({ where: { id: zoneId } });
+    return { deleted: true };
+  }
+
+  async setPlanImage(siteId: string, planImageUrl: string | null) {
+    this.ensureExists(siteId);
+    return this.prisma.site.update({ where: { id: siteId }, data: { planImageUrl } });
+  }
+
+  async getIncidentTimeline(siteId: string) {
+    this.ensureExists(siteId);
+    const anomalies = await this.prisma.anomaly.findMany({
+      where: { intervention: { siteId } },
+      orderBy: { createdAt: 'desc' },
+      include: { user: { select: { firstName: true, lastName: true } }, intervention: { select: { date: true } } },
+    });
+    return anomalies.map((a) => ({
+      id: a.id,
+      type: a.type,
+      title: a.title,
+      description: a.description,
+      status: a.status,
+      createdAt: a.createdAt,
+      interventionDate: a.intervention.date,
+      reportedBy: `${a.user.firstName} ${a.user.lastName}`.trim(),
+    }));
+  }
+
+  async getQualityScore(siteId: string) {
+    this.ensureExists(siteId);
+    const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const [interventions, anomalies] = await Promise.all([
+      this.prisma.intervention.findMany({
+        where: { siteId, date: { gte: since }, status: { in: ['COMPLETED', 'NEEDS_REVIEW', 'NO_SHOW'] } },
+        select: { status: true },
+      }),
+      this.prisma.anomaly.count({ where: { intervention: { siteId }, createdAt: { gte: since } } }),
+    ]);
+    const total = interventions.length;
+    const completed = interventions.filter((i) => i.status === 'COMPLETED').length;
+    const noShow = interventions.filter((i) => i.status === 'NO_SHOW').length;
+    const completionRate = total > 0 ? completed / total : 1;
+    const anomalyPenalty = Math.min(anomalies * 3, 40);
+    const noShowPenalty = Math.min(noShow * 5, 20);
+    const score = Math.max(0, Math.round(completionRate * 100 - anomalyPenalty - noShowPenalty));
+    return {
+      siteId,
+      periodDays: 90,
+      score,
+      interventionsTotal: total,
+      interventionsCompleted: completed,
+      noShowCount: noShow,
+      anomalyCount: anomalies,
+    };
+  }
 }

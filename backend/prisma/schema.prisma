@@ -266,11 +266,39 @@ model Site {
   gpsDistanceMeters     Int?
   toleranceMinutes      Int?
   minimumDurationMinutes Int?
+  planImageUrl       String?
   supervisors        SiteSupervisor[]
   interventions      Intervention[]
   absences           Absence[]
   InterventionRule   InterventionRule[]
   checklistItems     SiteChecklistItem[]
+  contracts          SiteContract[]
+  zones              SiteZone[]
+}
+
+model SiteContract {
+  id         String    @id @default(cuid())
+  siteId     String
+  site       Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  label      String
+  startDate  DateTime
+  endDate    DateTime
+  slaDetails String?
+  documentUrl String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model SiteZone {
+  id        String   @id @default(cuid())
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  label     String
+  floor     String?
+  order     Int      @default(0)
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model SiteChecklistItem {
