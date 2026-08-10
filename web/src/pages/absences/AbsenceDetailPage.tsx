@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getAbsence, updateAbsenceStatus } from '../../services/api/absences.api';
+import { getAbsence, getReplacementSuggestions, ReplacementSuggestion, updateAbsenceStatus } from '../../services/api/absences.api';
 import { Absence, AbsenceStatus } from '../../types/absence';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -10,13 +10,23 @@ export const AbsenceDetailPage: React.FC = () => {
   const { token, notify } = useAuthContext();
   const [absence, setAbsence] = useState<Absence | null>(null);
   const [loading, setLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<ReplacementSuggestion | null>(null);
   const navigate = useNavigate();
 
   const loadDetail = () => {
     if (!token || !id) return;
     setLoading(true);
     getAbsence(token, id)
-      .then((data) => setAbsence(data))
+      .then((data) => {
+        setAbsence(data);
+        if (data.status === 'APPROVED') {
+          getReplacementSuggestions(token, id)
+            .then(setSuggestions)
+            .catch(() => setSuggestions(null));
+        } else {
+          setSuggestions(null);
+        }
+      })
       .catch((err) => {
         const message = err instanceof Error ? err.message : 'Absence introuvable';
         notify(message, 'error');
@@ -99,7 +109,45 @@ export const AbsenceDetailPage: React.FC = () => {
           <span>Origine</span>
           <strong>{absence.manual ? 'Saisie admin' : `Demande ${absence.createdBy}`}</strong>
         </div>
+        {absence.attachment && (
+          <div className="detail-grid__item">
+            <span>Pièce justificative</span>
+            <a href={absence.attachment} target="_blank" rel="noreferrer">
+              <img
+                src={absence.attachment}
+                alt="Pièce justificative"
+                style={{ maxWidth: '160px', borderRadius: '8px', marginTop: '0.5rem' }}
+              />
+            </a>
+          </div>
+        )}
       </section>
+
+      {absence.status === 'APPROVED' && suggestions && suggestions.interventions.length > 0 && (
+        <section className="panel" style={{ marginTop: '1.5rem' }}>
+          <h3 style={{ marginTop: 0 }}>Suggestions de remplacement</h3>
+          {suggestions.interventions.map((intervention) => (
+            <div key={intervention.interventionId} style={{ marginBottom: '1rem' }}>
+              <strong>
+                {intervention.siteName} · {intervention.date} {intervention.startTime}–{intervention.endTime}
+              </strong>
+              {intervention.candidates.length ? (
+                <div className="chips" style={{ marginTop: '0.5rem' }}>
+                  {intervention.candidates.map((candidate) => (
+                    <span key={candidate.id} className="chip">
+                      {candidate.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--color-muted)', margin: '0.25rem 0 0' }}>
+                  Aucun agent disponible pour ce créneau.
+                </p>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
 
       {absence.status === 'PENDING' && (
         <div className="form-actions" style={{ marginTop: '1.5rem' }}>

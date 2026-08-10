@@ -115,4 +115,23 @@ export class InterventionsController {
   toggleRule(@Param('id') id: string, @Body('active') active: boolean) {
     return this.service.toggleRule(id, active);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Get(':id/checklist')
+  listChecklist(@Param('id') id: string) {
+    return this.service.listChecklist(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Patch(':id/checklist/:itemId')
+  toggleChecklistItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body('done') done: boolean,
+    @Req() req: Request,
+  ) {
+    return this.service.toggleChecklistItem(id, itemId, done, (req.user as any)?.sub);
+  }
 }

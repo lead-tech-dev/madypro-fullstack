@@ -691,6 +691,21 @@ export class InterventionsService implements OnModuleInit {
       });
     }
 
+    // Copie le cahier des charges du site comme checklist de départ pour cette intervention
+    const siteChecklist = await this.prisma.siteChecklistItem.findMany({
+      where: { siteId: dto.siteId },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+    });
+    if (siteChecklist.length) {
+      await this.prisma.interventionChecklistItem.createMany({
+        data: siteChecklist.map((item, index) => ({
+          interventionId: record.id,
+          label: item.label,
+          order: index,
+        })),
+      });
+    }
+
     const view = this.present(this.toEntity(record as any), (record as any).attendances);
     this.auditService.record({
       actorId,
@@ -1142,5 +1157,37 @@ export class InterventionsService implements OnModuleInit {
     } finally {
       this.generatingRules = false;
     }
+  }
+
+  async listChecklist(interventionId: string) {
+    await this.findRecord(interventionId);
+    return this.prisma.interventionChecklistItem.findMany({
+      where: { interventionId },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async toggleChecklistItem(interventionId: string, itemId: string, done: boolean, actorId: string) {
+    await this.findRecord(interventionId);
+    const existing = await this.prisma.interventionChecklistItem.findFirst({
+      where: { id: itemId, interventionId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Élément de checklist introuvable');
+    }
+    const item = await this.prisma.interventionChecklistItem.update({
+      where: { id: itemId },
+      data: {
+        done,
+        completedAt: done ? new Date() : null,
+        completedBy: done ? actorId : null,
+      },
+    });
+    this.realtime.broadcast('intervention.checklist', {
+      interventionId,
+      itemId: item.id,
+      done: item.done,
+    });
+    return item;
   }
 }

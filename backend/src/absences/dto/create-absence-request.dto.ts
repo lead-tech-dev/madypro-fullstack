@@ -24,4 +24,8 @@ export class CreateAbsenceRequestDto {
   @IsOptional()
   @IsString()
   siteId?: string;
+
+  @IsOptional()
+  @IsString()
+  attachment?: string;
 }

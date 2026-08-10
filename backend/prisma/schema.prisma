@@ -159,6 +159,20 @@ model Intervention {
   generatedFromRuleId String?
   generatedFromRule   InterventionRule?        @relation(fields: [generatedFromRuleId], references: [id])
   attendances         Attendance[]
+  checklistItems      InterventionChecklistItem[]
+}
+
+model InterventionChecklistItem {
+  id             String       @id @default(cuid())
+  interventionId String
+  intervention   Intervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  label          String
+  order          Int          @default(0)
+  done           Boolean      @default(false)
+  completedAt    DateTime?
+  completedBy    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model InterventionAssignment {
@@ -234,6 +248,7 @@ model Absence {
   to                DateTime
   reason            String
   note              String?
+  attachment        String?
   validatedBy       String?
   validationComment String?
   manual            Boolean       @default(false)

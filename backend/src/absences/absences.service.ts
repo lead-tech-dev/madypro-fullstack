@@ -29,6 +29,7 @@ type AbsenceView = {
   to: string;
   reason: string;
   note?: string;
+  attachment?: string;
   manual: boolean;
   createdBy: string;
   validatedBy?: string;
@@ -69,6 +70,7 @@ export class AbsencesService {
       to: record.to.toISOString().slice(0, 10),
       reason: record.reason,
       note: record.note ?? undefined,
+      attachment: record.attachment ?? undefined,
       manual: record.manual,
       createdBy: record.createdBy as 'USER' | 'ADMIN',
       createdAt: record.createdAt,
@@ -90,6 +92,7 @@ export class AbsencesService {
       to: absence.to,
       reason: absence.reason,
       note: absence.note,
+      attachment: absence.attachment,
       manual: absence.manual,
       createdBy: absence.createdBy,
       validatedBy: absence.validatedBy,
@@ -167,6 +170,7 @@ export class AbsencesService {
         to: toDate,
         reason: data.reason,
         note: data.note,
+        attachment: data.attachment,
         manual: false,
         createdBy: 'USER',
       },
@@ -197,6 +201,7 @@ export class AbsencesService {
         to: toDate,
         reason: data.reason,
         note: data.note,
+        attachment: data.attachment,
         manual: true,
         createdBy: 'ADMIN',
         validatedBy: 'ADMIN',
@@ -229,5 +234,96 @@ export class AbsencesService {
       details: dto.status,
     });
     return this.toView(this.toEntity(record));
+  }
+
+  /**
+   * Pour une absence validée, propose pour chaque intervention impactée
+   * des agents disponibles (ni déjà affectés, ni en conflit d'horaire,
+   * ni eux-mêmes absents) pour remplacer l'agent absent.
+   */
+  async getReplacementSuggestions(id: string) {
+    const absence = await this.prisma.absence.findUnique({ where: { id } });
+    if (!absence) {
+      throw new NotFoundException('Absence introuvable');
+    }
+    if (absence.status !== 'APPROVED') {
+      return { absenceId: id, interventions: [] };
+    }
+
+    const dayEnd = new Date(absence.to.getTime());
+    dayEnd.setUTCHours(23, 59, 59, 999);
+
+    const affectedInterventions = await this.prisma.intervention.findMany({
+      where: {
+        date: { gte: absence.from, lte: dayEnd },
+        status: { in: ['PLANNED', 'IN_PROGRESS'] },
+        assignments: { some: { userId: absence.userId } },
+      },
+      include: { assignments: true, site: true },
+    });
+
+    if (!affectedInterventions.length) {
+      return { absenceId: id, interventions: [] };
+    }
+
+    const agents = await this.prisma.user.findMany({
+      where: { role: 'AGENT', active: true, id: { not: absence.userId } },
+    });
+
+    const results = await Promise.all(
+      affectedInterventions.map(async (intervention) => {
+        const dateStr = intervention.date.toISOString().slice(0, 10);
+        const dayStart = this.toDateOnly(dateStr);
+        const thisDayEnd = new Date(dayStart.getTime());
+        thisDayEnd.setUTCHours(23, 59, 59, 999);
+        const start = new Date(`${dateStr}T${intervention.startTime}:00`);
+        const end = new Date(`${dateStr}T${intervention.endTime}:00`);
+        const assignedIds = new Set(intervention.assignments.map((a) => a.userId));
+
+        const [sameDayInterventions, sameDayAbsences] = await Promise.all([
+          this.prisma.intervention.findMany({
+            where: {
+              date: dayStart,
+              id: { not: intervention.id },
+              status: { notIn: ['CANCELLED'] },
+              assignments: { some: { userId: { in: agents.map((a) => a.id) } } },
+            },
+            include: { assignments: true },
+          }),
+          this.prisma.absence.findMany({
+            where: {
+              status: 'APPROVED',
+              userId: { in: agents.map((a) => a.id) },
+              from: { lte: thisDayEnd },
+              to: { gte: dayStart },
+            },
+          }),
+        ]);
+
+        const busyIds = new Set<string>();
+        sameDayAbsences.forEach((a) => busyIds.add(a.userId));
+        sameDayInterventions.forEach((other) => {
+          const otherStart = new Date(`${dateStr}T${other.startTime}:00`);
+          const otherEnd = new Date(`${dateStr}T${other.endTime}:00`);
+          const overlaps = start < otherEnd && otherStart < end;
+          if (!overlaps) return;
+          other.assignments.forEach((a) => busyIds.add(a.userId));
+        });
+
+        const candidates = agents.filter((agent) => !assignedIds.has(agent.id) && !busyIds.has(agent.id));
+
+        return {
+          interventionId: intervention.id,
+          siteId: intervention.siteId,
+          siteName: intervention.site.name,
+          date: dateStr,
+          startTime: intervention.startTime,
+          endTime: intervention.endTime,
+          candidates: candidates.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`.trim() })),
+        };
+      }),
+    );
+
+    return { absenceId: id, interventions: results };
   }
 }

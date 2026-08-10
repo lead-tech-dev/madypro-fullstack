@@ -13,6 +13,7 @@ export type Absence = {
   to: string;
   reason: string;
   note?: string;
+  attachment?: string;
   manual: boolean;
   createdBy: string;
   validatedBy?: string;

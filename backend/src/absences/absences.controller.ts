@@ -99,4 +99,10 @@ export class AbsencesController {
   updateStatus(@Param('id') id: string, @Body() body: UpdateAbsenceStatusDto) {
     return this.service.updateStatus(id, body);
   }
+
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get(':id/replacement-suggestions')
+  getReplacementSuggestions(@Param('id') id: string) {
+    return this.service.getReplacementSuggestions(id);
+  }
 }

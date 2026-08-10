@@ -19,6 +19,7 @@ export type ManualAbsencePayload = {
   reason: string;
   note: string;
   siteId?: string;
+  attachment?: string;
 };
 
 export type UpdateAbsenceStatusPayload = {
@@ -81,4 +82,21 @@ export async function updateAbsenceStatus(token: string, id: string, payload: Up
       body: JSON.stringify(payload),
     },
   });
+}
+
+export type ReplacementSuggestion = {
+  absenceId: string;
+  interventions: {
+    interventionId: string;
+    siteId: string;
+    siteName: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    candidates: { id: string; name: string }[];
+  }[];
+};
+
+export async function getReplacementSuggestions(token: string, id: string) {
+  return apiFetch<ReplacementSuggestion>({ path: `absences/${id}/replacement-suggestions`, token });
 }

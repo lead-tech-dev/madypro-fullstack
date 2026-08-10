@@ -11,6 +11,7 @@ export class AbsenceEntity {
   to!: string;
   reason!: string;
   note?: string;
+  attachment?: string;
   manual!: boolean;
   createdBy!: 'USER' | 'ADMIN';
   createdAt!: Date;
