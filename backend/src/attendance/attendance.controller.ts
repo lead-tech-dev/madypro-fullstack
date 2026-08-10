@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
@@ -66,7 +66,6 @@ export class AttendanceController {
   }
 
   @Roles('AGENT', 'ADMIN', 'SUPERVISOR')
-  @UsePipes(new ValidationPipe({ whitelist: true }))
   @Post('check-in')
   checkIn(@Body() dto: CheckInDto) {
     return this.service.checkIn(dto);
@@ -79,7 +78,6 @@ export class AttendanceController {
   }
 
   @Roles('AGENT', 'ADMIN', 'SUPERVISOR')
-  @UsePipes(new ValidationPipe({ whitelist: true }))
   @Post('check-out')
   checkOut(@Body() dto: CheckOutDto) {
     return this.service.checkOut(dto);

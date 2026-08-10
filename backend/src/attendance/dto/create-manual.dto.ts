@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateManualAttendanceDto {
   @IsString()
@@ -17,9 +17,9 @@ export class CreateManualAttendanceDto {
   @IsString()
   checkOutTime?: string;
 
-  @IsOptional()
   @IsString()
-  interventionId?: string;
+  @IsNotEmpty({ message: "L'intervention est requise pour un pointage manuel." })
+  interventionId!: string;
 
   @IsString()
   note!: string;

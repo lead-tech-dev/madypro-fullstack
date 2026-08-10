@@ -3,16 +3,27 @@ import { PrismaService } from '../database/prisma.service';
 import { CreateAnomalyDto } from './dto/create-anomaly.dto';
 import { UpdateAnomalyStatusDto } from './dto/update-anomaly-status.dto';
 
+const USER_SELECT = { id: true, firstName: true, lastName: true } as const;
+
+function present(record: any) {
+  const { user, ...rest } = record;
+  return {
+    ...rest,
+    user: { id: user.id, name: `${user.firstName} ${user.lastName}`.trim() },
+  };
+}
+
 @Injectable()
 export class AnomaliesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listByIntervention(interventionId: string) {
-    return this.prisma.anomaly.findMany({
+    const records = await this.prisma.anomaly.findMany({
       where: { interventionId },
       orderBy: { createdAt: 'desc' },
-      include: { user: true },
+      include: { user: { select: USER_SELECT } },
     });
+    return records.map(present);
   }
 
   async create(dto: CreateAnomalyDto, userId: string) {
@@ -30,9 +41,9 @@ export class AnomaliesService {
         photos: dto.photos ?? [],
         status: 'NEW',
       },
-      include: { user: true },
+      include: { user: { select: USER_SELECT } },
     });
-    return record;
+    return present(record);
   }
 
   async updateStatus(id: string, dto: UpdateAnomalyStatusDto) {
@@ -43,8 +54,8 @@ export class AnomaliesService {
     const record = await this.prisma.anomaly.update({
       where: { id },
       data: { status: dto.status },
-      include: { user: true },
+      include: { user: { select: USER_SELECT } },
     });
-    return record;
+    return present(record);
   }
 }
