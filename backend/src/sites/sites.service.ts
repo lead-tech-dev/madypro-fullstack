@@ -6,6 +6,8 @@ import { CreateSiteDto } from './dto/create-site.dto';
 import { UpdateSiteDto } from './dto/update-site.dto';
 import { UsersService } from '../users/users.service';
 import { AuditService } from '../audit/audit.service';
+import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
+import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
 
 type SiteView = SiteEntity & {
   supervisors: { id: string; name: string }[];
@@ -48,6 +50,11 @@ export class SitesService implements OnModuleInit {
       timeWindow: record.timeWindow ?? undefined,
       active: record.active,
       supervisorIds: record.supervisors.map((item) => item.userId),
+      accessInstructions: (record as any).accessInstructions ?? undefined,
+      accessCode: (record as any).accessCode ?? undefined,
+      contactName: (record as any).contactName ?? undefined,
+      contactPhone: (record as any).contactPhone ?? undefined,
+      photos: (record as any).photos ?? [],
     };
   }
 
@@ -93,6 +100,11 @@ export class SitesService implements OnModuleInit {
         longitude: dto.longitude ?? null,
         timeWindow: dto.timeWindow ?? null,
         active: dto.active ?? true,
+        accessInstructions: dto.accessInstructions ?? null,
+        accessCode: dto.accessCode ?? null,
+        contactName: dto.contactName ?? null,
+        contactPhone: dto.contactPhone ?? null,
+        photos: dto.photos ?? [],
         supervisors: dto.supervisorIds?.length
           ? {
               create: dto.supervisorIds.map((userId) => ({ userId })),
@@ -122,6 +134,11 @@ export class SitesService implements OnModuleInit {
     if (dto.longitude !== undefined) data.longitude = dto.longitude;
     if (dto.timeWindow !== undefined) data.timeWindow = dto.timeWindow;
     if (dto.active !== undefined) data.active = dto.active;
+    if (dto.accessInstructions !== undefined) data.accessInstructions = dto.accessInstructions;
+    if (dto.accessCode !== undefined) data.accessCode = dto.accessCode;
+    if (dto.contactName !== undefined) data.contactName = dto.contactName;
+    if (dto.contactPhone !== undefined) data.contactPhone = dto.contactPhone;
+    if (dto.photos !== undefined) data.photos = dto.photos;
     if (dto.supervisorIds !== undefined) {
       data.supervisors = {
         deleteMany: {},
@@ -165,5 +182,72 @@ export class SitesService implements OnModuleInit {
       details: site.name,
     });
     return this.present(site);
+  }
+
+  async listChecklist(siteId: string) {
+    this.ensureExists(siteId);
+    return this.prisma.siteChecklistItem.findMany({
+      where: { siteId },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async createChecklistItem(siteId: string, dto: CreateChecklistItemDto, actorId = 'system') {
+    const site = this.ensureExists(siteId);
+    const item = await this.prisma.siteChecklistItem.create({
+      data: {
+        siteId,
+        label: dto.label,
+        order: dto.order ?? 0,
+      },
+    });
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_SITE',
+      entityType: 'site',
+      entityId: siteId,
+      details: `Checklist +${dto.label}`,
+    });
+    return item;
+  }
+
+  async updateChecklistItem(siteId: string, itemId: string, dto: UpdateChecklistItemDto, actorId = 'system') {
+    this.ensureExists(siteId);
+    const existing = await this.prisma.siteChecklistItem.findFirst({ where: { id: itemId, siteId } });
+    if (!existing) {
+      throw new NotFoundException('Élément de checklist introuvable');
+    }
+    const item = await this.prisma.siteChecklistItem.update({
+      where: { id: itemId },
+      data: {
+        ...(dto.label !== undefined ? { label: dto.label } : {}),
+        ...(dto.order !== undefined ? { order: dto.order } : {}),
+      },
+    });
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_SITE',
+      entityType: 'site',
+      entityId: siteId,
+      details: `Checklist modifiée: ${item.label}`,
+    });
+    return item;
+  }
+
+  async removeChecklistItem(siteId: string, itemId: string, actorId = 'system') {
+    this.ensureExists(siteId);
+    const existing = await this.prisma.siteChecklistItem.findFirst({ where: { id: itemId, siteId } });
+    if (!existing) {
+      throw new NotFoundException('Élément de checklist introuvable');
+    }
+    await this.prisma.siteChecklistItem.delete({ where: { id: itemId } });
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_SITE',
+      entityType: 'site',
+      entityId: siteId,
+      details: `Checklist -${existing.label}`,
+    });
+    return { success: true };
   }
 }

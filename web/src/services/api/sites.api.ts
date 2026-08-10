@@ -1,4 +1,4 @@
-import { Site } from '../../types/site';
+import { Site, SiteChecklistItem } from '../../types/site';
 import { apiFetch } from './client';
 
 export type SitePayload = {
@@ -9,6 +9,11 @@ export type SitePayload = {
   timeWindow?: string;
   active?: boolean;
   supervisorIds?: string[];
+  accessInstructions?: string;
+  accessCode?: string;
+  contactName?: string;
+  contactPhone?: string;
+  photos?: string[];
 };
 
 export type SitesPage = { items: Site[]; total: number; page: number; pageSize: number };
@@ -64,5 +69,29 @@ export async function deleteSite(token: string, id: string): Promise<Site> {
     options: {
       method: 'DELETE',
     },
+  });
+}
+
+export async function listSiteChecklist(token: string, siteId: string): Promise<SiteChecklistItem[]> {
+  return apiFetch<SiteChecklistItem[]>({ path: `sites/${siteId}/checklist`, token });
+}
+
+export async function createSiteChecklistItem(
+  token: string,
+  siteId: string,
+  payload: { label: string; order?: number },
+): Promise<SiteChecklistItem> {
+  return apiFetch<SiteChecklistItem>({
+    path: `sites/${siteId}/checklist`,
+    token,
+    options: { method: 'POST', body: JSON.stringify(payload) },
+  });
+}
+
+export async function deleteSiteChecklistItem(token: string, siteId: string, itemId: string): Promise<void> {
+  await apiFetch({
+    path: `sites/${siteId}/checklist/${itemId}`,
+    token,
+    options: { method: 'DELETE' },
   });
 }

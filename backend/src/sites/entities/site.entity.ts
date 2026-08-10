@@ -7,4 +7,9 @@ export class SiteEntity {
   timeWindow?: string;
   active!: boolean;
   supervisorIds: string[] = [];
+  accessInstructions?: string;
+  accessCode?: string;
+  contactName?: string;
+  contactPhone?: string;
+  photos: string[] = [];
 }

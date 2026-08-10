@@ -8,4 +8,18 @@ export type Site = {
   active: boolean;
   supervisorIds: string[];
   supervisors: { id: string; name: string }[];
+  accessInstructions?: string;
+  accessCode?: string;
+  contactName?: string;
+  contactPhone?: string;
+  photos?: string[];
+};
+
+export type SiteChecklistItem = {
+  id: string;
+  siteId: string;
+  label: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
 };

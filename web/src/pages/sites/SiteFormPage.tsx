@@ -4,7 +4,16 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { useAuthContext } from '../../context/AuthContext';
-import { createSite, getSite, SitePayload, updateSite } from '../../services/api/sites.api';
+import {
+  createSite,
+  createSiteChecklistItem,
+  deleteSiteChecklistItem,
+  getSite,
+  listSiteChecklist,
+  SitePayload,
+  updateSite,
+} from '../../services/api/sites.api';
+import { SiteChecklistItem } from '../../types/site';
 import { listUsers } from '../../services/api/users.api';
 import { env } from '../../config/env';
 
@@ -32,6 +41,10 @@ type FormState = {
   latitude: string;
   longitude: string;
   active: 'true' | 'false';
+  accessInstructions: string;
+  accessCode: string;
+  contactName: string;
+  contactPhone: string;
 };
 
 const INITIAL_FORM: FormState = {
@@ -41,6 +54,10 @@ const INITIAL_FORM: FormState = {
   latitude: '',
   longitude: '',
   active: 'true',
+  accessInstructions: '',
+  accessCode: '',
+  contactName: '',
+  contactPhone: '',
 };
 
 export const SiteFormPage: React.FC = () => {
@@ -61,6 +78,9 @@ export const SiteFormPage: React.FC = () => {
   const [addressSelected, setAddressSelected] = useState(false);
   const mapboxToken = env.mapboxToken;
   const [formVisible, setFormVisible] = useState<boolean>(false);
+  const [checklist, setChecklist] = useState<SiteChecklistItem[]>([]);
+  const [newChecklistLabel, setNewChecklistLabel] = useState('');
+  const [checklistBusy, setChecklistBusy] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -95,9 +115,16 @@ export const SiteFormPage: React.FC = () => {
             latitude: typeof siteData.latitude === 'number' ? String(siteData.latitude) : '',
             longitude: typeof siteData.longitude === 'number' ? String(siteData.longitude) : '',
             active: siteData.active ? 'true' : 'false',
+            accessInstructions: siteData.accessInstructions ?? '',
+            accessCode: siteData.accessCode ?? '',
+            contactName: siteData.contactName ?? '',
+            contactPhone: siteData.contactPhone ?? '',
           });
           setSelectedSupervisors(siteData.supervisorIds);
           setFormVisible(true);
+          listSiteChecklist(token, siteData.id)
+            .then(setChecklist)
+            .catch(() => setChecklist([]));
         } else {
           setSupervisors(supervisorOptions);
           setForm(INITIAL_FORM);
@@ -216,6 +243,10 @@ export const SiteFormPage: React.FC = () => {
       longitude: Number.isFinite(longitude ?? NaN) ? longitude : undefined,
       active: form.active === 'true',
       supervisorIds: selectedSupervisors,
+      accessInstructions: form.accessInstructions || undefined,
+      accessCode: form.accessCode || undefined,
+      contactName: form.contactName || undefined,
+      contactPhone: form.contactPhone || undefined,
     };
 
     try {
@@ -236,6 +267,33 @@ export const SiteFormPage: React.FC = () => {
       notify(message, 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleAddChecklistItem = async () => {
+    if (!token || !siteId || !newChecklistLabel.trim()) return;
+    setChecklistBusy(true);
+    try {
+      const item = await createSiteChecklistItem(token, siteId, {
+        label: newChecklistLabel.trim(),
+        order: checklist.length,
+      });
+      setChecklist((prev) => [...prev, item]);
+      setNewChecklistLabel('');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Impossible d'ajouter cet élément.", 'error');
+    } finally {
+      setChecklistBusy(false);
+    }
+  };
+
+  const handleRemoveChecklistItem = async (itemId: string) => {
+    if (!token || !siteId) return;
+    try {
+      await deleteSiteChecklistItem(token, siteId, itemId);
+      setChecklist((prev) => prev.filter((item) => item.id !== itemId));
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible de supprimer cet élément.', 'error');
     }
   };
 
@@ -382,6 +440,39 @@ export const SiteFormPage: React.FC = () => {
                   onChange={handleChange}
                 />
 
+                <Input
+                  id="accessInstructions"
+                  name="accessInstructions"
+                  label="Instructions d'accès"
+                  placeholder="Entrée par le parking sous-sol, badge requis…"
+                  value={form.accessInstructions}
+                  onChange={handleChange}
+                />
+                <Input
+                  id="accessCode"
+                  name="accessCode"
+                  label="Code d'accès"
+                  placeholder="4821B"
+                  value={form.accessCode}
+                  onChange={handleChange}
+                />
+                <Input
+                  id="contactName"
+                  name="contactName"
+                  label="Contact sur place"
+                  placeholder="Nom du contact"
+                  value={form.contactName}
+                  onChange={handleChange}
+                />
+                <Input
+                  id="contactPhone"
+                  name="contactPhone"
+                  label="Téléphone du contact"
+                  placeholder="+33 6 00 00 00 00"
+                  value={form.contactPhone}
+                  onChange={handleChange}
+                />
+
                 <div className="form-field">
                   <span>Superviseurs associés</span>
                   <div className="chips">
@@ -403,6 +494,45 @@ export const SiteFormPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+
+                {isEdit && siteId && (
+                  <div className="form-field">
+                    <span>Cahier des charges (checklist du site)</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {checklist.length === 0 && (
+                        <small className="form-helper">Aucune tâche définie pour ce site.</small>
+                      )}
+                      {checklist.map((item) => (
+                        <div
+                          key={item.id}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}
+                        >
+                          <span>• {item.label}</span>
+                          <Button type="button" variant="ghost" onClick={() => handleRemoveChecklistItem(item.id)}>
+                            Retirer
+                          </Button>
+                        </div>
+                      ))}
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Input
+                          id="newChecklistLabel"
+                          name="newChecklistLabel"
+                          label=""
+                          placeholder="Ex. Aspirer les tapis d'entrée"
+                          value={newChecklistLabel}
+                          onChange={(event) => setNewChecklistLabel(event.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          onClick={handleAddChecklistItem}
+                          disabled={checklistBusy || !newChecklistLabel.trim()}
+                        >
+                          Ajouter
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="form-actions">
                   <Button type="submit" disabled={isInvalid || submitting}>

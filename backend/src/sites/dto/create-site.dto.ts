@@ -28,4 +28,24 @@ export class CreateSiteDto {
   @IsString({ each: true })
   supervisorIds?: string[];
 
+  @IsOptional()
+  @IsString()
+  accessInstructions?: string;
+
+  @IsOptional()
+  @IsString()
+  accessCode?: string;
+
+  @IsOptional()
+  @IsString()
+  contactName?: string;
+
+  @IsOptional()
+  @IsString()
+  contactPhone?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  photos?: string[];
 }
