@@ -19,6 +19,12 @@ import { PrismaModule } from './database/prisma.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { AnomaliesModule } from './anomalies/anomalies.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { HrModule } from './hr/hr.module';
+import { ShiftSwapsModule } from './shift-swaps/shift-swaps.module';
+import { TeamFeedModule } from './team-feed/team-feed.module';
+import { BadgesModule } from './badges/badges.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
+import { AvailabilityModule } from './availability/availability.module';
 
 @Module({
   imports: [
@@ -42,6 +48,12 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     RealtimeModule,
     AnomaliesModule,
     WebhooksModule,
+    HrModule,
+    ShiftSwapsModule,
+    TeamFeedModule,
+    BadgesModule,
+    OnboardingModule,
+    AvailabilityModule,
   ],
 })
 export class AppModule {}

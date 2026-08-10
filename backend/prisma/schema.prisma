@@ -80,6 +80,25 @@ enum AuditAction {
   DUPLICATE_INTERVENTION
 }
 
+enum ShiftSwapStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum EmployeeDocumentType {
+  CONTRACT
+  BADGE
+  LICENSE
+  OTHER
+}
+
+enum AvailabilityType {
+  AVAILABLE
+  UNAVAILABLE
+}
+
 model User {
   id            String                   @id @default(cuid())
   firstName     String
@@ -101,6 +120,109 @@ model User {
   pushTokens    PushToken[]
   anomalies     Anomaly[]
   loginEvents   LoginEvent[]
+  certifications        Certification[]
+  employeeDocuments     EmployeeDocument[]
+  shiftSwapRequestsMade ShiftSwapRequest[] @relation("ShiftSwapRequester")
+  shiftSwapRequestsIn   ShiftSwapRequest[] @relation("ShiftSwapTarget")
+  teamPosts             TeamPost[]
+  badges                UserBadge[]
+  onboardingItems       UserOnboardingItem[]
+  availabilities        Availability[]
+}
+
+model Certification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label      String
+  obtainedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model EmployeeDocument {
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      EmployeeDocumentType
+  label     String
+  fileUrl   String
+  createdAt DateTime             @default(now())
+}
+
+model ShiftSwapRequest {
+  id             String          @id @default(cuid())
+  interventionId String
+  intervention   Intervention    @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  requesterId    String
+  requester      User            @relation("ShiftSwapRequester", fields: [requesterId], references: [id])
+  targetUserId   String?
+  target         User?           @relation("ShiftSwapTarget", fields: [targetUserId], references: [id])
+  status         ShiftSwapStatus @default(PENDING)
+  reason         String?
+  createdAt      DateTime        @default(now())
+  respondedAt    DateTime?
+}
+
+model TeamPost {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  message   String
+  photos    String[] @default([])
+  createdAt DateTime @default(now())
+}
+
+model Badge {
+  id          String      @id @default(cuid())
+  code        String      @unique
+  label       String
+  description String?
+  icon        String?
+  createdAt   DateTime    @default(now())
+  awards      UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  period    String?
+  note      String?
+  awardedBy String?
+  awardedAt DateTime @default(now())
+}
+
+model OnboardingTemplateItem {
+  id    String @id @default(cuid())
+  label String
+  order Int    @default(0)
+}
+
+model UserOnboardingItem {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label       String
+  order       Int       @default(0)
+  done        Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model Availability {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  type      AvailabilityType
+  note      String?
+  createdAt DateTime         @default(now())
+
+  @@unique([userId, date])
 }
 
 model LoginEvent {
@@ -189,6 +311,7 @@ model Intervention {
   generatedFromRule   InterventionRule?        @relation(fields: [generatedFromRuleId], references: [id])
   attendances         Attendance[]
   checklistItems      InterventionChecklistItem[]
+  shiftSwapRequests   ShiftSwapRequest[]
 }
 
 model InterventionChecklistItem {

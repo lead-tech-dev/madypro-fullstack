@@ -105,18 +105,19 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 8 (S15-S16) — Équipes avancées
+## Sprint 8 (S15-S16) — Équipes avancées ✅ terminé
 
 **Back-office**
-- [ ] Compétences & habilitations avec alerte d'expiration
-- [ ] Documents RH (contrat, badge, permis)
-- [ ] Échange de shift entre agents
-- [ ] Fil d'actualité d'équipe
-- [ ] Gamification / reconnaissance (badges, agent du mois)
-- [ ] Onboarding checklist pour nouveaux agents
+- [x] Compétences & habilitations avec alerte d'expiration — `Certification`, `GET /certifications/expiring`
+- [x] Documents RH (contrat, badge, permis) — `EmployeeDocument`, fichiers en base64 (convention du projet)
+- [x] Échange de shift entre agents — `ShiftSwapRequest`, accept réaffecte réellement l'`InterventionAssignment`, notifie les deux agents
+- [x] Fil d'actualité d'équipe — `TeamPost`, lecture pour tous, suppression par l'auteur ou un admin
+- [x] Gamification / reconnaissance (badges, agent du mois) — catalogue `Badge` + attributions `UserBadge` (champ `period` pour les récompenses mensuelles), notifie l'agent
+- [x] Onboarding checklist pour nouveaux agents — modèle de template + copie par agent, réutilise le pattern checklist existant (site/intervention)
+- [ ] UI web back-office pour ces écrans — API uniquement dans cet environnement (pas d'accès pour valider une UI React dans ce sprint), à construire côté `web/` séparément
 
 **Mobile**
-- [ ] Disponibilités déclarées par l'agent
+- [x] Disponibilités déclarées par l'agent — écran `AgentAvailabilityScreen` (calendrier natif, disponible/indisponible + note), accessible depuis le profil
 
 ---
 
