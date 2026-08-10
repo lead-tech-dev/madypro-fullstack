@@ -112,6 +112,9 @@ model Site {
   contactName        String?
   contactPhone       String?
   photos             String[]           @default([])
+  gpsDistanceMeters     Int?
+  toleranceMinutes      Int?
+  minimumDurationMinutes Int?
   supervisors        SiteSupervisor[]
   interventions      Intervention[]
   absences           Absence[]

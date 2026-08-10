@@ -24,4 +24,11 @@ export type ReportsPerformance = {
   totals: {
     totalMinutes: number;
   };
+  kpis: {
+    punctualityRate: number | null;
+    absenteeismRate: number | null;
+    plannedMinutes: number;
+    realizedMinutes: number;
+    realizationRate: number | null;
+  };
 };

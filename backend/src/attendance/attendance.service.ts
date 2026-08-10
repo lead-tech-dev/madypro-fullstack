@@ -55,6 +55,16 @@ type AttendanceRecord = Prisma.AttendanceGetPayload<{}>;
 export class AttendanceService implements OnModuleInit {
   private readonly logger = new Logger(AttendanceService.name);
   private readonly MAX_DISTANCE_METERS = 100;
+
+  /** Rayon GPS toléré : surcharge du site si définie, sinon réglage global, sinon valeur par défaut. */
+  private resolveMaxDistance(site: { gpsDistanceMeters?: number | null } | null | undefined): number {
+    return (
+      site?.gpsDistanceMeters ??
+      this.settingsService.getSettings().attendanceRules.gpsDistanceMeters ??
+      this.MAX_DISTANCE_METERS
+    );
+  }
+
   private readonly OUTSIDE_GRACE_MS = 5 * 60 * 1000;
   private readonly TZ_OFFSET_MINUTES = Number.isFinite(Number(process.env.TIMEZONE_OFFSET_MINUTES))
     ? Number(process.env.TIMEZONE_OFFSET_MINUTES)
@@ -166,7 +176,7 @@ export class AttendanceService implements OnModuleInit {
     const todayStr = now.toISOString().slice(0, 10);
     const dayStart = this.toDateOnly(todayStr);
     const dayEnd = this.endOfDay(todayStr);
-    const toleranceMinutes = this.settingsService.getSettings().attendanceRules.toleranceMinutes ?? 10;
+    const defaultToleranceMinutes = this.settingsService.getSettings().attendanceRules.toleranceMinutes ?? 10;
 
     const interventions = await this.prisma.intervention.findMany({
       where: {
@@ -182,6 +192,7 @@ export class AttendanceService implements OnModuleInit {
 
     for (const intervention of interventions) {
       if (!intervention.assignments.length) continue;
+      const toleranceMinutes = (intervention.site as any).toleranceMinutes ?? defaultToleranceMinutes;
       const plannedStart = this.combine(todayStr, intervention.startTime ?? '00:00');
       const lateSince = new Date(plannedStart.getTime() + toleranceMinutes * 60 * 1000);
       if (now < lateSince) continue;
@@ -499,7 +510,7 @@ export class AttendanceService implements OnModuleInit {
       { latitude: dto.latitude, longitude: dto.longitude },
       { ...site, latitude: site.latitude, longitude: site.longitude, supervisorIds: (site as any).supervisorIds ?? [] },
     );
-    if (distance != null && distance > this.MAX_DISTANCE_METERS) {
+    if (distance != null && distance > this.resolveMaxDistance(site as any)) {
       throw new BadRequestException("Vous êtes trop loin du site pour démarrer l'intervention.");
     }
     // Anomalie horaire : check-in en dehors du créneau planifié (tolérance TIME_DRIFT_MS)
@@ -679,7 +690,7 @@ export class AttendanceService implements OnModuleInit {
       { latitude: dto.latitude, longitude: dto.longitude },
       site as any,
     );
-    if (distance != null && distance > this.MAX_DISTANCE_METERS) {
+    if (distance != null && distance > this.resolveMaxDistance(site as any)) {
       throw new BadRequestException("Vous êtes trop loin du site pour enregistrer votre présence.");
     }
 
@@ -783,7 +794,7 @@ export class AttendanceService implements OnModuleInit {
         { latitude: dto.latitude, longitude: dto.longitude },
         { ...site, latitude: site.latitude!, longitude: site.longitude! },
       );
-      const outside = distance != null && distance > this.MAX_DISTANCE_METERS;
+      const outside = distance != null && distance > this.resolveMaxDistance(site as any);
       const outsideSince = outside ? record.outsideSince ?? new Date() : null;
 
       if (outside && !record.outsideSince) {

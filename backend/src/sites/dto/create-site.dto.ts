@@ -48,4 +48,16 @@ export class CreateSiteDto {
   @IsArray()
   @IsString({ each: true })
   photos?: string[];
+
+  @IsOptional()
+  @IsNumber()
+  gpsDistanceMeters?: number;
+
+  @IsOptional()
+  @IsNumber()
+  toleranceMinutes?: number;
+
+  @IsOptional()
+  @IsNumber()
+  minimumDurationMinutes?: number;
 }

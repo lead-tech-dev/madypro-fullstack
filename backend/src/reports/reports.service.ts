@@ -1,9 +1,90 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { SettingsService } from '../settings/settings.service';
+import { MailerService } from '../notifications/mailer.service';
 
 @Injectable()
-export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+export class ReportsService implements OnModuleInit {
+  private readonly logger = new Logger(ReportsService.name);
+  private lastWeeklySent: string | null = null;
+  private lastMonthlySent: string | null = null;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settingsService: SettingsService,
+    private readonly mailer: MailerService,
+  ) {}
+
+  onModuleInit() {
+    setInterval(() => {
+      this.checkScheduledReports().catch((err) =>
+        this.logger.warn(`Erreur envoi programmé des rapports: ${err?.message || err}`),
+      );
+    }, 60 * 60 * 1000); // toutes les heures
+  }
+
+  private async checkScheduledReports() {
+    const now = new Date();
+    const hour = now.getHours();
+    if (hour < 8) return;
+
+    const isoWeek = this.isoWeekKey(now);
+    if (now.getDay() === 1 && this.lastWeeklySent !== isoWeek) {
+      this.lastWeeklySent = isoWeek;
+      const end = now.toISOString().slice(0, 10);
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      await this.sendReportEmail(start, end, 'Rapport hebdomadaire');
+    }
+
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (now.getDate() === 1 && this.lastMonthlySent !== monthKey) {
+      this.lastMonthlySent = monthKey;
+      const end = now.toISOString().slice(0, 10);
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      await this.sendReportEmail(start, end, 'Rapport mensuel');
+    }
+  }
+
+  async sendReportEmail(
+    startDate: string,
+    endDate: string,
+    label = 'Rapport',
+  ): Promise<{ recipients: number; sent: number; failed: number }> {
+    const [report, csv, admins] = await Promise.all([
+      this.performance(startDate, endDate),
+      this.payrollCsv(startDate, endDate),
+      this.prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SUPERVISOR'] }, active: true } }),
+    ]);
+
+    const html = `
+      <h2>${label} — ${startDate} au ${endDate}</h2>
+      <p>Heures réalisées : ${(report.kpis.realizedMinutes / 60).toFixed(1)} h
+        (planifiées : ${(report.kpis.plannedMinutes / 60).toFixed(1)} h,
+        taux de réalisation : ${report.kpis.realizationRate ?? '—'}%)</p>
+      <p>Ponctualité : ${report.kpis.punctualityRate ?? '—'}%</p>
+      <p>Absentéisme : ${report.kpis.absenteeismRate ?? '—'}%</p>
+      <p>${report.agentReports.length} agent(s) actif(s) sur la période, ${report.siteReports.length} site(s) couvert(s).</p>
+      <p>Le détail heures normales/majorées par agent est joint en pièce attachée.</p>
+    `;
+
+    const results = await Promise.all(
+      admins.map((admin) =>
+        this.mailer
+          .send(admin.email, `${label} Madypro Clean — ${startDate} au ${endDate}`, html, {
+            filename: `export-paie-${startDate}-${endDate}.csv`,
+            content: csv,
+          })
+          .then(() => true)
+          .catch((err) => {
+            this.logger.warn(`Envoi rapport échoué pour ${admin.email}: ${err?.message || err}`);
+            return false;
+          }),
+      ),
+    );
+
+    const sent = results.filter(Boolean).length;
+    return { recipients: admins.length, sent, failed: admins.length - sent };
+  }
 
   private startOfDay(date: Date) {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
@@ -134,9 +215,11 @@ export class ReportsService {
       }),
       this.prisma.intervention.findMany({
         where: { date: { gte: start, lte: end } },
-        include: { site: true },
+        include: { site: true, assignments: true },
       }),
     ]);
+
+    const toleranceMinutes = this.settingsService.getSettings().attendanceRules.toleranceMinutes ?? 10;
 
     const minutesBetween = (a: Date, b: Date) => Math.max(0, (b.getTime() - a.getTime()) / 60000);
 
@@ -227,12 +310,44 @@ export class ReportsService {
       .sort((a, b) => b.totalMinutes - a.totalMinutes);
 
     const totalMinutes = agentReports.reduce((sum, agent) => sum + agent.totalMinutes, 0);
+    const totalAbsenceMinutes = agentReports.reduce((sum, agent) => sum + agent.absenceMinutes, 0);
+
+    // Ponctualité : part des pointages démarrés dans la tolérance du planning
+    const startedAttendances = attendances.filter((att) => att.checkInTime && att.plannedStart);
+    const onTimeAttendances = startedAttendances.filter((att) => {
+      const graceMs = toleranceMinutes * 60 * 1000;
+      return att.checkInTime!.getTime() <= att.plannedStart!.getTime() + graceMs;
+    });
+    const punctualityRate = startedAttendances.length
+      ? Math.round((onTimeAttendances.length / startedAttendances.length) * 1000) / 10
+      : null;
+
+    // Absentéisme : part du temps suivi (travaillé + absent) passée en absence
+    const trackedMinutes = totalMinutes + totalAbsenceMinutes;
+    const absenteeismRate = trackedMinutes ? Math.round((totalAbsenceMinutes / trackedMinutes) * 1000) / 10 : null;
+
+    // Heures réalisées vs planifiées : durée des interventions × nombre d'agents assignés
+    const plannedMinutes = interventions.reduce((sum, intervention) => {
+      const durationMinutes = minutesBetween(
+        this.combine(intervention.date.toISOString().slice(0, 10), intervention.startTime),
+        this.combine(intervention.date.toISOString().slice(0, 10), intervention.endTime),
+      );
+      return sum + durationMinutes * intervention.assignments.length;
+    }, 0);
+    const realizationRate = plannedMinutes ? Math.round((totalMinutes / plannedMinutes) * 1000) / 10 : null;
 
     return {
       period,
       agentReports,
       siteReports,
       totals: { totalMinutes },
+      kpis: {
+        punctualityRate,
+        absenteeismRate,
+        plannedMinutes: Math.round(plannedMinutes),
+        realizedMinutes: Math.round(totalMinutes),
+        realizationRate,
+      },
     };
   }
 

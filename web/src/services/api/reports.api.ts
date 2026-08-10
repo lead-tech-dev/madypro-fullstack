@@ -33,3 +33,17 @@ export async function getPayrollCsv(
   }
   return response.text();
 }
+
+export type SendReportResult = { recipients: number; sent: number; failed: number };
+
+export async function sendReportByEmail(
+  token: string,
+  filters: { startDate?: string; endDate?: string } = {},
+): Promise<SendReportResult> {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  const query = params.toString();
+  const path = `reports/send-report${query ? `?${query}` : ''}`;
+  return apiFetch<SendReportResult>({ path, token, options: { method: 'POST' } });
+}

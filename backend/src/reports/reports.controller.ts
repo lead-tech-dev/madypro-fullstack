@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -22,6 +22,14 @@ export class ReportsController {
     @Query('endDate') endDate?: string,
   ) {
     return this.service.performance(startDate, endDate);
+  }
+
+  @Post('send-report')
+  sendReport(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+    const today = new Date();
+    const end = endDate ?? today.toISOString().slice(0, 10);
+    const start = startDate ?? new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    return this.service.sendReportEmail(start, end, 'Rapport (envoi manuel)');
   }
 
   @Get('payroll')

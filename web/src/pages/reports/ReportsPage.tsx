@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getPayrollCsv, getPerformanceReport } from '../../services/api/reports.api';
+import { getPayrollCsv, getPerformanceReport, sendReportByEmail } from '../../services/api/reports.api';
 import { ReportsPerformance } from '../../types/report';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -87,6 +87,26 @@ export const ReportsPage: React.FC = () => {
     downloadCsv(`rapport-sites-${filters.startDate}-${filters.endDate}.csv`, rows);
   };
 
+  const [sendingReport, setSendingReport] = useState(false);
+
+  const handleSendReport = async () => {
+    if (!token) return;
+    setSendingReport(true);
+    try {
+      const result = await sendReportByEmail(token, filters);
+      if (result.sent > 0) {
+        notify(`Rapport envoyé à ${result.sent}/${result.recipients} destinataire(s)`);
+      } else {
+        notify(`Échec de l'envoi (${result.failed}/${result.recipients}) — vérifiez la config SendGrid`, 'error');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Impossible d'envoyer le rapport";
+      notify(message, 'error');
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
   const exportPayroll = async () => {
     if (!token) return;
     try {
@@ -101,10 +121,14 @@ export const ReportsPage: React.FC = () => {
   const summaryCards = useMemo(() => {
     if (!data) return [];
     const totalHours = minutesToHoursLabel(data.totals.totalMinutes);
+    const pct = (value: number | null) => (value === null ? '—' : `${value}%`);
     return [
       { title: 'Heures totales', value: totalHours },
       { title: 'Agents actifs', value: data.agentReports.length },
       { title: 'Sites couverts', value: data.siteReports.length },
+      { title: 'Ponctualité', value: pct(data.kpis.punctualityRate) },
+      { title: 'Absentéisme', value: pct(data.kpis.absenteeismRate) },
+      { title: 'Taux de réalisation', value: pct(data.kpis.realizationRate) },
     ];
   }, [data]);
 
@@ -161,8 +185,15 @@ export const ReportsPage: React.FC = () => {
                 <Button type="button" onClick={exportPayroll}>
                   Export paie
                 </Button>
+                <Button type="button" variant="ghost" onClick={handleSendReport} disabled={sendingReport}>
+                  {sendingReport ? 'Envoi...' : 'Envoyer par e-mail'}
+                </Button>
               </div>
             </div>
+            <p style={{ color: 'var(--color-muted)', marginTop: '0.5rem' }}>
+              Un rapport est aussi envoyé automatiquement chaque lundi (hebdomadaire) et le 1er du mois
+              (mensuel) aux admins et superviseurs.
+            </p>
             <div className="table-wrapper">
               <table className="table" aria-label="rapport par agent">
                 <thead>

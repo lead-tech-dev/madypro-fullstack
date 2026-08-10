@@ -1,8 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { UpdateAttendanceRulesDto } from './dto/update-attendance-rules.dto';
 import { CreateAbsenceTypeDto } from './dto/create-absence-type.dto';
 import { UpdateAbsenceTypeDto } from './dto/update-absence-type.dto';
 import { AuditService } from '../audit/audit.service';
+import { PrismaService } from '../database/prisma.service';
 
 export type AttendanceRules = {
   gpsDistanceMeters: number;
@@ -23,22 +24,28 @@ export type RolePermission = {
   permissions: string[];
 };
 
+const ATTENDANCE_RULES_KEY = 'attendanceRules';
+const ABSENCE_TYPES_KEY = 'absenceTypes';
+
+const DEFAULT_ATTENDANCE_RULES: AttendanceRules = {
+  gpsDistanceMeters: 100,
+  toleranceMinutes: 10,
+  minimumDurationMinutes: 15,
+};
+
+const DEFAULT_ABSENCE_TYPES: AbsenceTypeConfig[] = [
+  { id: 'type-sick', code: 'SICK', name: 'Arrêt maladie', active: true },
+  { id: 'type-paid', code: 'PAID_LEAVE', name: 'Congés payés', active: true },
+  { id: 'type-unpaid', code: 'UNPAID', name: 'Sans solde', active: true },
+  { id: 'type-other', code: 'OTHER', name: 'Autre', active: true },
+];
+
 @Injectable()
-export class SettingsService {
-  private attendanceRules: AttendanceRules = {
-    gpsDistanceMeters: 100,
-    toleranceMinutes: 10,
-    minimumDurationMinutes: 15,
-  };
+export class SettingsService implements OnModuleInit {
+  private attendanceRules: AttendanceRules = DEFAULT_ATTENDANCE_RULES;
+  private absenceTypes: AbsenceTypeConfig[] = DEFAULT_ABSENCE_TYPES;
 
-  private absenceTypes: AbsenceTypeConfig[] = [
-    { id: 'type-sick', code: 'SICK', name: 'Arrêt maladie', active: true },
-    { id: 'type-paid', code: 'PAID_LEAVE', name: 'Congés payés', active: true },
-    { id: 'type-unpaid', code: 'UNPAID', name: 'Sans solde', active: true },
-    { id: 'type-other', code: 'OTHER', name: 'Autre', active: true },
-  ];
-
-  private roles: RolePermission[] = [
+  private readonly roles: RolePermission[] = [
     {
       role: 'ADMIN',
       description: 'Accès complet back-office',
@@ -56,7 +63,39 @@ export class SettingsService {
     },
   ];
 
-  constructor(private readonly auditService: AuditService) {}
+  constructor(
+    private readonly auditService: AuditService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  async onModuleInit() {
+    const [rulesRow, typesRow] = await Promise.all([
+      this.prisma.setting.findUnique({ where: { key: ATTENDANCE_RULES_KEY } }),
+      this.prisma.setting.findUnique({ where: { key: ABSENCE_TYPES_KEY } }),
+    ]);
+    if (rulesRow?.value) {
+      this.attendanceRules = rulesRow.value as unknown as AttendanceRules;
+    }
+    if (typesRow?.value) {
+      this.absenceTypes = typesRow.value as unknown as AbsenceTypeConfig[];
+    }
+  }
+
+  private async persistAttendanceRules() {
+    await this.prisma.setting.upsert({
+      where: { key: ATTENDANCE_RULES_KEY },
+      update: { value: this.attendanceRules as any },
+      create: { key: ATTENDANCE_RULES_KEY, value: this.attendanceRules as any },
+    });
+  }
+
+  private async persistAbsenceTypes() {
+    await this.prisma.setting.upsert({
+      where: { key: ABSENCE_TYPES_KEY },
+      update: { value: this.absenceTypes as any },
+      create: { key: ABSENCE_TYPES_KEY, value: this.absenceTypes as any },
+    });
+  }
 
   getSettings() {
     return {
@@ -66,8 +105,9 @@ export class SettingsService {
     };
   }
 
-  updateAttendanceRules(dto: UpdateAttendanceRulesDto) {
+  async updateAttendanceRules(dto: UpdateAttendanceRulesDto) {
     this.attendanceRules = { ...dto };
+    await this.persistAttendanceRules();
     this.auditService.record({
       actorId: 'admin@madyproclean.com',
       action: 'UPDATE_SETTINGS',
@@ -77,7 +117,7 @@ export class SettingsService {
     return this.attendanceRules;
   }
 
-  createAbsenceType(dto: CreateAbsenceTypeDto) {
+  async createAbsenceType(dto: CreateAbsenceTypeDto) {
     const code = dto.code.trim().toUpperCase();
     if (this.absenceTypes.some((type) => type.code === code)) {
       throw new BadRequestException('Ce code existe déjà');
@@ -89,6 +129,7 @@ export class SettingsService {
       active: true,
     };
     this.absenceTypes.push(type);
+    await this.persistAbsenceTypes();
     this.auditService.record({
       actorId: 'admin@madyproclean.com',
       action: 'UPDATE_SETTINGS',
@@ -99,13 +140,14 @@ export class SettingsService {
     return type;
   }
 
-  updateAbsenceType(code: string, dto: UpdateAbsenceTypeDto) {
+  async updateAbsenceType(code: string, dto: UpdateAbsenceTypeDto) {
     const type = this.absenceTypes.find((item) => item.code === code);
     if (!type) {
       throw new NotFoundException('Type introuvable');
     }
     if (dto.name !== undefined) type.name = dto.name;
     if (dto.active !== undefined) type.active = dto.active;
+    await this.persistAbsenceTypes();
     this.auditService.record({
       actorId: 'admin@madyproclean.com',
       action: 'UPDATE_SETTINGS',

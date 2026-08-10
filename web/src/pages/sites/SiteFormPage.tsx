@@ -45,6 +45,9 @@ type FormState = {
   accessCode: string;
   contactName: string;
   contactPhone: string;
+  gpsDistanceMeters: string;
+  toleranceMinutes: string;
+  minimumDurationMinutes: string;
 };
 
 const INITIAL_FORM: FormState = {
@@ -58,6 +61,9 @@ const INITIAL_FORM: FormState = {
   accessCode: '',
   contactName: '',
   contactPhone: '',
+  gpsDistanceMeters: '',
+  toleranceMinutes: '',
+  minimumDurationMinutes: '',
 };
 
 export const SiteFormPage: React.FC = () => {
@@ -119,6 +125,12 @@ export const SiteFormPage: React.FC = () => {
             accessCode: siteData.accessCode ?? '',
             contactName: siteData.contactName ?? '',
             contactPhone: siteData.contactPhone ?? '',
+            gpsDistanceMeters:
+              typeof siteData.gpsDistanceMeters === 'number' ? String(siteData.gpsDistanceMeters) : '',
+            toleranceMinutes:
+              typeof siteData.toleranceMinutes === 'number' ? String(siteData.toleranceMinutes) : '',
+            minimumDurationMinutes:
+              typeof siteData.minimumDurationMinutes === 'number' ? String(siteData.minimumDurationMinutes) : '',
           });
           setSelectedSupervisors(siteData.supervisorIds);
           setFormVisible(true);
@@ -247,6 +259,9 @@ export const SiteFormPage: React.FC = () => {
       accessCode: form.accessCode || undefined,
       contactName: form.contactName || undefined,
       contactPhone: form.contactPhone || undefined,
+      gpsDistanceMeters: form.gpsDistanceMeters ? Number(form.gpsDistanceMeters) : undefined,
+      toleranceMinutes: form.toleranceMinutes ? Number(form.toleranceMinutes) : undefined,
+      minimumDurationMinutes: form.minimumDurationMinutes ? Number(form.minimumDurationMinutes) : undefined,
     };
 
     try {
@@ -470,6 +485,37 @@ export const SiteFormPage: React.FC = () => {
                   label="Téléphone du contact"
                   placeholder="+33 6 00 00 00 00"
                   value={form.contactPhone}
+                  onChange={handleChange}
+                />
+
+                <div className="form-field">
+                  <span>Règles de pointage — surcharge pour ce site (facultatif, sinon réglage global)</span>
+                </div>
+                <Input
+                  id="gpsDistanceMeters"
+                  name="gpsDistanceMeters"
+                  label="Rayon GPS toléré (mètres)"
+                  type="number"
+                  placeholder="ex. 100"
+                  value={form.gpsDistanceMeters}
+                  onChange={handleChange}
+                />
+                <Input
+                  id="toleranceMinutes"
+                  name="toleranceMinutes"
+                  label="Tolérance de retard (minutes)"
+                  type="number"
+                  placeholder="ex. 10"
+                  value={form.toleranceMinutes}
+                  onChange={handleChange}
+                />
+                <Input
+                  id="minimumDurationMinutes"
+                  name="minimumDurationMinutes"
+                  label="Durée minimale de pointage (minutes)"
+                  type="number"
+                  placeholder="ex. 15"
+                  value={form.minimumDurationMinutes}
                   onChange={handleChange}
                 />
 

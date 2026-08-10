@@ -55,6 +55,9 @@ export class SitesService implements OnModuleInit {
       contactName: (record as any).contactName ?? undefined,
       contactPhone: (record as any).contactPhone ?? undefined,
       photos: (record as any).photos ?? [],
+      gpsDistanceMeters: (record as any).gpsDistanceMeters ?? undefined,
+      toleranceMinutes: (record as any).toleranceMinutes ?? undefined,
+      minimumDurationMinutes: (record as any).minimumDurationMinutes ?? undefined,
     };
   }
 
@@ -105,6 +108,9 @@ export class SitesService implements OnModuleInit {
         contactName: dto.contactName ?? null,
         contactPhone: dto.contactPhone ?? null,
         photos: dto.photos ?? [],
+        gpsDistanceMeters: dto.gpsDistanceMeters ?? null,
+        toleranceMinutes: dto.toleranceMinutes ?? null,
+        minimumDurationMinutes: dto.minimumDurationMinutes ?? null,
         supervisors: dto.supervisorIds?.length
           ? {
               create: dto.supervisorIds.map((userId) => ({ userId })),
@@ -139,6 +145,9 @@ export class SitesService implements OnModuleInit {
     if (dto.contactName !== undefined) data.contactName = dto.contactName;
     if (dto.contactPhone !== undefined) data.contactPhone = dto.contactPhone;
     if (dto.photos !== undefined) data.photos = dto.photos;
+    if (dto.gpsDistanceMeters !== undefined) data.gpsDistanceMeters = dto.gpsDistanceMeters;
+    if (dto.toleranceMinutes !== undefined) data.toleranceMinutes = dto.toleranceMinutes;
+    if (dto.minimumDurationMinutes !== undefined) data.minimumDurationMinutes = dto.minimumDurationMinutes;
     if (dto.supervisorIds !== undefined) {
       data.supervisors = {
         deleteMany: {},

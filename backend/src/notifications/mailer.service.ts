@@ -5,7 +5,12 @@ import fetch from 'node-fetch';
 export class MailerService {
   private readonly logger = new Logger(MailerService.name);
 
-  async send(to: string, subject: string, html: string) {
+  async send(
+    to: string,
+    subject: string,
+    html: string,
+    attachment?: { filename: string; content: string; type?: string },
+  ) {
     const apiKey = process.env.SENDGRID_API_KEY;
     const from = process.env.SENDGRID_FROM || 'Madypro Clean <no-reply@madyproclean.com>';
 
@@ -25,6 +30,16 @@ export class MailerService {
         from: { email: from },
         subject,
         content: [{ type: 'text/html', value: html }],
+        attachments: attachment
+          ? [
+              {
+                content: Buffer.from(attachment.content, 'utf-8').toString('base64'),
+                filename: attachment.filename,
+                type: attachment.type ?? 'text/csv',
+                disposition: 'attachment',
+              },
+            ]
+          : undefined,
       }),
     });
 

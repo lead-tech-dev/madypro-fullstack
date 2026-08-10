@@ -14,6 +14,9 @@ export type SitePayload = {
   contactName?: string;
   contactPhone?: string;
   photos?: string[];
+  gpsDistanceMeters?: number;
+  toleranceMinutes?: number;
+  minimumDurationMinutes?: number;
 };
 
 export type SitesPage = { items: Site[]; total: number; page: number; pageSize: number };

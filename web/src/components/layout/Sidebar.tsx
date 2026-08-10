@@ -11,6 +11,7 @@ const ADMIN_MENU: NavItem[] = [
   { type: 'link', to: '/sites', label: 'Sites' },
   { type: 'link', to: '/users', label: 'Équipes' },
   { type: 'link', to: '/interventions', label: 'Interventions' },
+  { type: 'link', to: '/planning', label: 'Planning' },
   { type: 'link', to: '/attendance', label: 'Pointages' },
   { type: 'link', to: '/absences', label: 'Absences' },
   { type: 'link', to: '/notifications', label: 'Notifications' },

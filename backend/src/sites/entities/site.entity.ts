@@ -12,4 +12,7 @@ export class SiteEntity {
   contactName?: string;
   contactPhone?: string;
   photos: string[] = [];
+  gpsDistanceMeters?: number;
+  toleranceMinutes?: number;
+  minimumDurationMinutes?: number;
 }
