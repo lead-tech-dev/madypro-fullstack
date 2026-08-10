@@ -35,6 +35,9 @@ type AbsenceView = {
   validatedBy?: string;
   validationComment?: string;
   site?: { id: string; name: string };
+  requiresSecondApproval: boolean;
+  level1ApprovedBy?: string;
+  level1ApprovedAt?: Date;
 };
 
 type AbsenceRecord = Prisma.AbsenceGetPayload<{
@@ -77,6 +80,9 @@ export class AbsencesService {
       updatedAt: record.updatedAt,
       validatedBy: record.validatedBy ?? undefined,
       validationComment: record.validationComment ?? undefined,
+      requiresSecondApproval: record.requiresSecondApproval,
+      level1ApprovedBy: record.level1ApprovedBy ?? undefined,
+      level1ApprovedAt: record.level1ApprovedAt ?? undefined,
     };
   }
 
@@ -98,6 +104,9 @@ export class AbsencesService {
       validatedBy: absence.validatedBy,
       validationComment: absence.validationComment,
       site: site ? { id: site.id, name: site.name } : undefined,
+      requiresSecondApproval: absence.requiresSecondApproval,
+      level1ApprovedBy: absence.level1ApprovedBy,
+      level1ApprovedAt: absence.level1ApprovedAt,
     };
   }
 
@@ -151,6 +160,67 @@ export class AbsencesService {
     return this.toView(this.toEntity(record));
   }
 
+  private durationInDays(from: Date, to: Date) {
+    return Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  }
+
+  async getLeaveBalance(userId: string, year: number) {
+    const [allocation, approved] = await Promise.all([
+      this.prisma.leaveAllocation.findUnique({ where: { userId_year: { userId, year } } }),
+      this.prisma.absence.findMany({
+        where: {
+          userId,
+          type: 'PAID_LEAVE',
+          status: 'APPROVED',
+          from: { gte: new Date(`${year}-01-01T00:00:00.000Z`) },
+          to: { lte: new Date(`${year}-12-31T23:59:59.999Z`) },
+        },
+      }),
+    ]);
+    const allocatedDays = allocation?.allocatedDays ?? 25;
+    const usedDays = approved.reduce((sum, a) => sum + this.durationInDays(a.from, a.to), 0);
+    return { userId, year, allocatedDays, usedDays, remaining: allocatedDays - usedDays };
+  }
+
+  setLeaveAllocation(userId: string, year: number, allocatedDays: number) {
+    return this.prisma.leaveAllocation.upsert({
+      where: { userId_year: { userId, year } },
+      update: { allocatedDays },
+      create: { userId, year, allocatedDays },
+    });
+  }
+
+  private async checkBlockedPeriod(fromDate: Date, toDate: Date) {
+    const blocked = await this.prisma.blockedPeriod.findFirst({
+      where: { from: { lte: toDate }, to: { gte: fromDate } },
+    });
+    if (blocked) {
+      throw new BadRequestException(`Période bloquée du ${blocked.from.toISOString().slice(0, 10)} au ${blocked.to.toISOString().slice(0, 10)} : ${blocked.reason}`);
+    }
+  }
+
+  listBlockedPeriods() {
+    return this.prisma.blockedPeriod.findMany({ orderBy: { from: 'asc' } });
+  }
+
+  createBlockedPeriod(from: string, to: string, reason: string) {
+    const fromDate = this.toDateOnly(from);
+    const toDate = this.toDateOnly(to);
+    if (fromDate > toDate) {
+      throw new BadRequestException('La date de début doit être avant la date de fin');
+    }
+    return this.prisma.blockedPeriod.create({ data: { from: fromDate, to: toDate, reason } });
+  }
+
+  async removeBlockedPeriod(id: string) {
+    const existing = await this.prisma.blockedPeriod.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Période introuvable');
+    }
+    await this.prisma.blockedPeriod.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   async request(data: CreateAbsenceRequestDto) {
     if (!data.userId) {
       throw new BadRequestException('userId requis');
@@ -160,12 +230,27 @@ export class AbsencesService {
     if (fromDate > toDate) {
       throw new BadRequestException('La date de début doit être avant la date de fin');
     }
+    await this.checkBlockedPeriod(fromDate, toDate);
+
+    const duration = this.durationInDays(fromDate, toDate);
+    const requiresSecondApproval = duration > 5;
+
+    let autoApproved = false;
+    if (duration <= 2 && !requiresSecondApproval) {
+      if (data.type !== 'PAID_LEAVE') {
+        autoApproved = true;
+      } else {
+        const balance = await this.getLeaveBalance(data.userId, fromDate.getUTCFullYear());
+        autoApproved = balance.remaining >= duration;
+      }
+    }
+
     const record = await this.prisma.absence.create({
       data: {
         userId: data.userId,
         siteId: data.siteId,
         type: data.type,
-        status: 'PENDING',
+        status: autoApproved ? 'APPROVED' : 'PENDING',
         from: fromDate,
         to: toDate,
         reason: data.reason,
@@ -173,6 +258,8 @@ export class AbsencesService {
         attachment: data.attachment,
         manual: false,
         createdBy: 'USER',
+        requiresSecondApproval,
+        validatedBy: autoApproved ? 'AUTO' : undefined,
       },
     });
     this.auditService.record({
@@ -180,7 +267,25 @@ export class AbsencesService {
       action: 'CREATE_ABSENCE',
       entityType: 'absence',
       entityId: record.id,
-      details: `Demande ${data.type}`,
+      details: autoApproved ? `Demande ${data.type} (auto-approuvée)` : `Demande ${data.type}`,
+    });
+    return this.toView(this.toEntity(record));
+  }
+
+  async approveLevel1(id: string, approverId: string) {
+    const absence = await this.prisma.absence.findUnique({ where: { id } });
+    if (!absence) {
+      throw new NotFoundException('Absence introuvable');
+    }
+    if (!absence.requiresSecondApproval) {
+      throw new BadRequestException("Cette absence ne nécessite pas de validation à deux niveaux");
+    }
+    if (absence.status !== 'PENDING') {
+      throw new BadRequestException('Cette absence a déjà été traitée');
+    }
+    const record = await this.prisma.absence.update({
+      where: { id },
+      data: { level1ApprovedBy: approverId, level1ApprovedAt: new Date() },
     });
     return this.toView(this.toEntity(record));
   }
@@ -218,6 +323,17 @@ export class AbsencesService {
   }
 
   async updateStatus(id: string, dto: UpdateAbsenceStatusDto) {
+    if (dto.status === 'APPROVED') {
+      const existing = await this.prisma.absence.findUnique({ where: { id } });
+      if (!existing) {
+        throw new NotFoundException('Absence introuvable');
+      }
+      if (existing.requiresSecondApproval && !existing.level1ApprovedBy) {
+        throw new BadRequestException(
+          "Cette absence nécessite une première validation (superviseur) avant l'approbation finale",
+        );
+      }
+    }
     const record = await this.prisma.absence.update({
       where: { id },
       data: {

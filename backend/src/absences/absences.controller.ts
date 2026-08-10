@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards, ForbiddenException } from '@nestjs/common';
 import { AbsencesService } from './absences.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -101,8 +101,54 @@ export class AbsencesController {
   }
 
   @Roles('ADMIN', 'SUPERVISOR')
+  @Post(':id/approve-level1')
+  approveLevel1(@Param('id') id: string, @Req() req: any) {
+    return this.service.approveLevel1(id, req.user?.userId ?? req.user?.sub);
+  }
+
+  @Roles('ADMIN', 'SUPERVISOR')
   @Get(':id/replacement-suggestions')
   getReplacementSuggestions(@Param('id') id: string) {
     return this.service.getReplacementSuggestions(id);
+  }
+
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Get('leave-balance/:userId')
+  getLeaveBalance(
+    @Req() req: any,
+    @Param('userId') userId: string,
+    @Query('year') year?: string,
+  ) {
+    if (req.user?.role === 'AGENT' && req.user.userId !== userId) {
+      throw new ForbiddenException('Accès refusé');
+    }
+    return this.service.getLeaveBalance(userId, year ? Number(year) : new Date().getFullYear());
+  }
+
+  @Roles('ADMIN')
+  @Patch('leave-balance/:userId')
+  setLeaveAllocation(
+    @Param('userId') userId: string,
+    @Body() body: { year: number; allocatedDays: number },
+  ) {
+    return this.service.setLeaveAllocation(userId, body.year, body.allocatedDays);
+  }
+
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Get('blocked-periods/list')
+  listBlockedPeriods() {
+    return this.service.listBlockedPeriods();
+  }
+
+  @Roles('ADMIN')
+  @Post('blocked-periods')
+  createBlockedPeriod(@Body() body: { from: string; to: string; reason: string }) {
+    return this.service.createBlockedPeriod(body.from, body.to, body.reason);
+  }
+
+  @Roles('ADMIN')
+  @Delete('blocked-periods/:id')
+  removeBlockedPeriod(@Param('id') id: string) {
+    return this.service.removeBlockedPeriod(id);
   }
 }

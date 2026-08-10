@@ -18,4 +18,7 @@ export class AbsenceEntity {
   updatedAt!: Date;
   validatedBy?: string;
   validationComment?: string;
+  requiresSecondApproval!: boolean;
+  level1ApprovedBy?: string;
+  level1ApprovedAt?: Date;
 }

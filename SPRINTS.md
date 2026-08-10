@@ -121,13 +121,14 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 9 (S17-S18) — Absences avancées
+## Sprint 9 (S17-S18) — Absences avancées ✅ terminé
 
 **Back-office**
-- [ ] Workflow de validation multi-niveaux
-- [ ] Compteurs de solde de congés automatiques
-- [ ] Blocage de dates (périodes de forte activité)
-- [ ] Auto-approbation sous conditions (absence courte + solde suffisant)
+- [x] Workflow de validation multi-niveaux — absences > 5 jours exigent une validation superviseur (`approve-level1`) avant l'approbation finale, sans changer l'enum de statut existant
+- [x] Compteurs de solde de congés automatiques — `LeaveAllocation` par utilisateur/année (25 jours par défaut), solde calculé à partir des congés payés approuvés
+- [x] Blocage de dates (périodes de forte activité) — `BlockedPeriod`, toute nouvelle demande chevauchant une période bloquée est rejetée
+- [x] Auto-approbation sous conditions (absence courte + solde suffisant) — ≤ 2 jours, et pour les congés payés uniquement si le solde restant suffit
+- [ ] UI web back-office pour ces écrans — API uniquement dans ce sprint
 
 ---
 
