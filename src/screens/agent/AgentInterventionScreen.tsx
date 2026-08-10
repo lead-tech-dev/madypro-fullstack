@@ -37,6 +37,7 @@ import { InterventionChecklist } from '@/components/intervention/InterventionChe
 import { getActualDate, buildDateTime, formatTime } from '@/utils/interventionTime';
 import { capturePhotoBase64 } from '@/utils/photo';
 import { StatusPill, StatusTone } from '@/components/ui/StatusPill';
+import { SwipeToConfirm } from '@/components/ui/SwipeToConfirm';
 
 const TYPE_LABELS = {
   REGULAR: 'Intervention régulière',
@@ -758,14 +759,21 @@ export default function InterventionDetailScreen() {
           </View>
         )}
         {!isCompleted && !hasStarted && (
-          <Button
-            title="Démarrer l’intervention"
-            onPress={handleStart}
+          <SwipeToConfirm
+            label="Glissez pour démarrer"
+            confirmingLabel="Relâchez pour démarrer"
+            onConfirm={handleStart}
             disabled={isVerifying || !arrivalRecorded}
           />
         )}
         {!isCompleted && hasStarted && !(userAttendance?.attendanceStatus === 'COMPLETED') && (
-          <Button title="Terminer l’intervention" onPress={handleFinish} disabled={isVerifying} />
+          <SwipeToConfirm
+            label="Glissez pour terminer"
+            confirmingLabel="Relâchez pour terminer"
+            onConfirm={handleFinish}
+            disabled={isVerifying}
+            tone="danger"
+          />
         )}
         <Button title="Signaler un problème" variant="ghost" onPress={handleProblem} />
       </Animated.View>
