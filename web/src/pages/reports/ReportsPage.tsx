@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getPerformanceReport } from '../../services/api/reports.api';
+import { getPayrollCsv, getPerformanceReport } from '../../services/api/reports.api';
 import { ReportsPerformance } from '../../types/report';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -10,9 +10,8 @@ const defaultStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
 
 const minutesToHoursLabel = (minutes: number) => `${(minutes / 60).toFixed(1)} h`;
 
-const downloadCsv = (filename: string, rows: string[][]) => {
-  const csv = rows.map((row) => row.map((value) => `"${value.replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+const downloadTextFile = (filename: string, content: string, mime = 'text/csv;charset=utf-8;') => {
+  const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -21,6 +20,11 @@ const downloadCsv = (filename: string, rows: string[][]) => {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+};
+
+const downloadCsv = (filename: string, rows: string[][]) => {
+  const csv = rows.map((row) => row.map((value) => `"${value.replace(/"/g, '""')}"`).join(',')).join('\n');
+  downloadTextFile(filename, csv);
 };
 
 export const ReportsPage: React.FC = () => {
@@ -83,6 +87,17 @@ export const ReportsPage: React.FC = () => {
     downloadCsv(`rapport-sites-${filters.startDate}-${filters.endDate}.csv`, rows);
   };
 
+  const exportPayroll = async () => {
+    if (!token) return;
+    try {
+      const csv = await getPayrollCsv(token, filters);
+      downloadTextFile(`export-paie-${filters.startDate}-${filters.endDate}.csv`, csv);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Impossible de générer l'export paie";
+      notify(message, 'error');
+    }
+  };
+
   const summaryCards = useMemo(() => {
     if (!data) return [];
     const totalHours = minutesToHoursLabel(data.totals.totalMinutes);
@@ -139,9 +154,14 @@ export const ReportsPage: React.FC = () => {
                 <h3>Rapport par agent</h3>
                 <p>Heures travaillées, jours couverts et absences pour chaque agent.</p>
               </div>
-              <Button type="button" variant="ghost" onClick={exportAgents}>
-                Export CSV
-              </Button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Button type="button" variant="ghost" onClick={exportAgents}>
+                  Export CSV
+                </Button>
+                <Button type="button" onClick={exportPayroll}>
+                  Export paie
+                </Button>
+              </div>
             </div>
             <div className="table-wrapper">
               <table className="table" aria-label="rapport par agent">

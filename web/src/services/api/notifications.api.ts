@@ -41,3 +41,13 @@ export async function sendNotification(token: string, payload: SendNotificationP
     },
   });
 }
+
+export type NotificationReadStats = {
+  notificationId: string;
+  count: number;
+  readers: { id: string; name: string; readAt: string }[];
+};
+
+export async function getNotificationReadStats(token: string, id: string) {
+  return apiFetch<NotificationReadStats>({ path: `notifications/${id}/read-stats`, token });
+}

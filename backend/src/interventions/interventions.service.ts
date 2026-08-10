@@ -153,7 +153,7 @@ export class InterventionsService implements OnModuleInit {
         status: 'PLANNED',
         date: { gte: dayStart, lte: dayEnd },
       },
-        include: { assignments: true },
+        include: { assignments: true, site: true },
     });
 
     this.logger.log(`[Push] Upcoming check: ${records.length} interventions candidates, window ${now.toISOString()} -> ${horizon.toISOString()}`);
@@ -178,7 +178,7 @@ export class InterventionsService implements OnModuleInit {
           }
           await this.notifications.send({
             title: 'Intervention à venir',
-            message: `Début à ${record.startTime} sur ${record.label || record.subType || 'le site'}`,
+            message: `${(record as any).site?.name ?? 'Site'} · ${record.startTime}-${record.endTime}`,
             audience: 'AGENT',
             targetId: assignment.userId,
           });
@@ -340,13 +340,13 @@ export class InterventionsService implements OnModuleInit {
     const dayStart = this.toDateOnly(now.toISOString().slice(0, 10));
     const dayEnd = this.endOfDay(now.toISOString().slice(0, 10));
 
-    const records: Prisma.InterventionGetPayload<{ include: { assignments: true } }>[] =
+    const records: Prisma.InterventionGetPayload<{ include: { assignments: true; site: true } }>[] =
       await this.prisma.intervention.findMany({
       where: {
         status: 'IN_PROGRESS',
         date: { gte: dayStart, lte: dayEnd },
       },
-      include: { assignments: true },
+      include: { assignments: true, site: true },
     });
 
     this.logger.log(
@@ -366,7 +366,7 @@ export class InterventionsService implements OnModuleInit {
         try {
           await this.notifications.send({
             title: 'Fin d’intervention à venir',
-            message: `Fin prévue à ${record.endTime}. Pensez à terminer.`,
+            message: `${record.site?.name ?? 'Site'} · fin prévue à ${record.endTime}`,
             audience: 'AGENT',
             targetId: assignment.userId,
           });

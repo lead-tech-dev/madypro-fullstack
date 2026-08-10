@@ -1,4 +1,5 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -21,5 +22,17 @@ export class ReportsController {
     @Query('endDate') endDate?: string,
   ) {
     return this.service.performance(startDate, endDate);
+  }
+
+  @Get('payroll')
+  async payroll(
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Res() res: Response,
+  ) {
+    const csv = await this.service.payrollCsv(startDate, endDate);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="export-paie-${startDate ?? 'periode'}.csv"`);
+    res.send(csv);
   }
 }

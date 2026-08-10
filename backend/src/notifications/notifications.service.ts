@@ -67,21 +67,27 @@ export class NotificationsService {
     if (!user) {
       return [];
     }
-    if (user.role === 'ADMIN' || user.role === 'SUPERVISOR') {
-      return this.prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
-    }
-    return this.prisma.notification.findMany({
-      where: {
-        OR: [
-          { audience: 'ALL_AGENTS' },
-          { audience: 'AGENT', targetId: user.sub },
-          // SITE_AGENTS: sans mapping site/agent, on envoie tout
-          { audience: 'SITE_AGENTS' },
-        ],
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+    const notifications =
+      user.role === 'ADMIN' || user.role === 'SUPERVISOR'
+        ? await this.prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 100 })
+        : await this.prisma.notification.findMany({
+            where: {
+              OR: [
+                { audience: 'ALL_AGENTS' },
+                { audience: 'AGENT', targetId: user.sub },
+                // SITE_AGENTS: sans mapping site/agent, on envoie tout
+                { audience: 'SITE_AGENTS' },
+              ],
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+          });
+
+    const reads = await this.prisma.notificationRead.findMany({
+      where: { userId: user.sub, notificationId: { in: notifications.map((n) => n.id) } },
     });
+    const readIds = new Set(reads.map((r) => r.notificationId));
+    return notifications.map((n) => ({ ...n, read: readIds.has(n.id) }));
   }
 
   async send(dto: SendNotificationDto) {
@@ -256,5 +262,33 @@ export class NotificationsService {
     }
     const json = (await res.json()) as { access_token: string };
     return json.access_token;
+  }
+
+  async markRead(notificationId: string, userId: string) {
+    const notification = await this.prisma.notification.findUnique({ where: { id: notificationId } });
+    if (!notification) {
+      throw new BadRequestException('Notification introuvable');
+    }
+    await this.prisma.notificationRead.upsert({
+      where: { notificationId_userId: { notificationId, userId } },
+      update: {},
+      create: { notificationId, userId },
+    });
+    return { success: true };
+  }
+
+  async getReadStats(notificationId: string) {
+    const reads = await this.prisma.notificationRead.findMany({
+      where: { notificationId },
+      orderBy: { readAt: 'asc' },
+    });
+    return {
+      notificationId,
+      count: reads.length,
+      readers: reads.map((r) => {
+        const user = this.usersService.findOne(r.userId);
+        return { id: r.userId, name: user?.name ?? 'Agent inconnu', readAt: r.readAt };
+      }),
+    };
   }
 }

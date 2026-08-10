@@ -1,7 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import { Notification, NotificationAudience } from '../../types/notification';
-import { listNotifications, sendNotification, SendNotificationPayload, NotificationPage } from '../../services/api/notifications.api';
+import {
+  getNotificationReadStats,
+  listNotifications,
+  NotificationReadStats,
+  sendNotification,
+  SendNotificationPayload,
+  NotificationPage,
+} from '../../services/api/notifications.api';
 import { listUsers } from '../../services/api/users.api';
 import { listSites } from '../../services/api/sites.api';
 import { User } from '../../types/user';
@@ -36,6 +43,30 @@ export const NotificationsPage: React.FC = () => {
     message: '',
     audience: 'ALL_AGENTS',
   });
+  const [readStats, setReadStats] = useState<Record<string, NotificationReadStats | 'loading'>>({});
+
+  const toggleReadStats = async (id: string) => {
+    if (!token) return;
+    if (readStats[id]) {
+      setReadStats((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    setReadStats((prev) => ({ ...prev, [id]: 'loading' }));
+    try {
+      const stats = await getNotificationReadStats(token, id);
+      setReadStats((prev) => ({ ...prev, [id]: stats }));
+    } catch {
+      setReadStats((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -260,23 +291,51 @@ export const NotificationsPage: React.FC = () => {
                   <th>Titre</th>
                   <th>Message</th>
                   <th>Cible</th>
+                  <th>Lu par</th>
                 </tr>
               </thead>
               <tbody>
-                {pageData.items.map((notification) => (
-                  <tr key={notification.id}>
-                    <td>{formatDateTime(notification.createdAt)}</td>
-                    <td>{notification.title}</td>
-                    <td>{notification.message}</td>
-                    <td>
-                      {notification.audience === 'ALL_AGENTS'
-                        ? 'Tous les agents'
-                        : notification.audience === 'SITE_AGENTS'
-                        ? `Site · ${notification.targetName ?? notification.targetId}`
-                        : `Agent · ${notification.targetName ?? notification.targetId}`}
-                    </td>
-                  </tr>
-                ))}
+                {pageData.items.map((notification) => {
+                  const stats = readStats[notification.id];
+                  return (
+                    <React.Fragment key={notification.id}>
+                      <tr>
+                        <td>{formatDateTime(notification.createdAt)}</td>
+                        <td>{notification.title}</td>
+                        <td>{notification.message}</td>
+                        <td>
+                          {notification.audience === 'ALL_AGENTS'
+                            ? 'Tous les agents'
+                            : notification.audience === 'SITE_AGENTS'
+                            ? `Site · ${notification.targetName ?? notification.targetId}`
+                            : `Agent · ${notification.targetName ?? notification.targetId}`}
+                        </td>
+                        <td>
+                          <Button type="button" variant="ghost" onClick={() => toggleReadStats(notification.id)}>
+                            {stats && stats !== 'loading' ? `${stats.count} lu(s)` : stats === 'loading' ? '…' : 'Voir'}
+                          </Button>
+                        </td>
+                      </tr>
+                      {stats && stats !== 'loading' && (
+                        <tr>
+                          <td colSpan={5} style={{ background: 'var(--color-bg)' }}>
+                            {stats.readers.length ? (
+                              <div className="chips">
+                                {stats.readers.map((reader) => (
+                                  <span key={reader.id} className="chip">
+                                    {reader.name} · {formatDateTime(reader.readAt)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--color-muted)' }}>Personne n'a encore lu cette notification.</span>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

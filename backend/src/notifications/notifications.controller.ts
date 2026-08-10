@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards, Req } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -38,5 +38,18 @@ export class NotificationsController {
   registerToken(@Req() req: any, @Body() dto: RegisterTokenDto) {
     const userId = req.user?.sub ?? req.user?.userId;
     return this.service.registerToken(userId, dto.expoToken || dto.token, dto.deviceToken);
+  }
+
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Patch(':id/read')
+  markRead(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user?.sub ?? req.user?.userId;
+    return this.service.markRead(id, userId);
+  }
+
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get(':id/read-stats')
+  getReadStats(@Param('id') id: string) {
+    return this.service.getReadStats(id);
   }
 }
