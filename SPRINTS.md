@@ -92,16 +92,16 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 7 (S13-S14) — Sécurité & permissions
+## Sprint 7 (S13-S14) — Sécurité & permissions ✅ terminé
 
 **Back-office**
-- [ ] Authentification à deux facteurs (2FA)
-- [ ] Journal des connexions (qui, quand, depuis où — distinct de l'audit métier)
-- [ ] Permissions granulaires par rôle
-- [ ] Webhooks sortants pour intégrations personnalisées
+- [x] Authentification à deux facteurs (2FA) — TOTP (otplib) + QR code (qrcode), setup/confirm/disable, login à deux étapes
+- [x] Journal des connexions (qui, quand, depuis où — distinct de l'audit métier) — modèle `LoginEvent`, succès/échec/raison/IP/UA, `GET /auth/login-history`
+- [x] Permissions granulaires par rôle — `User.permissions[]`, `PermissionsGuard`/`RequirePermission`, ADMIN bypass, appliqué à `/settings` (ex. supervisor avec `settings:manage`)
+- [x] Webhooks sortants pour intégrations personnalisées — CRUD `/webhooks`, dispatch HMAC-SHA256 centralisé dans `RealtimeService.broadcast()`
 
 **Mobile**
-- [ ] Geste rapide (swipe) pour pointer
+- [x] Geste rapide (swipe) pour pointer — composant `SwipeToConfirm` (PanResponder) sur Démarrer/Terminer l'intervention
 
 ---
 

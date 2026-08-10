@@ -8,7 +8,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { AuditService } from '../audit/audit.service';
 
-type PublicUser = Omit<UserEntity, 'password'> & { name: string };
+type PublicUser = Omit<UserEntity, 'password' | 'twoFactorSecret'> & { name: string };
 
 const generatePassword = () => Math.random().toString(36).slice(-10);
 
@@ -48,6 +48,9 @@ export class UsersService implements OnModuleInit {
       phone: record.phone ?? '',
       password: record.password,
       active: record.active,
+      twoFactorSecret: (record as any).twoFactorSecret ?? undefined,
+      twoFactorEnabled: (record as any).twoFactorEnabled ?? false,
+      permissions: (record as any).permissions ?? [],
     };
   }
 
@@ -73,7 +76,7 @@ export class UsersService implements OnModuleInit {
   }
 
   private toPublic(user: UserEntity): PublicUser {
-    const { password, ...rest } = user;
+    const { password, twoFactorSecret, ...rest } = user;
     return { ...rest, name: `${user.firstName} ${user.lastName}`.trim() };
   }
 
@@ -214,5 +217,34 @@ export class UsersService implements OnModuleInit {
 
   findByEmail(email: string): UserEntity | undefined {
     return this.users.find((user) => user.email === email);
+  }
+
+  async setPendingTwoFactorSecret(id: string, secret: string) {
+    this.ensureExists(id);
+    const record = await this.prisma.user.update({ where: { id }, data: { twoFactorSecret: secret } });
+    this.upsertCache(this.mapRecord(record));
+  }
+
+  async enableTwoFactor(id: string) {
+    this.ensureExists(id);
+    const record = await this.prisma.user.update({ where: { id }, data: { twoFactorEnabled: true } });
+    this.upsertCache(this.mapRecord(record));
+  }
+
+  async disableTwoFactor(id: string) {
+    this.ensureExists(id);
+    const record = await this.prisma.user.update({
+      where: { id },
+      data: { twoFactorEnabled: false, twoFactorSecret: null },
+    });
+    this.upsertCache(this.mapRecord(record));
+  }
+
+  async setPermissions(id: string, permissions: string[]) {
+    this.ensureExists(id);
+    const record = await this.prisma.user.update({ where: { id }, data: { permissions } });
+    const updated = this.mapRecord(record);
+    this.upsertCache(updated);
+    return this.toPublic(updated);
   }
 }

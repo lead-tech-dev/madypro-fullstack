@@ -18,6 +18,7 @@ import { InterventionsModule } from './interventions/interventions.module';
 import { PrismaModule } from './database/prisma.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { AnomaliesModule } from './anomalies/anomalies.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AnomaliesModule } from './anomalies/anomalies.module';
     InterventionsModule,
     RealtimeModule,
     AnomaliesModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}

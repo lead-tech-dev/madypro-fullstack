@@ -1,14 +1,15 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { RequirePermission } from '../common/decorators/require-permission.decorator';
+import { PERMISSIONS } from '../common/constants/permissions';
 import { UpdateAttendanceRulesDto } from './dto/update-attendance-rules.dto';
 import { CreateAbsenceTypeDto } from './dto/create-absence-type.dto';
 import { UpdateAbsenceTypeDto } from './dto/update-absence-type.dto';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequirePermission(PERMISSIONS.SETTINGS_MANAGE)
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly service: SettingsService) {}

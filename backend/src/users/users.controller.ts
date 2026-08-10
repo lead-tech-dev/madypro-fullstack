@@ -18,6 +18,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateUserPermissionsDto } from './dto/update-user-permissions.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN', 'SUPERVISOR')
@@ -65,5 +66,11 @@ export class UsersController {
   @Post(':id/reset-password')
   resetPassword(@Param('id') id: string, @Body() dto: ResetPasswordDto, @Req() req: Request) {
     return this.usersService.resetPassword(id, dto.password, (req.user as any)?.sub);
+  }
+
+  @Roles('ADMIN')
+  @Patch(':id/permissions')
+  updatePermissions(@Param('id') id: string, @Body() dto: UpdateUserPermissionsDto) {
+    return this.usersService.setPermissions(id, dto.permissions);
   }
 }

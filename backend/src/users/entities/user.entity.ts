@@ -7,4 +7,7 @@ export class UserEntity {
   phone!: string;
   password!: string;
   active!: boolean;
+  twoFactorSecret?: string;
+  twoFactorEnabled!: boolean;
+  permissions!: string[];
 }

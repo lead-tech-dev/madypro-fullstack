@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Response } from 'express';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 type Client = {
   id: string;
@@ -10,6 +11,8 @@ type Client = {
 export class RealtimeService {
   private readonly logger = new Logger(RealtimeService.name);
   private clients = new Set<Client>();
+
+  constructor(private readonly webhooksService: WebhooksService) {}
 
   addClient(res: Response, clientId: string) {
     const client: Client = { res, id: clientId };
@@ -26,5 +29,8 @@ export class RealtimeService {
     for (const client of this.clients) {
       client.res.write(`event: ${event}\ndata: ${data}\n\n`);
     }
+    this.webhooksService.dispatch(event, payload).catch((error) => {
+      this.logger.warn(`Échec dispatch webhooks pour ${event}: ${error.message}`);
+    });
   }
 }
