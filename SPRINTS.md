@@ -6,7 +6,7 @@ Découpage en sprints de 2 semaines des deux plans d'amélioration établis en a
 
 Deux pistes en parallèle (back-office / mobile). En solo, alterner ou dérouler une piste à la fois dans l'ordre indiqué — l'ordre au sein de chaque piste reste valable.
 
-Les items « Basse priorité / Long terme » des deux plans sont laissés en backlog non sprinté (fin de document) : à re-prioriser une fois les sprints 0-6 réalisés.
+Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : backlog initial + fonctionnalités best-in-class supplémentaires, découpés en sprints thématiques.
 
 ---
 
@@ -92,31 +92,136 @@ Les items « Basse priorité / Long terme » des deux plans sont laissés en bac
 
 ---
 
-## Backlog (Basse priorité / long terme — non sprinté)
+## Sprint 7 (S13-S14) — Sécurité & permissions
 
 **Back-office**
-- Géofencing configurable par site
-- Portail client en lecture seule
-- Fil d'actualité d'équipe, reconnaissance
-- Documents RH (contrat, badge, permis)
-- Suggestion d'affectation par proximité GPS
-- QR code / badge NFC pour le pointage
-- Compteurs de solde de congés automatiques
-- Catégories et priorité visuelle des notifications
-- Envoi différé des notifications
-- Permissions granulaires par rôle
-- Intégrations tierces (paie, calendrier, messagerie)
-- Diff avant/après dans l'audit
+- [ ] Authentification à deux facteurs (2FA)
+- [ ] Journal des connexions (qui, quand, depuis où — distinct de l'audit métier)
+- [ ] Permissions granulaires par rôle
+- [ ] Webhooks sortants pour intégrations personnalisées
 
 **Mobile**
-- Geste rapide (swipe) pour pointer
-- Aperçu météo sur l'accueil
-- Cadrage d'une éventuelle vue superviseur mobile
-
-**Transverse**
-- Mode hors-ligne complet (au-delà de la file de synchronisation déjà existante côté mobile)
-- Design system partagé formalisé entre web et mobile
+- [ ] Geste rapide (swipe) pour pointer
 
 ---
 
-*Établi à partir des plans « Plan d'amélioration — MadyPro Clean » et « Refonte mobile — MadyPro Clean » (août 2026). À ajuster sprint après sprint selon la vélocité réelle.*
+## Sprint 8 (S15-S16) — Équipes avancées
+
+**Back-office**
+- [ ] Compétences & habilitations avec alerte d'expiration
+- [ ] Documents RH (contrat, badge, permis)
+- [ ] Échange de shift entre agents
+- [ ] Fil d'actualité d'équipe
+- [ ] Gamification / reconnaissance (badges, agent du mois)
+- [ ] Onboarding checklist pour nouveaux agents
+
+**Mobile**
+- [ ] Disponibilités déclarées par l'agent
+
+---
+
+## Sprint 9 (S17-S18) — Absences avancées
+
+**Back-office**
+- [ ] Workflow de validation multi-niveaux
+- [ ] Compteurs de solde de congés automatiques
+- [ ] Blocage de dates (périodes de forte activité)
+- [ ] Auto-approbation sous conditions (absence courte + solde suffisant)
+
+---
+
+## Sprint 10 (S19-S20) — Notifications & communication
+
+**Back-office**
+- [ ] Templates de notification réutilisables
+- [ ] Catégories et priorité visuelle des notifications
+- [ ] Envoi différé des notifications
+- [ ] Digest quotidien/hebdomadaire consolidé
+- [ ] Centre de notifications côté web (équivalent admin du push mobile)
+- [ ] Escalade automatique si alerte non lue après un délai
+
+**Mobile**
+- [ ] Chat interne agent ↔ superviseur
+
+---
+
+## Sprint 11 (S21-S22) — Sites enrichis
+
+**Back-office**
+- [ ] Géofencing configurable par site
+- [ ] Contrats/SLA associés au site + alertes d'échéance
+- [ ] Score de satisfaction/qualité par site
+- [ ] Multi-zones par site (bâtiment A/B, étages)
+- [ ] Historique/timeline des incidents par site
+- [ ] Plan des locaux avec zones à traiter
+
+---
+
+## Sprint 12 (S23-S24) — Inventaire & interventions avancées
+
+**Back-office**
+- [ ] Inventaire de fournitures par site + alerte de réapprovisionnement
+- [ ] Suggestion d'affectation par proximité GPS
+- [ ] Optimisation de tournées multi-sites
+- [ ] Vue carte temps réel des agents sur le terrain
+- [ ] Signature client en fin de prestation
+- [ ] Estimation de durée basée sur l'historique
+
+**Mobile**
+- [ ] Scan code-barres pour l'inventaire de fournitures
+
+---
+
+## Sprint 13 (S25-S26) — Pointage avancé & paie
+
+**Back-office**
+- [ ] QR code / badge NFC pour le pointage
+- [ ] Règles de majoration fines (nuit, dimanche, jours fériés — au-delà du seuil 35h simple)
+- [ ] Intégration paie directe (Payfit/Silae plutôt que CSV)
+- [ ] Alerte superviseur sur oubli de pointage (aujourd'hui seul l'agent est notifié)
+- [ ] Détection d'anomalies de pointage (durées suspectes, pointages hors zone répétés)
+
+---
+
+## Sprint 14 (S27-S28) — Rapports & business intelligence
+
+**Back-office**
+- [ ] Comparaison période sur période (N-1)
+- [ ] Dashboard configurable (widgets réarrangeables)
+- [ ] Rapport de facturation (heures facturables vs internes)
+- [ ] Benchmark inter-sites
+- [ ] Export CSV conformité RGPD (audit)
+- [ ] Diff avant/après dans l'audit
+
+---
+
+## Sprint 15 (S29-S30) — Plateforme & portail client
+
+**Back-office**
+- [ ] Intégrations tierces (calendrier, messagerie)
+- [ ] API publique documentée
+- [ ] Portail client en lecture seule
+- [ ] Devis/facturation liés à l'intervention
+- [ ] Formulaires personnalisables (inspections, sécurité)
+
+---
+
+## Sprint 16 (S31-S32) — Mobile approfondi & fondations transverses
+
+**Mobile**
+- [ ] Aperçu météo sur l'accueil
+- [ ] Widget écran d'accueil (prochaine mission sans ouvrir l'app)
+
+**Transverse**
+- [ ] Mode hors-ligne complet (au-delà de la file de synchronisation déjà existante)
+- [ ] Design system partagé formalisé entre web et mobile
+
+---
+
+## Hors sprint — initiative stratégique à cadrer séparément
+
+- **Application superviseur dédiée** (aujourd'hui web responsive uniquement, pas d'app native superviseur) — plus gros chantier qu'un sprint, à cadrer à part si prioritaire (périmètre, budget, delai).
+
+---
+
+*Établi à partir des plans « Plan d'amélioration — MadyPro Clean », « Refonte mobile — MadyPro Clean » et des deux listes de fonctionnalités best-in-class (août 2026). À ajuster sprint après sprint selon la vélocité réelle.*
