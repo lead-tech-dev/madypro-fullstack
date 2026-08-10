@@ -29,7 +29,6 @@ export type InterventionFilters = {
   startDate?: string;
   endDate?: string;
   siteId?: string;
-  clientId?: string;
   type?: InterventionType | 'all';
   subType?: string;
   agentId?: string;
@@ -40,7 +39,6 @@ export type InterventionFilters = {
 
 export type InterventionView = InterventionEntity & {
   siteName: string;
-  clientName: string;
   agents: {
     id: string;
     name: string;
@@ -476,7 +474,6 @@ export class InterventionsService implements OnModuleInit {
     return {
       ...entity,
       siteName: site.name,
-      clientName: site.clientName,
       agents,
     };
   }
@@ -527,9 +524,6 @@ export class InterventionsService implements OnModuleInit {
     }
     if (filters.siteId) {
       where.siteId = filters.siteId;
-    }
-    if (filters.clientId) {
-      where.site = { clientId: filters.clientId };
     }
     if (filters.type && filters.type !== 'all') {
       const normalizedType = this.normalizeTypeInput(filters.type);

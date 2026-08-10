@@ -13,7 +13,7 @@ type AssignmentFilters = {
 
 type AssignmentView = AssignmentEntity & {
   user: { id: string; name: string; role: string };
-  site: { id: string; name: string; clientName: string; address: string };
+  site: { id: string; name: string; address: string };
 };
 
 @Injectable()
@@ -104,7 +104,6 @@ export class AssignmentsService {
       site: {
         id: site.id,
         name: site.name,
-        clientName: site.clientName,
         address: site.address,
       },
     };

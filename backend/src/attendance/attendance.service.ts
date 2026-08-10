@@ -265,7 +265,7 @@ export class AttendanceService implements OnModuleInit {
       this.prisma.attendance.findMany({
         where,
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-        include: { user: true, intervention: { include: { site: { include: { client: true } } } } },
+        include: { user: true, intervention: { include: { site: true } } },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -288,7 +288,7 @@ export class AttendanceService implements OnModuleInit {
     const intervention = dto.interventionId
       ? await this.prisma.intervention.findUnique({
           where: { id: dto.interventionId },
-          include: { site: { include: { client: true } } },
+          include: { site: true },
         })
       : null;
     const site = intervention?.site ?? this.sitesService.findOne(dto.siteId);

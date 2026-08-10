@@ -1,7 +1,6 @@
 export class SiteEntity {
   id!: string;
   name!: string;
-  clientId!: string;
   address!: string;
   latitude?: number;
   longitude?: number;

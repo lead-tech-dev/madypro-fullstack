@@ -28,7 +28,7 @@ export class ReportsService {
         where: { date: { gte: start, lte: end } },
         include: {
           assignments: { include: { user: true } },
-          site: { include: { client: true, supervisors: { include: { user: true } } } },
+          site: { include: { supervisors: { include: { user: true } } } },
         },
       }),
       this.prisma.attendance.findMany({
@@ -109,7 +109,7 @@ export class ReportsService {
     };
   }
 
-  performance(startDate?: string, endDate?: string) {
+  async performance(startDate?: string, endDate?: string) {
     const today = new Date();
     const defaultEnd = today.toISOString().slice(0, 10);
     const defaultStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
@@ -120,65 +120,119 @@ export class ReportsService {
       endDate: endDate ?? defaultEnd,
     };
 
-    const agentReports = [
-      {
-        id: '3',
-        name: 'Lucas Pereira',
-        totalMinutes: 1980,
-        workingDays: 9,
-        absenceMinutes: 240,
-      },
-      {
-        id: '5',
-        name: 'Imen Rami',
-        totalMinutes: 1680,
-        workingDays: 8,
-        absenceMinutes: 0,
-      },
-      {
-        id: '4',
-        name: 'Valérie Masson',
-        totalMinutes: 1440,
-        workingDays: 7,
-        absenceMinutes: 360,
-      },
-    ];
+    const start = this.startOfDay(new Date(period.startDate));
+    const end = this.endOfDay(new Date(period.endDate));
 
-    const siteReports = [
-      {
-        id: 'site-atelier',
-        name: 'Atelier Genève',
-        totalMinutes: 2100,
-        agents: ['Lucas Pereira', 'Valérie Masson'],
-        uncoveredDays: 0,
-      },
-      {
-        id: 'site-viva',
-        name: 'Siège Viva Retail',
-        totalMinutes: 1680,
-        agents: ['Imen Rami'],
-        uncoveredDays: 1,
-      },
-      {
-        id: 'site-terrasse',
-        name: 'Terrasse Lémanique',
-        totalMinutes: 960,
-        agents: ['Valérie Masson'],
-        uncoveredDays: 2,
-      },
-    ];
+    const [attendances, absences, interventions] = await Promise.all([
+      this.prisma.attendance.findMany({
+        where: { date: { gte: start, lte: end } },
+        include: { user: true, intervention: { include: { site: true } } },
+      }),
+      this.prisma.absence.findMany({
+        where: { from: { lte: end }, to: { gte: start } },
+        include: { user: true },
+      }),
+      this.prisma.intervention.findMany({
+        where: { date: { gte: start, lte: end } },
+        include: { site: true },
+      }),
+    ]);
+
+    const minutesBetween = (a: Date, b: Date) => Math.max(0, (b.getTime() - a.getTime()) / 60000);
+
+    type AgentAgg = {
+      id: string;
+      name: string;
+      totalMinutes: number;
+      workingDays: Set<string>;
+      absenceMinutes: number;
+    };
+    const agentMap = new Map<string, AgentAgg>();
+    const ensureAgent = (id: string, name: string) => {
+      let agent = agentMap.get(id);
+      if (!agent) {
+        agent = { id, name, totalMinutes: 0, workingDays: new Set(), absenceMinutes: 0 };
+        agentMap.set(id, agent);
+      }
+      return agent;
+    };
+
+    attendances.forEach((att) => {
+      if (!att.checkInTime) return;
+      const agent = ensureAgent(att.userId, `${att.user.firstName} ${att.user.lastName}`.trim());
+      agent.workingDays.add(att.date.toISOString().slice(0, 10));
+      if (att.checkOutTime) {
+        agent.totalMinutes += minutesBetween(new Date(att.checkInTime), new Date(att.checkOutTime));
+      }
+    });
+
+    absences.forEach((abs) => {
+      const agent = ensureAgent(abs.userId, `${abs.user.firstName} ${abs.user.lastName}`.trim());
+      const from = abs.from > start ? abs.from : start;
+      const to = abs.to < end ? abs.to : end;
+      agent.absenceMinutes += minutesBetween(new Date(from), new Date(to));
+    });
+
+    const agentReports = Array.from(agentMap.values())
+      .map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        totalMinutes: Math.round(agent.totalMinutes),
+        workingDays: agent.workingDays.size,
+        absenceMinutes: Math.round(agent.absenceMinutes),
+      }))
+      .sort((a, b) => b.totalMinutes - a.totalMinutes);
+
+    type SiteAgg = {
+      id: string;
+      name: string;
+      totalMinutes: number;
+      agents: Set<string>;
+      days: Set<string>;
+      coveredDays: Set<string>;
+    };
+    const siteMap = new Map<string, SiteAgg>();
+    const ensureSite = (id: string, name: string) => {
+      let site = siteMap.get(id);
+      if (!site) {
+        site = { id, name, totalMinutes: 0, agents: new Set(), days: new Set(), coveredDays: new Set() };
+        siteMap.set(id, site);
+      }
+      return site;
+    };
+
+    interventions.forEach((intervention) => {
+      const site = ensureSite(intervention.siteId, intervention.site.name);
+      site.days.add(intervention.date.toISOString().slice(0, 10));
+    });
+
+    attendances.forEach((att) => {
+      if (!att.checkInTime) return;
+      const site = ensureSite(att.intervention.siteId, att.intervention.site.name);
+      site.agents.add(`${att.user.firstName} ${att.user.lastName}`.trim());
+      site.coveredDays.add(att.date.toISOString().slice(0, 10));
+      if (att.checkOutTime) {
+        site.totalMinutes += minutesBetween(new Date(att.checkInTime), new Date(att.checkOutTime));
+      }
+    });
+
+    const siteReports = Array.from(siteMap.values())
+      .map((site) => ({
+        id: site.id,
+        name: site.name,
+        totalMinutes: Math.round(site.totalMinutes),
+        agents: Array.from(site.agents),
+        uncoveredDays: Array.from(site.days).filter((day) => !site.coveredDays.has(day)).length,
+      }))
+      .sort((a, b) => b.totalMinutes - a.totalMinutes);
 
     const totalMinutes = agentReports.reduce((sum, agent) => sum + agent.totalMinutes, 0);
-
-    const totals = {
-      totalMinutes,
-    };
 
     return {
       period,
       agentReports,
       siteReports,
-      totals,
+      totals: { totalMinutes },
     };
   }
 }

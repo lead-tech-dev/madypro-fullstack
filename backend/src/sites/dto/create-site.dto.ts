@@ -2,9 +2,6 @@ import { IsArray, IsBoolean, IsNumber, IsOptional, IsString } from 'class-valida
 
 export class CreateSiteDto {
   @IsString()
-  clientId!: string;
-
-  @IsString()
   name!: string;
 
   @IsString()

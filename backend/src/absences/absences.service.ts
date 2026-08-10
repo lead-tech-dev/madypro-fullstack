@@ -33,7 +33,7 @@ type AbsenceView = {
   createdBy: string;
   validatedBy?: string;
   validationComment?: string;
-  site?: { id: string; name: string; clientName: string };
+  site?: { id: string; name: string };
 };
 
 type AbsenceRecord = Prisma.AbsenceGetPayload<{
@@ -94,7 +94,7 @@ export class AbsencesService {
       createdBy: absence.createdBy,
       validatedBy: absence.validatedBy,
       validationComment: absence.validationComment,
-      site: site ? { id: site.id, name: site.name, clientName: site.clientName } : undefined,
+      site: site ? { id: site.id, name: site.name } : undefined,
     };
   }
 

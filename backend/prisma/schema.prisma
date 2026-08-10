@@ -87,18 +87,6 @@ model User {
   anomalies     Anomaly[]
 }
 
-model Client {
-  id           String   @id @default(cuid())
-  name         String
-  contactName  String?
-  contactEmail String?
-  contactPhone String?
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  sites        Site[]
-}
-
 model Site {
   id               String             @id @default(cuid())
   name             String
@@ -107,8 +95,6 @@ model Site {
   longitude        Float?
   timeWindow       String?
   active           Boolean            @default(true)
-  clientId         String
-  client           Client             @relation(fields: [clientId], references: [id])
   supervisors      SiteSupervisor[]
   interventions    Intervention[]
   absences         Absence[]

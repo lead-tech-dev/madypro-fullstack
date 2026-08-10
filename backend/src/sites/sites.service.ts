@@ -4,11 +4,9 @@ import { PrismaService } from '../database/prisma.service';
 import { SiteEntity } from './entities/site.entity';
 import { CreateSiteDto } from './dto/create-site.dto';
 import { UpdateSiteDto } from './dto/update-site.dto';
-import { ClientsService } from '../clients/clients.service';
 import { UsersService } from '../users/users.service';
 
 type SiteView = SiteEntity & {
-  clientName: string;
   supervisors: { id: string; name: string }[];
 };
 
@@ -23,7 +21,6 @@ export class SitesService implements OnModuleInit {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly clientsService: ClientsService,
     private readonly usersService: UsersService,
   ) {}
 
@@ -43,7 +40,6 @@ export class SitesService implements OnModuleInit {
     return {
       id: record.id,
       name: record.name,
-      clientId: record.clientId,
       address: record.address,
       latitude: record.latitude ?? undefined,
       longitude: record.longitude ?? undefined,
@@ -62,14 +58,12 @@ export class SitesService implements OnModuleInit {
   }
 
   private present(site: SiteEntity): SiteView {
-    const client = this.clientsService.findOne(site.clientId);
     const supervisors = site.supervisorIds
       .map((identifier) => this.usersService.findOne(identifier))
       .filter((user): user is NonNullable<ReturnType<UsersService['findOne']>> => Boolean(user))
       .map((user) => ({ id: user.id, name: user.name }));
     return {
       ...site,
-      clientName: client.name,
       supervisors,
     };
   }
@@ -89,10 +83,8 @@ export class SitesService implements OnModuleInit {
   }
 
   async create(dto: CreateSiteDto): Promise<SiteView> {
-    this.clientsService.findOne(dto.clientId);
     const record = await this.prisma.site.create({
       data: {
-        clientId: dto.clientId,
         name: dto.name,
         address: dto.address,
         latitude: dto.latitude ?? null,
@@ -115,10 +107,6 @@ export class SitesService implements OnModuleInit {
   async update(id: string, dto: UpdateSiteDto): Promise<SiteView> {
     this.ensureExists(id);
     const data: any = {};
-    if (dto.clientId) {
-      this.clientsService.findOne(dto.clientId);
-      data.client = { connect: { id: dto.clientId } };
-    }
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.address !== undefined) data.address = dto.address;
     if (dto.latitude !== undefined) data.latitude = dto.latitude;

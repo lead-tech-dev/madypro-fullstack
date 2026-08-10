@@ -5,7 +5,6 @@ import { DbConfig } from './config/db.config';
 import { AuthConfig } from './config/auth.config';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { ClientsModule } from './clients/clients.module';
 import { SitesModule } from './sites/sites.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { AttendanceModule } from './attendance/attendance.module';
@@ -29,7 +28,6 @@ import { AnomaliesModule } from './anomalies/anomalies.module';
     PrismaModule,
     AuthModule,
     UsersModule,
-    ClientsModule,
     SitesModule,
     AssignmentsModule,
     AttendanceModule,
