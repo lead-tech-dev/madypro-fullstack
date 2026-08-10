@@ -6,6 +6,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UserEntity } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { AuditService } from '../audit/audit.service';
 
 type PublicUser = Omit<UserEntity, 'password'> & { name: string };
 
@@ -23,7 +24,10 @@ interface UserFilters {
 export class UsersService implements OnModuleInit {
   private users: UserEntity[] = [];
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async onModuleInit() {
     await this.syncFromDatabase();
@@ -105,7 +109,7 @@ export class UsersService implements OnModuleInit {
     return user;
   }
 
-  async create(dto: CreateUserDto): Promise<PublicUser> {
+  async create(dto: CreateUserDto, actorId = 'system'): Promise<PublicUser> {
     const password = dto.password ?? generatePassword();
     const record = await this.prisma.user.create({
       data: {
@@ -119,10 +123,17 @@ export class UsersService implements OnModuleInit {
     });
     const entity = this.mapRecord(record);
     this.upsertCache(entity);
+    this.auditService.record({
+      actorId,
+      action: 'CREATE_USER',
+      entityType: 'user',
+      entityId: entity.id,
+      details: `${entity.firstName} ${entity.lastName} (${entity.role})`,
+    });
     return this.toPublic(entity);
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<PublicUser> {
+  async update(id: string, dto: UpdateUserDto, actorId = 'system'): Promise<PublicUser> {
     const user = this.ensureExists(id);
     const data: any = {};
     if (dto.firstName) data.firstName = dto.firstName;
@@ -138,10 +149,17 @@ export class UsersService implements OnModuleInit {
     });
     const updated = this.mapRecord(record);
     this.upsertCache(updated);
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_USER',
+      entityType: 'user',
+      entityId: updated.id,
+      details: Object.keys(data).filter((k) => k !== 'password').join(', ') || undefined,
+    });
     return this.toPublic(updated);
   }
 
-  async updateStatus(id: string, dto: UpdateUserStatusDto): Promise<PublicUser> {
+  async updateStatus(id: string, dto: UpdateUserStatusDto, actorId = 'system'): Promise<PublicUser> {
     this.ensureExists(id);
     const record = await this.prisma.user.update({
       where: { id },
@@ -149,10 +167,17 @@ export class UsersService implements OnModuleInit {
     });
     const updated = this.mapRecord(record);
     this.upsertCache(updated);
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_USER_STATUS',
+      entityType: 'user',
+      entityId: updated.id,
+      details: dto.active ? 'Réactivé' : 'Désactivé',
+    });
     return this.toPublic(updated);
   }
 
-  async resetPassword(id: string, password?: string) {
+  async resetPassword(id: string, password?: string, actorId = 'system') {
     this.ensureExists(id);
     const nextPassword = password ?? generatePassword();
     const hashed = await bcrypt.hash(nextPassword, 10);
@@ -162,6 +187,12 @@ export class UsersService implements OnModuleInit {
     });
     const updated = this.mapRecord(record);
     this.upsertCache(updated);
+    this.auditService.record({
+      actorId,
+      action: 'RESET_USER_PASSWORD',
+      entityType: 'user',
+      entityId: updated.id,
+    });
     return { password: nextPassword };
   }
 

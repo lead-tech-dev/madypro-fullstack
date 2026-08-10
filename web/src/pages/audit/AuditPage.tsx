@@ -14,6 +14,18 @@ const ACTION_OPTIONS: { value: AuditAction | 'all'; label: string }[] = [
   { value: 'UPDATE_ATTENDANCE', label: 'Maj pointage' },
   { value: 'CANCEL_ATTENDANCE', label: 'Annulation pointage' },
   { value: 'UPDATE_SETTINGS', label: 'Paramètres' },
+  { value: 'CREATE_USER', label: 'Création utilisateur' },
+  { value: 'UPDATE_USER', label: 'Maj utilisateur' },
+  { value: 'UPDATE_USER_STATUS', label: 'Activation/désactivation utilisateur' },
+  { value: 'RESET_USER_PASSWORD', label: 'Réinitialisation mot de passe' },
+  { value: 'CREATE_SITE', label: 'Création site' },
+  { value: 'UPDATE_SITE', label: 'Maj site' },
+  { value: 'DELETE_SITE', label: 'Suppression site' },
+  { value: 'CREATE_INTERVENTION', label: 'Création intervention' },
+  { value: 'UPDATE_INTERVENTION', label: 'Maj intervention' },
+  { value: 'UPDATE_INTERVENTION_STATUS', label: 'Changement statut intervention' },
+  { value: 'CANCEL_INTERVENTION', label: 'Annulation intervention' },
+  { value: 'DUPLICATE_INTERVENTION', label: 'Duplication intervention' },
 ];
 
 const formatDate = (date: Date) => date.toISOString().slice(0, 10);

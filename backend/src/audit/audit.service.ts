@@ -1,59 +1,60 @@
-import { Injectable } from '@nestjs/common';
-import { AuditLog, AuditAction } from './audit.entity';
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../database/prisma.service';
+import { AuditAction } from './audit.entity';
 
 export type AuditFilters = {
   actorId?: string;
   action?: AuditAction;
+  entityType?: string;
   startDate?: string;
   endDate?: string;
   page?: number;
   pageSize?: number;
 };
 
+export type AuditLogInput = {
+  actorId: string;
+  action: AuditAction;
+  entityType: string;
+  entityId?: string;
+  details?: string;
+};
+
 @Injectable()
 export class AuditService {
-  private logs: AuditLog[] = [];
+  private readonly logger = new Logger(AuditService.name);
 
-  constructor() {
-    this.logs = [
-      {
-        id: 'audit-1',
-        actorId: 'admin@madyproclean.com',
-        action: 'UPDATE_SETTINGS',
-        entityType: 'settings',
-        details: 'Tolérance horaires ajustée à 10 min',
-        createdAt: new Date(Date.now() - 1000 * 60 * 60),
-      },
-    ];
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
-  record(log: Omit<AuditLog, 'id' | 'createdAt'>) {
-    const entry: AuditLog = {
-      id: `audit-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      createdAt: new Date(),
-      ...log,
-    };
-    this.logs.unshift(entry);
-    return entry;
-  }
-
-  list(filters: AuditFilters = {}) {
-    const filtered = this.logs.filter((log) => {
-      if (filters.actorId && log.actorId !== filters.actorId) return false;
-      if (filters.action && log.action !== filters.action) return false;
-      if (filters.startDate && log.createdAt < new Date(filters.startDate)) return false;
-      if (filters.endDate && log.createdAt > new Date(filters.endDate)) return false;
-      return true;
+  record(log: AuditLogInput) {
+    return this.prisma.auditLog.create({ data: log }).catch((err) => {
+      this.logger.warn(`Échec d'enregistrement d'audit (${log.action}/${log.entityType}): ${err.message}`);
+      return undefined;
     });
+  }
+
+  async list(filters: AuditFilters = {}) {
+    const where: Record<string, unknown> = {};
+    if (filters.actorId) where.actorId = filters.actorId;
+    if (filters.action) where.action = filters.action;
+    if (filters.entityType) where.entityType = filters.entityType;
+    if (filters.startDate || filters.endDate) {
+      where.createdAt = {
+        ...(filters.startDate ? { gte: new Date(filters.startDate) } : {}),
+        ...(filters.endDate ? { lte: new Date(filters.endDate) } : {}),
+      };
+    }
     const page = filters.page ?? 1;
     const pageSize = filters.pageSize ?? 20;
-    const start = (page - 1) * pageSize;
-    const items = filtered.slice(start, start + pageSize);
-    return {
-      items,
-      total: filtered.length,
-      page,
-      pageSize,
-    };
+    const [items, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
   }
 }

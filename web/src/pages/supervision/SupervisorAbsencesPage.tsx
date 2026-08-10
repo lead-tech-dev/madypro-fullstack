@@ -23,8 +23,8 @@ export const SupervisorAbsencesPage: React.FC = () => {
       listSites(token, { pageSize: 200 }).catch(() => ({ items: [] as Site[] })),
     ])
       .then(([absRes, sitesRes]) => {
-        setAbsences((absRes as any).items ?? (absRes as Absence[]));
-        setSites((sitesRes as any).items ?? (sitesRes as Site[]));
+        setAbsences(absRes.items);
+        setSites(sitesRes.items);
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : 'Impossible de charger les absences';

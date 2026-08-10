@@ -34,7 +34,7 @@ export const SupervisorDashboardPage: React.FC = () => {
       })),
     ])
       .then(([sitesRes, attendanceRes, interventionsRes]) => {
-        setSites((sitesRes as any).items ?? (sitesRes as Site[]));
+        setSites(sitesRes.items);
         setAttendance(Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes as any).items ?? []);
         const items = (interventionsRes as any).items ?? (Array.isArray(interventionsRes) ? interventionsRes : []);
         setInterventions(items);

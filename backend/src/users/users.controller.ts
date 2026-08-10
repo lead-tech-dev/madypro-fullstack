@@ -6,8 +6,10 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -46,22 +48,22 @@ export class UsersController {
   }
 
   @Post()
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  create(@Body() dto: CreateUserDto, @Req() req: Request) {
+    return this.usersService.create(dto, (req.user as any)?.sub);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateUserDto, @Req() req: Request) {
+    return this.usersService.update(id, dto, (req.user as any)?.sub);
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateUserStatusDto) {
-    return this.usersService.updateStatus(id, dto);
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateUserStatusDto, @Req() req: Request) {
+    return this.usersService.updateStatus(id, dto, (req.user as any)?.sub);
   }
 
   @Post(':id/reset-password')
-  resetPassword(@Param('id') id: string, @Body() dto: ResetPasswordDto) {
-    return this.usersService.resetPassword(id, dto.password);
+  resetPassword(@Param('id') id: string, @Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return this.usersService.resetPassword(id, dto.password, (req.user as any)?.sub);
   }
 }

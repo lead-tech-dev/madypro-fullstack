@@ -55,15 +55,15 @@ export class InterventionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Post()
-  create(@Body() dto: CreateInterventionDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreateInterventionDto, @Req() req: Request) {
+    return this.service.create(dto, (req.user as any)?.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateInterventionDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateInterventionDto, @Req() req: Request) {
+    return this.service.update(id, dto, (req.user as any)?.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -77,15 +77,15 @@ export class InterventionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Post(':id/duplicate')
-  duplicate(@Param('id') id: string, @Body() dto: DuplicateInterventionDto) {
-    return this.service.duplicate(id, dto);
+  duplicate(@Param('id') id: string, @Body() dto: DuplicateInterventionDto, @Req() req: Request) {
+    return this.service.duplicate(id, dto, (req.user as any)?.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Post(':id/cancel')
-  cancel(@Param('id') id: string, @Body('observation') observation: string) {
-    return this.service.cancel(id, observation);
+  cancel(@Param('id') id: string, @Body('observation') observation: string, @Req() req: Request) {
+    return this.service.cancel(id, observation, (req.user as any)?.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

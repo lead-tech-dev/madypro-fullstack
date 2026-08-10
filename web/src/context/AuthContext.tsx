@@ -4,7 +4,7 @@ import { User } from '../types/user';
 type Toast = {
   id: number;
   message: string;
-  type?: 'success' | 'error';
+  type?: 'success' | 'error' | 'info';
 };
 
 type AuthState = {
@@ -15,7 +15,7 @@ type AuthState = {
 type AuthContextValue = AuthState & {
   login: (user: User, token: string) => void;
   logout: () => void;
-  notify: (message: string, type?: 'success' | 'error') => void;
+  notify: (message: string, type?: 'success' | 'error' | 'info') => void;
   toasts: Toast[];
   removeToast: (id: number) => void;
 };
@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => setState({ user: null, token: null });
 
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const notify = (message: string, type: 'success' | 'error' = 'success') => {
+  const notify = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToasts((prev) => [...prev, { id: Date.now(), message, type }]);
   };
   const removeToast = (id: number) => {

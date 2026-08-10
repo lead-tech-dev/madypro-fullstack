@@ -60,8 +60,8 @@ export const SupervisorPlanningPage: React.FC = () => {
       listSites(token, { pageSize: 200 }).catch(() => ({ items: [] as Site[] })),
     ])
       .then(([intRes, sitesRes]) => {
-        setInterventions((intRes as any).items ?? (intRes as Intervention[]));
-        setSites((sitesRes as any).items ?? (sitesRes as Site[]));
+        setInterventions(intRes.items);
+        setSites(sitesRes.items);
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : 'Impossible de charger le planning';

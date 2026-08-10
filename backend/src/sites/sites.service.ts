@@ -5,6 +5,7 @@ import { SiteEntity } from './entities/site.entity';
 import { CreateSiteDto } from './dto/create-site.dto';
 import { UpdateSiteDto } from './dto/update-site.dto';
 import { UsersService } from '../users/users.service';
+import { AuditService } from '../audit/audit.service';
 
 type SiteView = SiteEntity & {
   supervisors: { id: string; name: string }[];
@@ -22,6 +23,7 @@ export class SitesService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
+    private readonly auditService: AuditService,
   ) {}
 
   async onModuleInit() {
@@ -82,7 +84,7 @@ export class SitesService implements OnModuleInit {
     return this.present(site);
   }
 
-  async create(dto: CreateSiteDto): Promise<SiteView> {
+  async create(dto: CreateSiteDto, actorId = 'system'): Promise<SiteView> {
     const record = await this.prisma.site.create({
       data: {
         name: dto.name,
@@ -101,10 +103,17 @@ export class SitesService implements OnModuleInit {
     });
     const site = this.mapRecord(record);
     this.sites.push(site);
+    this.auditService.record({
+      actorId,
+      action: 'CREATE_SITE',
+      entityType: 'site',
+      entityId: site.id,
+      details: site.name,
+    });
     return this.present(site);
   }
 
-  async update(id: string, dto: UpdateSiteDto): Promise<SiteView> {
+  async update(id: string, dto: UpdateSiteDto, actorId = 'system'): Promise<SiteView> {
     this.ensureExists(id);
     const data: any = {};
     if (dto.name !== undefined) data.name = dto.name;
@@ -128,10 +137,17 @@ export class SitesService implements OnModuleInit {
     const site = this.mapRecord(record);
     const index = this.sites.findIndex((item) => item.id === id);
     this.sites[index] = site;
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_SITE',
+      entityType: 'site',
+      entityId: site.id,
+      details: Object.keys(data).join(', ') || undefined,
+    });
     return this.present(site);
   }
 
-  async remove(id: string): Promise<SiteView> {
+  async remove(id: string, actorId = 'system'): Promise<SiteView> {
     this.ensureExists(id);
     const record = await this.prisma.site.update({
       where: { id },
@@ -141,6 +157,13 @@ export class SitesService implements OnModuleInit {
     const site = this.mapRecord(record);
     const index = this.sites.findIndex((item) => item.id === id);
     this.sites[index] = site;
+    this.auditService.record({
+      actorId,
+      action: 'DELETE_SITE',
+      entityType: 'site',
+      entityId: site.id,
+      details: site.name,
+    });
     return this.present(site);
   }
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../../context/AuthContext';
 import { listSites } from '../../services/api/sites.api';
 import { Site } from '../../types/site';
@@ -6,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 
 export const SupervisorSitesPage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
+  const navigate = useNavigate();
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -13,7 +15,7 @@ export const SupervisorSitesPage: React.FC = () => {
     if (!token) return;
     setLoading(true);
     listSites(token, { pageSize: 200 })
-      .then((res) => setSites(res.items ?? (res as any)))
+      .then((res) => setSites(res.items))
       .catch((err) => {
         const message = err instanceof Error ? err.message : 'Impossible de charger les sites';
         notify(message, 'error');
@@ -54,7 +56,12 @@ export const SupervisorSitesPage: React.FC = () => {
                     <td>{site.address}</td>
                     <td>{site.supervisors?.map((s) => s.name).join(', ') || '—'}</td>
                     <td>
-                      <Button type="button" variant="ghost" className="btn--compact" to="/supervision/presence">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="btn--compact"
+                        onClick={() => navigate('/supervision/presence')}
+                      >
                         Présence
                       </Button>
                     </td>

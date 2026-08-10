@@ -1,11 +1,6 @@
-export type AuditAction =
-  | 'CREATE_NOTIFICATION'
-  | 'CREATE_ABSENCE'
-  | 'UPDATE_ABSENCE_STATUS'
-  | 'CREATE_MANUAL_ATTENDANCE'
-  | 'UPDATE_ATTENDANCE'
-  | 'CANCEL_ATTENDANCE'
-  | 'UPDATE_SETTINGS';
+import { AuditAction } from '@prisma/client';
+
+export { AuditAction };
 
 export class AuditLog {
   id!: string;

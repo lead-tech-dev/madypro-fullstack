@@ -33,16 +33,15 @@ export const SupervisorPresencePage: React.FC = () => {
       if (!token) return;
       setLoading(true);
       Promise.all([
-        listAttendance(token, { startDate: filters.date, endDate: filters.date, pageSize: 200 }).catch(() => [] as Attendance[]),
+        listAttendance(token, { startDate: filters.date, endDate: filters.date, pageSize: 200 }).catch(() => ({ items: [] as Attendance[] })),
         listSites(token, { pageSize: 200 }).catch(() => ({ items: [] as Site[] })),
         listInterventions(token, { startDate: filters.date, endDate: filters.date, pageSize: 500 }).catch(() => ({ items: [] as Intervention[] })),
       ])
         .then(([attendanceRes, sitesRes, interventionsRes]) => {
-          const items = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes as any).items ?? [];
-          const interventionsList = (interventionsRes as any).items ?? (Array.isArray(interventionsRes) ? interventionsRes : []);
+          const interventionsList = interventionsRes.items;
           setInterventions(interventionsList);
-          setAttendance(items.map((att) => mergePlannedFromIntervention(att, interventionsList)));
-          setSites((sitesRes as any).items ?? (sitesRes as Site[]));
+          setAttendance(attendanceRes.items.map((att) => mergePlannedFromIntervention(att, interventionsList)));
+          setSites(sitesRes.items);
         })
         .catch((err) => {
           const message = err instanceof Error ? err.message : 'Impossible de charger la présence';

@@ -65,7 +65,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
     ])
       .then(([intRes, sitesRes]) => {
         setInterventions((intRes as any).items ?? (Array.isArray(intRes) ? intRes : []));
-        setSites((sitesRes as any).items ?? (sitesRes as Site[]));
+        setSites(sitesRes.items);
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : 'Impossible de charger les interventions';
@@ -91,7 +91,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
       ])
         .then(([intRes, sitesRes]) => {
           setInterventions((intRes as any).items ?? (Array.isArray(intRes) ? intRes : []));
-          setSites((sitesRes as any).items ?? (sitesRes as Site[]));
+          setSites(sitesRes.items);
         })
         .finally(() => setLoading(false));
     }, 20000);

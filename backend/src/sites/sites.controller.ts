@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards, Query } from '@nestjs/common';
+import { Request } from 'express';
 import { SitesService } from './sites.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -33,21 +34,21 @@ export class SitesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Post()
-  create(@Body() dto: CreateSiteDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreateSiteDto, @Req() req: Request) {
+    return this.service.create(dto, (req.user as any)?.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateSiteDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateSiteDto, @Req() req: Request) {
+    return this.service.update(id, dto, (req.user as any)?.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @Req() req: Request) {
+    return this.service.remove(id, (req.user as any)?.sub);
   }
 }

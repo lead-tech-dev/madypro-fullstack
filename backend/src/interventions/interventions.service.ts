@@ -24,6 +24,7 @@ import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ConfigService } from '@nestjs/config';
+import { AuditService } from '../audit/audit.service';
 
 export type InterventionFilters = {
   startDate?: string;
@@ -77,6 +78,7 @@ export class InterventionsService implements OnModuleInit {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly configService: ConfigService,
+    private readonly auditService: AuditService,
   ) {}
 
   async onModuleInit() {
@@ -210,6 +212,66 @@ export class InterventionsService implements OnModuleInit {
 
   private combine(dateStr: string, time: string) {
     return new Date(`${dateStr}T${time}:00`);
+  }
+
+  /**
+   * Vérifie qu'aucun des agents n'est déjà planifié sur une intervention qui
+   * chevauche ce créneau, ni en absence validée à cette date.
+   */
+  private async checkAssignmentConflicts(
+    agentIds: string[],
+    dateStr: string,
+    startTime: string,
+    endTime: string,
+    excludeInterventionId?: string,
+  ) {
+    if (!agentIds.length) return;
+
+    const dayStart = this.toDateOnly(dateStr);
+    const dayEnd = this.endOfDay(dateStr);
+    const newStart = this.combine(dateStr, startTime);
+    const newEnd = this.combine(dateStr, endTime);
+
+    const sameDayInterventions = await this.prisma.intervention.findMany({
+      where: {
+        date: dayStart,
+        ...(excludeInterventionId ? { id: { not: excludeInterventionId } } : {}),
+        status: { notIn: ['CANCELLED'] },
+        assignments: { some: { userId: { in: agentIds } } },
+      },
+      include: { assignments: true, site: true },
+    });
+
+    for (const other of sameDayInterventions) {
+      const otherStart = this.combine(dateStr, other.startTime);
+      const otherEnd = this.combine(dateStr, other.endTime);
+      const overlaps = newStart < otherEnd && otherStart < newEnd;
+      if (!overlaps) continue;
+      const conflictingIds = new Set(other.assignments.map((a) => a.userId));
+      const conflictingAgentIds = agentIds.filter((id) => conflictingIds.has(id));
+      if (!conflictingAgentIds.length) continue;
+      const agents = await this.prisma.user.findMany({ where: { id: { in: conflictingAgentIds } } });
+      const names = agents.map((a) => `${a.firstName} ${a.lastName}`.trim()).join(', ');
+      throw new BadRequestException(
+        `Conflit d'affectation : ${names || 'un agent'} déjà planifié sur "${other.site?.name ?? other.siteId}" de ${other.startTime} à ${other.endTime} le ${dateStr}.`,
+      );
+    }
+
+    const absences = await this.prisma.absence.findMany({
+      where: {
+        userId: { in: agentIds },
+        status: 'APPROVED',
+        from: { lte: dayEnd },
+        to: { gte: dayStart },
+      },
+      include: { user: true },
+    });
+    if (absences.length) {
+      const names = Array.from(new Set(absences.map((a) => `${a.user.firstName} ${a.user.lastName}`.trim()))).join(
+        ', ',
+      );
+      throw new BadRequestException(`Conflit d'affectation : ${names} en absence validée le ${dateStr}.`);
+    }
   }
 
   /**
@@ -574,13 +636,16 @@ export class InterventionsService implements OnModuleInit {
     return this.present(this.toEntity(record), (record as any).attendances);
   }
 
-  async create(dto: CreateInterventionDto) {
+  async create(dto: CreateInterventionDto, actorId = 'system') {
     const normalizedType = this.normalizeTypeInput(dto.type);
     if (!normalizedType) {
       throw new BadRequestException("Type d'intervention invalide");
     }
     if (normalizedType === 'PUNCTUAL' && !dto.subType) {
       throw new BadRequestException('Le sous-type est obligatoire pour une intervention ponctuelle.');
+    }
+    if (dto.agentIds?.length) {
+      await this.checkAssignmentConflicts(dto.agentIds, dto.date, dto.startTime, dto.endTime);
     }
     const record = await this.prisma.intervention.create({
       data: {
@@ -627,6 +692,13 @@ export class InterventionsService implements OnModuleInit {
     }
 
     const view = this.present(this.toEntity(record as any), (record as any).attendances);
+    this.auditService.record({
+      actorId,
+      action: 'CREATE_INTERVENTION',
+      entityType: 'intervention',
+      entityId: view.id,
+      details: `${view.siteName} le ${view.date} ${view.startTime}-${view.endTime}`,
+    });
     this.realtime.broadcast('intervention.created', {
       id: view.id,
       siteId: view.siteId,
@@ -642,7 +714,7 @@ export class InterventionsService implements OnModuleInit {
     return view;
   }
 
-  async update(id: string, dto: UpdateInterventionDto) {
+  async update(id: string, dto: UpdateInterventionDto, actorId = 'system') {
     await this.findRecord(id);
     const data: Prisma.InterventionUpdateInput = {};
     // Pré-calcul pour synchroniser attendances après mise à jour
@@ -652,6 +724,16 @@ export class InterventionsService implements OnModuleInit {
     });
     if (!original) {
       throw new NotFoundException('Intervention introuvable');
+    }
+
+    if (dto.agentIds || dto.date || dto.startTime || dto.endTime) {
+      const resolvedAgentIds = dto.agentIds ?? original.assignments.map((a) => a.userId);
+      const resolvedDate = dto.date ?? original.date.toISOString().slice(0, 10);
+      const resolvedStart = dto.startTime ?? original.startTime;
+      const resolvedEnd = dto.endTime ?? original.endTime;
+      if (resolvedAgentIds.length) {
+        await this.checkAssignmentConflicts(resolvedAgentIds, resolvedDate, resolvedStart, resolvedEnd, id);
+      }
     }
 
     if (dto.siteId) data.site = { connect: { id: dto.siteId } };
@@ -742,6 +824,13 @@ export class InterventionsService implements OnModuleInit {
     });
     if (!refreshed) throw new NotFoundException('Intervention introuvable après mise à jour');
     const view = this.present(this.toEntity(refreshed), (refreshed as any).attendances);
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_INTERVENTION',
+      entityType: 'intervention',
+      entityId: view.id,
+      details: Object.keys(data).join(', ') || undefined,
+    });
     this.realtime.broadcast('intervention.updated', {
       id: view.id,
       siteId: view.siteId,
@@ -818,6 +907,13 @@ export class InterventionsService implements OnModuleInit {
       include: { assignments: true, trucks: true, attendances: true },
     });
     const view = this.present(this.toEntity(updated), (updated as any).attendances);
+    this.auditService.record({
+      actorId: viewer.id,
+      action: 'UPDATE_INTERVENTION_STATUS',
+      entityType: 'intervention',
+      entityId: view.id,
+      details: status,
+    });
     this.realtime.broadcast('intervention.status', {
       id: view.id,
       siteId: view.siteId,
@@ -827,8 +923,12 @@ export class InterventionsService implements OnModuleInit {
     return view;
   }
 
-  async duplicate(id: string, dto: DuplicateInterventionDto) {
+  async duplicate(id: string, dto: DuplicateInterventionDto, actorId = 'system') {
     const record = await this.findRecord(id);
+    const agentIds = record.assignments.map((a) => a.userId);
+    if (agentIds.length) {
+      await this.checkAssignmentConflicts(agentIds, dto.date, record.startTime, record.endTime);
+    }
     const copy = await this.prisma.intervention.create({
       data: {
         siteId: record.siteId,
@@ -853,13 +953,20 @@ export class InterventionsService implements OnModuleInit {
       include: { assignments: true, trucks: true, attendances: true },
     });
     const view = this.present(this.toEntity(copy), (copy as any).attendances);
+    this.auditService.record({
+      actorId,
+      action: 'DUPLICATE_INTERVENTION',
+      entityType: 'intervention',
+      entityId: view.id,
+      details: `Depuis ${id}, vers le ${dto.date}`,
+    });
     this.notifyAssignedAgents(view, 'created').catch((err) =>
       this.logger.warn(`Notification agents échouée: ${err.message}`),
     );
     return view;
   }
 
-  async cancel(id: string, observation: string) {
+  async cancel(id: string, observation: string, actorId = 'system') {
     if (!observation) {
       throw new BadRequestException("L'observation est requise pour annuler une intervention");
     }
@@ -872,6 +979,13 @@ export class InterventionsService implements OnModuleInit {
       include: { assignments: true, trucks: true, attendances: true },
     });
     const view = this.present(this.toEntity(record), (record as any).attendances);
+    this.auditService.record({
+      actorId,
+      action: 'CANCEL_INTERVENTION',
+      entityType: 'intervention',
+      entityId: view.id,
+      details: observation,
+    });
     this.realtime.broadcast('intervention.status', {
       id: view.id,
       siteId: view.siteId,

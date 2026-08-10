@@ -5,9 +5,10 @@ import { SitesModule } from '../sites/sites.module';
 import { UsersModule } from '../users/users.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [SitesModule, UsersModule, RealtimeModule, NotificationsModule],
+  imports: [SitesModule, UsersModule, RealtimeModule, NotificationsModule, AuditModule],
   controllers: [InterventionsController],
   providers: [InterventionsService],
 })
