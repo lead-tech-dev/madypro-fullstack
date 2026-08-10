@@ -20,6 +20,7 @@ export type AgentStackParamList = {
   AgentChangePassword: undefined;
   AgentSyncQueue: undefined;
   AgentAvailability: undefined;
+  AgentChat: undefined;
 };
 
 export type RootStackParamList = {

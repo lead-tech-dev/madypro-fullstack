@@ -75,6 +75,11 @@ export default function AgentProfileScreen() {
           onPress={() => navigation.navigate('AgentAvailability')}
         />
         <Button
+          title="Messages avec mon superviseur"
+          variant="ghost"
+          onPress={() => navigation.navigate('AgentChat')}
+        />
+        <Button
           title="Modifier le mot de passe"
           variant="ghost"
           onPress={() => navigation.navigate('AgentChangePassword')}
