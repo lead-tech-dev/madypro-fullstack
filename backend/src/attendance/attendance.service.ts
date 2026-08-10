@@ -14,6 +14,7 @@ import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { HeartbeatDto } from './dto/heartbeat.dto';
+import { SettingsService } from '../settings/settings.service';
 
 type AttendanceFilters = {
   startDate?: string;
@@ -44,6 +45,8 @@ type AttendanceView = {
     checkIn?: { latitude: number; longitude: number; distanceMeters?: number };
     checkOut?: { latitude: number; longitude: number; distanceMeters?: number };
   };
+  checkInPhoto?: string;
+  checkOutPhoto?: string;
 };
 
 type AttendanceRecord = Prisma.AttendanceGetPayload<{}>;
@@ -59,6 +62,7 @@ export class AttendanceService implements OnModuleInit {
   private TIME_DRIFT_MS = 60 * 60 * 1000; // 60 minutes tolérance hors créneau
   private START_REMINDER_MS = 5 * 60 * 1000;
   private readonly startReminderSent = new Set<string>(); // attendanceId
+  private readonly lateNotified = new Set<string>(); // interventionId:userId
 
   constructor(
     private readonly prisma: PrismaService,
@@ -67,6 +71,7 @@ export class AttendanceService implements OnModuleInit {
     private readonly auditService: AuditService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   onModuleInit() {
@@ -86,6 +91,11 @@ export class AttendanceService implements OnModuleInit {
     setInterval(() => {
       this.remindPendingStart().catch((err) => this.logger.warn('Relance start error', err));
     }, 2 * 60 * 1000);
+
+    // Alerte superviseur si un agent n'a pas démarré au-delà de la tolérance
+    setInterval(() => {
+      this.notifyLateAgents().catch((err) => this.logger.warn('Alerte retard error', err));
+    }, 3 * 60 * 1000);
   }
 
   private toDateOnly(value: string) {
@@ -147,6 +157,73 @@ export class AttendanceService implements OnModuleInit {
     }
   }
 
+  /**
+   * Alerte les superviseurs d'un site quand un agent assigné n'a pas démarré
+   * son intervention au-delà de la tolérance horaire configurée.
+   */
+  private async notifyLateAgents() {
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const dayStart = this.toDateOnly(todayStr);
+    const dayEnd = this.endOfDay(todayStr);
+    const toleranceMinutes = this.settingsService.getSettings().attendanceRules.toleranceMinutes ?? 10;
+
+    const interventions = await this.prisma.intervention.findMany({
+      where: {
+        date: { gte: dayStart, lte: dayEnd },
+        status: { in: ['PLANNED', 'IN_PROGRESS'] },
+      },
+      include: {
+        assignments: true,
+        attendances: true,
+        site: { include: { supervisors: true } },
+      },
+    });
+
+    for (const intervention of interventions) {
+      if (!intervention.assignments.length) continue;
+      const plannedStart = this.combine(todayStr, intervention.startTime ?? '00:00');
+      const lateSince = new Date(plannedStart.getTime() + toleranceMinutes * 60 * 1000);
+      if (now < lateSince) continue;
+
+      const supervisorIds = intervention.site.supervisors.map((s) => s.userId);
+      if (!supervisorIds.length) continue;
+
+      for (const assignment of intervention.assignments) {
+        const key = `${intervention.id}:${assignment.userId}`;
+        if (this.lateNotified.has(key)) continue;
+        const attendance = intervention.attendances.find((a) => a.userId === assignment.userId);
+        if (attendance?.checkInTime) continue;
+        this.lateNotified.add(key);
+
+        const agentName = this.usersService.findOne(assignment.userId)?.name ?? 'Un agent';
+        for (const supervisorId of supervisorIds) {
+          try {
+            await this.notifications.send({
+              audience: 'AGENT',
+              targetId: supervisorId,
+              title: 'Retard sur intervention',
+              message: `${agentName} n'a pas démarré "${intervention.site.name}" (prévu ${intervention.startTime}).`,
+            } as any);
+          } catch (err: any) {
+            this.logger.warn(`Alerte retard échouée (${key} -> superviseur ${supervisorId}): ${err?.message || err}`);
+          }
+        }
+      }
+    }
+
+    if (this.lateNotified.size) {
+      const stillTracked = new Set(
+        interventions.flatMap((i) => i.assignments.map((a) => `${i.id}:${a.userId}`)),
+      );
+      for (const key of Array.from(this.lateNotified)) {
+        if (!stillTracked.has(key)) {
+          this.lateNotified.delete(key);
+        }
+      }
+    }
+  }
+
   private toEntity(record: AttendanceRecord): AttendanceEntity {
     const r: any = record as any;
     const base: AttendanceEntity = {
@@ -169,6 +246,8 @@ export class AttendanceService implements OnModuleInit {
         record.checkOutLatitude != null && record.checkOutLongitude != null
           ? { latitude: record.checkOutLatitude, longitude: record.checkOutLongitude }
           : undefined,
+      checkInPhoto: r.checkInPhoto ?? undefined,
+      checkOutPhoto: r.checkOutPhoto ?? undefined,
       status: record.status,
       interventionId: record.interventionId!,
       note: record.note ?? undefined,
@@ -245,6 +324,8 @@ export class AttendanceService implements OnModuleInit {
             }
           : undefined,
       },
+      checkInPhoto: record.checkInPhoto,
+      checkOutPhoto: record.checkOutPhoto,
     };
   }
 
@@ -464,6 +545,7 @@ export class AttendanceService implements OnModuleInit {
           checkInTime: now,
           checkInLatitude: dto.latitude,
           checkInLongitude: dto.longitude,
+          checkInPhoto: dto.photo,
           status: 'PENDING',
         },
       });
@@ -475,6 +557,7 @@ export class AttendanceService implements OnModuleInit {
           checkInTime: now,
           checkInLatitude: dto.latitude,
           checkInLongitude: dto.longitude,
+          checkInPhoto: dto.photo,
           interventionId: intervention?.id ?? dto.interventionId,
           status: 'PENDING',
           manual: false,
@@ -536,6 +619,7 @@ export class AttendanceService implements OnModuleInit {
       where: { id: existing.id },
       data: {
         checkOutTime: new Date(),
+        checkOutPhoto: dto.photo,
         status: 'COMPLETED',
       },
     });

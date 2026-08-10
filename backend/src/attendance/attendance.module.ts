@@ -6,9 +6,10 @@ import { SitesModule } from '../sites/sites.module';
 import { AuditModule } from '../audit/audit.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
-  imports: [UsersModule, SitesModule, AuditModule, RealtimeModule, NotificationsModule],
+  imports: [UsersModule, SitesModule, AuditModule, RealtimeModule, NotificationsModule, SettingsModule],
   controllers: [AttendanceController],
   providers: [AttendanceService],
 })

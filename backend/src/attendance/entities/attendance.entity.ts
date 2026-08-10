@@ -12,6 +12,8 @@ export class AttendanceEntity {
   checkOut?: Date;
   checkInLocation?: { latitude: number; longitude: number };
   checkOutLocation?: { latitude: number; longitude: number };
+  checkInPhoto?: string;
+  checkOutPhoto?: string;
   status: AttendanceStatus = 'PENDING';
   note?: string;
   manual!: boolean;

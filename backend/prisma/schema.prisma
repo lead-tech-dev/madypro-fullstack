@@ -192,8 +192,10 @@ model Attendance {
   checkOutTime      DateTime?
   checkInLatitude   Float?
   checkInLongitude  Float?
+  checkInPhoto      String?
   checkOutLatitude  Float?
   checkOutLongitude Float?
+  checkOutPhoto     String?
   plannedStart      DateTime?
   plannedEnd        DateTime?
   status            AttendanceStatus @default(PENDING)

@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CheckInDto {
   @IsString()
@@ -19,4 +19,8 @@ export class CheckInDto {
   @IsString()
   @IsOptional()
   attendanceId?: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Une photo est requise pour démarrer le pointage.' })
+  photo!: string;
 }
