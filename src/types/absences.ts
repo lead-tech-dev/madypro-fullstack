@@ -14,6 +14,7 @@ export type Absence = {
   to: string;
   reason: string;
   note?: string;
+  attachment?: string;
   validatedBy?: string;
   validationComment?: string;
 };

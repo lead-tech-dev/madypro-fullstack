@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
+import { Alert, Image, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { theme } from '../../config/theme';
 import { Absence, AbsenceType } from '../../types/absences';
 import { submitAbsenceRequest } from '../../services/api/absences.api';
+import { capturePhotoBase64 } from '../../utils/photo';
 
 type Props = {
   token: string;
@@ -24,7 +25,13 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
   const [to, setTo] = useState('');
   const [reason, setReason] = useState('');
   const [type, setType] = useState<AbsenceType>('SICK');
+  const [attachment, setAttachment] = useState<string | null>(null);
   const [isSubmitting, setSubmitting] = useState(false);
+
+  const handleAttach = async () => {
+    const photo = await capturePhotoBase64();
+    if (photo) setAttachment(photo);
+  };
 
   const handleSubmit = async () => {
     const fromTrim = from.trim();
@@ -46,11 +53,13 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
         to: toTrim,
         reason: reason.trim(),
         type,
+        attachment: attachment ?? undefined,
       });
       setFrom('');
       setTo('');
       setReason('');
       setType('SICK');
+      setAttachment(null);
       onSubmitted?.(absence);
       Alert.alert('Demande envoyée', 'Votre absence est en attente de validation.');
     } catch (error) {
@@ -99,6 +108,20 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
         multiline
         numberOfLines={4}
       />
+      <View style={styles.attachmentRow}>
+        {attachment ? (
+          <>
+            <Image source={{ uri: attachment }} style={styles.attachmentThumb} />
+            <TouchableOpacity onPress={() => setAttachment(null)}>
+              <Text style={styles.attachmentRemove}>Retirer le justificatif</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity onPress={handleAttach}>
+            <Text style={styles.attachmentAdd}>+ Joindre un justificatif (facultatif)</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       <Button title={isSubmitting ? 'Envoi…' : 'Envoyer la demande'} onPress={handleSubmit} disabled={isSubmitting} />
     </View>
   );
@@ -155,5 +178,23 @@ const styles = StyleSheet.create({
   },
   optionLabelActive: {
     color: theme.colors.primary,
+  },
+  attachmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  attachmentThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.radii.md,
+  },
+  attachmentAdd: {
+    color: theme.colors.primary,
+    fontFamily: theme.fonts.bodySemiBold,
+  },
+  attachmentRemove: {
+    color: theme.colors.danger,
+    fontFamily: theme.fonts.bodySemiBold,
   },
 });

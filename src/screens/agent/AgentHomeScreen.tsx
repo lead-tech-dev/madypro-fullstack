@@ -89,7 +89,7 @@ export default function AgentHomeScreen() {
 
   const navigation = useNavigation<Navigation>();
   const { token, user } = useAuthContext();
-  const { flush } = useSyncContext();
+  const { flush, pendingEvents, isOnline } = useSyncContext();
 
   const loadInterventions = useCallback(async () => {
     if (!token || !user) {
@@ -167,6 +167,18 @@ export default function AgentHomeScreen() {
         }
         contentContainerStyle={{ gap: theme.spacing.lg }}
       >
+        {pendingEvents.length > 0 && (
+          <TouchableOpacity
+            style={styles.syncBadge}
+            onPress={() => navigation.navigate('AgentSyncQueue')}
+          >
+            <Text style={styles.syncBadgeText}>
+              {isOnline
+                ? `Synchronisation en cours… (${pendingEvents.length})`
+                : `${pendingEvents.length} action(s) en attente de réseau`}
+            </Text>
+          </TouchableOpacity>
+        )}
         {isLoading ? (
           <ActivityIndicator color={theme.colors.primary} />
         ) : priority.kind === 'in-progress' ? (
@@ -246,6 +258,18 @@ export default function AgentHomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  syncBadge: {
+    backgroundColor: theme.colors.status.lateSoft,
+    borderRadius: theme.radii.pill,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    alignSelf: 'flex-start',
+  },
+  syncBadgeText: {
+    color: theme.colors.status.late,
+    fontSize: 12,
+    fontFamily: theme.fonts.bodySemiBold,
+  },
   heroCard: {
     backgroundColor: theme.colors.ink,
     gap: theme.spacing.xs,

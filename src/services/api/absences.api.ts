@@ -43,6 +43,7 @@ type CreateAbsenceRequestPayload = {
   to: string;
   reason: string;
   note?: string;
+  attachment?: string;
 };
 
 export async function submitAbsenceRequest(token: string, payload: CreateAbsenceRequestPayload) {

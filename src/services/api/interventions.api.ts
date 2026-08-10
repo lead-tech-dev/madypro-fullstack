@@ -125,6 +125,36 @@ export async function patchIntervention(token: string, id: string, payload: Part
   });
 }
 
+export type InterventionChecklistItem = {
+  id: string;
+  interventionId: string;
+  label: string;
+  order: number;
+  done: boolean;
+  completedAt?: string | null;
+  completedBy?: string | null;
+};
+
+export async function listInterventionChecklist(token: string, interventionId: string) {
+  return apiFetch<InterventionChecklistItem[]>({ path: `/interventions/${interventionId}/checklist`, token });
+}
+
+export async function toggleInterventionChecklistItem(
+  token: string,
+  interventionId: string,
+  itemId: string,
+  done: boolean,
+) {
+  return apiFetch<InterventionChecklistItem>({
+    path: `/interventions/${interventionId}/checklist/${itemId}`,
+    token,
+    options: {
+      method: 'PATCH',
+      body: JSON.stringify({ done }),
+    },
+  });
+}
+
 function mapIntervention(intervention: ApiIntervention): Intervention {
   const toNumber = (value: unknown) => {
     const n = Number(value);

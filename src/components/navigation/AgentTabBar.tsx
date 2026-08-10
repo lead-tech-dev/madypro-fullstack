@@ -4,6 +4,7 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNotificationCenter } from '@/context/NotificationContext';
+import { theme } from '@/config/theme';
 
 Ionicons.loadFont?.();
 
@@ -64,7 +65,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({ state, navigation, ico
                 <Ionicons
                   name={meta.icon}
                   size={isFocused ? 26 : 22}
-                  color={isFocused ? '#020912' : '#6b645c'}
+                  color={isFocused ? '#ffffff' : theme.colors.sage}
                 />
                 {showBadge && <View style={styles.badge} />}
               </View>
@@ -89,13 +90,13 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.ink,
     borderRadius: 28,
     paddingHorizontal: 18,
     paddingVertical: 10,
-    shadowColor: '#020912',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 16,
     elevation: 8,
     marginHorizontal: 0,
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   iconWrapperActive: {
-    backgroundColor: '#dbe9e0',
+    backgroundColor: theme.colors.primary,
   },
   badge: {
     position: 'absolute',

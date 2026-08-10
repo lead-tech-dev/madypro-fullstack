@@ -33,6 +33,7 @@ import { AgentStackParamList } from '@/navigation/types';
 import { RunningTimer } from '@/components/intervention/RunningTimer';
 import { AssignedAgentsList } from '@/components/intervention/AssignedAgentsList';
 import { ProblemModal } from '@/components/intervention/ProblemModal';
+import { InterventionChecklist } from '@/components/intervention/InterventionChecklist';
 import { getActualDate, buildDateTime, formatTime } from '@/utils/interventionTime';
 import { capturePhotoBase64 } from '@/utils/photo';
 import { StatusPill, StatusTone } from '@/components/ui/StatusPill';
@@ -732,9 +733,7 @@ export default function InterventionDetailScreen() {
 
         {isRunning && (
           <Section title="Checklist">
-            <Text style={styles.textMuted}>
-              Checklist à venir. Veillez à suivre les consignes partagées par votre équipe.
-            </Text>
+            <InterventionChecklist interventionId={intervention.id} />
           </Section>
         )}
         </ScrollView>
