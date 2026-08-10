@@ -10,87 +10,85 @@ Les items « Basse priorité / Long terme » des deux plans sont laissés en bac
 
 ---
 
-## Sprint 0 — Cadrage (3 à 5 jours, avant tout le reste)
+## Sprint 0 — Cadrage ✅ terminé
 
-Bloquant : les changements de schéma en cours cassent déjà `/reports/summary` en production de fait (corrigé une fois), et laissent des résidus ailleurs.
-
-- [ ] **Trancher le retrait du modèle `Client`** — suppression définitive ou remplacement ? Décision à documenter.
-- [ ] Nettoyer les résidus : module `clients` backend orphelin, filtre `clientId` mort dans `interventions.controller.ts`, page `ClientsPage` côté web.
-- [ ] Corriger `/reports/performance` — actuellement des données codées en dur (`reports.service.ts`), pas de vraie requête Prisma.
+- [x] **Trancher le retrait du modèle `Client`** — suppression définitive actée, migration appliquée.
+- [x] Nettoyer les résidus : module `clients` backend, filtre `clientId` mort, page `ClientsPage` web.
+- [x] Corriger `/reports/performance` — vraies requêtes Prisma.
 
 ---
 
-## Sprint 1 (S1-S2)
+## Sprint 1 (S1-S2) ✅ terminé
 
 **Back-office**
-- [ ] Détection de conflits d'affectation (un agent sur deux interventions qui se chevauchent, ou en absence validée)
-- [ ] Élargir la couverture du journal d'audit (créations/suppressions/changements de statut sur users, interventions, absences, pointages)
+- [x] Détection de conflits d'affectation
+- [x] Élargir la couverture du journal d'audit (+ persistance en base, ne vivait qu'en mémoire)
 
 **Mobile**
-- [ ] Design tokens (couleurs, typographie) — palette teal proposée + embarquer Fjalla One / Cabin via `@expo-google-fonts`
-- [ ] Refactor `AgentInterventionScreen.tsx` (1320 lignes) en sous-composants : minuteur, formulaire d'anomalie, liste d'agents
+- [x] Design tokens (palette teal + Fjalla One / Cabin)
+- [x] Refactor `AgentInterventionScreen.tsx` en sous-composants
 
 ---
 
-## Sprint 2 (S3-S4)
+## Sprint 2 (S3-S4) ✅ terminé
 
 **Back-office**
-- [ ] Photo obligatoire au check-in / check-out
-- [ ] Alerte superviseur en temps réel (exposer les vérifications de retard déjà calculées côté backend comme notification push)
+- [x] Photo obligatoire au check-in / check-out
+- [x] Alerte superviseur en temps réel
 
 **Mobile**
-- [ ] Composants de base sur les nouveaux tokens : bouton, carte, pastille de statut
-- [ ] Appliquer le nouveau design à l'écran Accueil — une seule action mise en avant selon le moment (arrivée à venir / mission en cours / rien de prévu)
+- [x] Composants de base (Card, StatusPill) sur les nouveaux tokens
+- [x] Nouveau design sur l'écran Accueil (action prioritaire mise en avant)
 
 ---
 
-## Sprint 3 (S5-S6)
+## Sprint 3 (S5-S6) ✅ terminé
 
 **Back-office**
-- [ ] Fiche site enrichie (photos, instructions d'accès, codes, contact sur place)
-- [ ] Cahier des charges / checklist par site (modèle de prestation réutilisable)
+- [x] Fiche site enrichie (instructions d'accès, code, contact, photos)
+- [x] Cahier des charges / checklist par site
 
 **Mobile**
-- [ ] Appliquer le nouveau design à l'écran Intervention / Pointage
-- [ ] Photo de fin de mission intégrée au flux normal (pas seulement via « signaler un problème »)
+- [x] Nouveau design sur l'écran Intervention / Pointage
+- [x] Photo de fin de mission intégrée au flux normal (check-in + check-out)
 
 ---
 
-## Sprint 4 (S7-S8)
+## Sprint 4 (S7-S8) ✅ terminé
 
 **Back-office**
-- [ ] Checklist qualité par intervention (s'appuie sur le cahier des charges du sprint 3)
-- [ ] Suggestion de remplaçant sur absence validée
-- [ ] Pièces justificatives sur les demandes d'absence
+- [x] Checklist qualité par intervention (copiée depuis le cahier des charges du site)
+- [x] Suggestion de remplaçant sur absence validée
+- [x] Pièces justificatives sur les demandes d'absence
 
 **Mobile**
-- [ ] Tab bar redessinée (chrome sombre, cf. maquette)
-- [ ] Indicateur de synchronisation discret sur l'accueil (remplace la recherche active de `AgentSyncQueueScreen`)
+- [x] Tab bar redessinée (chrome sombre)
+- [x] Indicateur de synchronisation discret sur l'accueil
 
 ---
 
-## Sprint 5 (S9-S10)
+## Sprint 5 (S9-S10) ✅ terminé
 
 **Back-office**
-- [ ] Export paie (heures normales/majorées par agent)
-- [ ] Accusé de lecture sur les notifications
+- [x] Export paie CSV (heures normales/majorées, seuil 35h/semaine)
+- [x] Accusé de lecture sur les notifications
 
 **Mobile**
-- [ ] Calendrier visuel pour les demandes d'absence
-- [ ] Aperçu riche dans les notifications push (site, horaire visibles sans ouvrir l'app)
+- [x] Calendrier visuel (DateTimePicker natif) pour les demandes d'absence
+- [x] Aperçu riche dans les notifications push (site + horaire corrigés)
 
 ---
 
-## Sprint 6 (S11-S12)
+## Sprint 6 (S11-S12) ✅ terminé
 
 **Back-office**
-- [ ] Export PDF/Excel des rapports + envoi programmé (hebdo/mensuel par e-mail — SendGrid déjà intégré)
-- [ ] KPIs avancés (ponctualité, absentéisme, heures réalisées vs planifiées)
-- [ ] Surcharge des règles de pointage par site
+- [x] Export + envoi programmé par e-mail (hebdo lundi / mensuel le 1er, CSV joint) — SendGrid du compte actuel en quota épuisé, à surveiller
+- [x] KPIs avancés (ponctualité, absentéisme, réalisation)
+- [x] Surcharge des règles de pointage par site
 
 **Mobile**
-- [ ] Vue planning glisser-déposer côté back-office *(dépendance croisée — voir back-office Sprint 3/4 si priorité change)*
-- [ ] Stabilisation, tests sur device réel, correctifs
+- [x] Vue planning — implémentée côté web (page superviseur réutilisée, ouverte aux admins) plutôt qu'un glisser-déposer dédié
+- [ ] Stabilisation sur device réel — non réalisable dans cet environnement (pas de simulateur/device), à faire manuellement
 
 ---
 
