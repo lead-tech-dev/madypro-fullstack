@@ -5,7 +5,7 @@ import * as Notifications from 'expo-notifications';
 import { registerForPushNotificationsAsync } from '../services/notifications';
 import { NotificationItem } from '../types/notification';
 import { useAuthContext } from '../context/AuthContext';
-import { listNotifications, registerNotificationToken } from '../services/api/notifications.api';
+import { listNotifications, markNotificationRead, registerNotificationToken } from '../services/api/notifications.api';
 import { navigationRef } from '../navigation/navigationRef';
 import { AgentTabParamList } from '../navigation/types';
 
@@ -26,6 +26,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [devicePushToken, setDevicePushToken] = useState<string | null>(null);
+  const tokenRef = React.useRef(token);
+  tokenRef.current = token;
 
   const addNotification = useCallback((notification: NotificationItem) => {
     setItems((prev) => [notification, ...prev]);
@@ -71,7 +73,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const readMap = new Map(prev.map((item) => [item.id, item.read]));
         return history.map((notification) => ({
           ...notification,
-          read: readMap.get(notification.id) ?? cachedRead.get(notification.id) ?? false,
+          read: notification.read || readMap.get(notification.id) || cachedRead.get(notification.id) || false,
         }));
       });
     } catch (error) {
@@ -126,10 +128,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (value?.deviceToken) setDevicePushToken(value.deviceToken);
     });
 
+    const resolveServerId = (request: Notifications.NotificationRequest) => {
+      const data = request.content.data as Record<string, unknown> | undefined;
+      const serverId = data?.notificationId;
+      return typeof serverId === 'string' ? serverId : request.identifier;
+    };
+
     const receiveSub = Notifications.addNotificationReceivedListener((notification) => {
       const content = notification.request.content;
       addNotification({
-        id: notification.request.identifier,
+        id: resolveServerId(notification.request),
         title: content.title ?? 'Notification',
         message: content.body ?? '',
         receivedAt: new Date().toISOString(),
@@ -144,11 +152,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const content = response.notification.request.content;
       navigateFromPayload(content.data);
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === response.notification.request.identifier ? { ...item, read: true } : item,
-        ),
-      );
+      const serverId = resolveServerId(response.notification.request);
+      setItems((prev) => prev.map((item) => (item.id === serverId ? { ...item, read: true } : item)));
+      if (tokenRef.current && !serverId.startsWith('local-')) {
+        markNotificationRead(tokenRef.current, serverId).catch(() => {});
+      }
     });
 
     return () => {
@@ -157,13 +165,26 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
   }, [addNotification, navigateFromPayload]);
 
-  const markAsRead = useCallback((id: string) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
-  }, []);
+  const markAsRead = useCallback(
+    (id: string) => {
+      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
+      if (token && !id.startsWith('local-')) {
+        markNotificationRead(token, id).catch(() => {});
+      }
+    },
+    [token],
+  );
 
   const markAllAsRead = useCallback(() => {
-    setItems((prev) => prev.map((item) => ({ ...item, read: true })));
-  }, []);
+    setItems((prev) => {
+      if (token) {
+        prev
+          .filter((item) => !item.read && !item.id.startsWith('local-'))
+          .forEach((item) => markNotificationRead(token, item.id).catch(() => {}));
+      }
+      return prev.map((item) => ({ ...item, read: true }));
+    });
+  }, [token]);
 
   const pushMockNotification = useCallback(
     (notification: Partial<NotificationItem>) => {

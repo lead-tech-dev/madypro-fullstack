@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { Alert, Image, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
-import { Input } from '../ui/Input';
+import { Alert, Image, Platform, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Button } from '../ui/Button';
 import { theme } from '../../config/theme';
 import { Absence, AbsenceType } from '../../types/absences';
 import { submitAbsenceRequest } from '../../services/api/absences.api';
 import { capturePhotoBase64 } from '../../utils/photo';
+
+const toDateString = (date: Date) => date.toISOString().slice(0, 10);
+const formatDateLabel = (date: Date) =>
+  date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
 type Props = {
   token: string;
@@ -21,8 +25,9 @@ const ABSENCE_OPTIONS: Array<{ value: AbsenceType; label: string }> = [
 ];
 
 export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted }) => {
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState<Date | null>(null);
+  const [to, setTo] = useState<Date | null>(null);
+  const [pickerOpen, setPickerOpen] = useState<'from' | 'to' | null>(null);
   const [reason, setReason] = useState('');
   const [type, setType] = useState<AbsenceType>('SICK');
   const [attachment, setAttachment] = useState<string | null>(null);
@@ -34,29 +39,26 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
   };
 
   const handleSubmit = async () => {
-    const fromTrim = from.trim();
-    const toTrim = to.trim();
-    const regex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!fromTrim || !toTrim || !reason.trim()) {
-      Alert.alert('Champs requis', 'Veuillez remplir les dates et le motif.');
+    if (!from || !to || !reason.trim()) {
+      Alert.alert('Champs requis', 'Veuillez choisir les dates et indiquer le motif.');
       return;
     }
-    if (!regex.test(fromTrim) || !regex.test(toTrim)) {
-      Alert.alert('Format de date', "Utilisez le format AAAA-MM-JJ, par ex. 2025-12-04");
+    if (from > to) {
+      Alert.alert('Dates invalides', 'La date de début doit précéder la date de fin.');
       return;
     }
     setSubmitting(true);
     try {
       const absence = await submitAbsenceRequest(token, {
         userId,
-        from: fromTrim,
-        to: toTrim,
+        from: toDateString(from),
+        to: toDateString(to),
         reason: reason.trim(),
         type,
         attachment: attachment ?? undefined,
       });
-      setFrom('');
-      setTo('');
+      setFrom(null);
+      setTo(null);
       setReason('');
       setType('SICK');
       setAttachment(null);
@@ -86,20 +88,38 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
           );
         })}
       </View>
-      <Input
-        label="Du"
-        value={from}
-        onChangeText={setFrom}
-        placeholder="2024-03-20"
-        keyboardType="numbers-and-punctuation"
-      />
-      <Input
-        label="Au"
-        value={to}
-        onChangeText={setTo}
-        placeholder="2024-03-22"
-        keyboardType="numbers-and-punctuation"
-      />
+      <TouchableOpacity style={styles.dateField} onPress={() => setPickerOpen('from')}>
+        <Text style={styles.dateLabel}>Du</Text>
+        <Text style={styles.dateValue}>{from ? formatDateLabel(from) : 'Choisir une date'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.dateField} onPress={() => setPickerOpen('to')}>
+        <Text style={styles.dateLabel}>Au</Text>
+        <Text style={styles.dateValue}>{to ? formatDateLabel(to) : 'Choisir une date'}</Text>
+      </TouchableOpacity>
+      {pickerOpen && (
+        <DateTimePicker
+          value={(pickerOpen === 'from' ? from : to) ?? new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+          minimumDate={pickerOpen === 'to' ? from ?? undefined : undefined}
+          onChange={(_event, selectedDate) => {
+            if (Platform.OS !== 'ios') setPickerOpen(null);
+            if (!selectedDate) return;
+            if (pickerOpen === 'from') {
+              setFrom(selectedDate);
+              if (to && selectedDate > to) setTo(selectedDate);
+            } else {
+              setTo(selectedDate);
+            }
+          }}
+        />
+      )}
+      {pickerOpen === 'from' && Platform.OS === 'ios' && (
+        <Button title="Valider la date" variant="ghost" onPress={() => setPickerOpen(null)} />
+      )}
+      {pickerOpen === 'to' && Platform.OS === 'ios' && (
+        <Button title="Valider la date" variant="ghost" onPress={() => setPickerOpen(null)} />
+      )}
       <TextInput
         style={styles.textarea}
         placeholder="Motif ou commentaire"
@@ -145,7 +165,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.clay,
     borderRadius: theme.radii.md,
     padding: theme.spacing.md,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.shell,
   },
   dateLabel: {
     color: theme.colors.muted,
@@ -156,7 +176,7 @@ const styles = StyleSheet.create({
   dateValue: {
     marginTop: 4,
     color: theme.colors.ink,
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
   },
   optionRow: {
     flexDirection: 'row',

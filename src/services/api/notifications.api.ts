@@ -8,7 +8,7 @@ export async function listNotifications(token: string) {
     title: notification.title,
     message: notification.message,
     receivedAt: notification.createdAt,
-    read: false,
+    read: notification.read ?? false,
     audience: notification.audience,
     targetName: notification.targetName,
   } satisfies NotificationItem));
@@ -25,6 +25,14 @@ export async function registerNotificationToken(token: string, expoToken?: strin
   });
 }
 
+export async function markNotificationRead(token: string, id: string) {
+  return apiFetch<{ success: boolean }>({
+    path: `/notifications/${id}/read`,
+    token,
+    options: { method: 'PATCH' },
+  });
+}
+
 type ServerNotification = {
   id: string;
   title: string;
@@ -33,4 +41,5 @@ type ServerNotification = {
   targetId?: string;
   targetName?: string;
   createdAt: string;
+  read?: boolean;
 };
