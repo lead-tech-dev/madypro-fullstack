@@ -19,6 +19,7 @@ export type AgentStackParamList = {
   AgentAbsenceForm: undefined;
   AgentChangePassword: undefined;
   AgentSyncQueue: undefined;
+  AgentAvailability: undefined;
 };
 
 export type RootStackParamList = {

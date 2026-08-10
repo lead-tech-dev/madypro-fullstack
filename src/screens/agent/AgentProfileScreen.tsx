@@ -70,6 +70,11 @@ export default function AgentProfileScreen() {
           onPress={() => navigation.navigate('AgentSyncQueue')}
         />
         <Button
+          title="Mes disponibilités"
+          variant="ghost"
+          onPress={() => navigation.navigate('AgentAvailability')}
+        />
+        <Button
           title="Modifier le mot de passe"
           variant="ghost"
           onPress={() => navigation.navigate('AgentChangePassword')}
