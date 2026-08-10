@@ -37,15 +37,16 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontSize: 12,
     color: theme.colors.primary,
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
   },
   title: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#020912',
+    fontSize: 28,
+    fontFamily: theme.fonts.display,
+    color: theme.colors.ink,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6b645c',
+    fontFamily: theme.fonts.body,
+    color: theme.colors.muted,
   },
 });

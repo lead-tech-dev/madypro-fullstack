@@ -18,6 +18,7 @@ export type AgentStackParamList = {
   AgentIntervention: { id: string };
   AgentAbsenceForm: undefined;
   AgentChangePassword: undefined;
+  AgentSyncQueue: undefined;
 };
 
 export type RootStackParamList = {

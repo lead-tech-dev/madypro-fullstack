@@ -27,16 +27,23 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
   const [isSubmitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!from || !to || !reason.trim()) {
+    const fromTrim = from.trim();
+    const toTrim = to.trim();
+    const regex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!fromTrim || !toTrim || !reason.trim()) {
       Alert.alert('Champs requis', 'Veuillez remplir les dates et le motif.');
+      return;
+    }
+    if (!regex.test(fromTrim) || !regex.test(toTrim)) {
+      Alert.alert('Format de date', "Utilisez le format AAAA-MM-JJ, par ex. 2025-12-04");
       return;
     }
     setSubmitting(true);
     try {
       const absence = await submitAbsenceRequest(token, {
         userId,
-        from,
-        to,
+        from: fromTrim,
+        to: toTrim,
         reason: reason.trim(),
         type,
       });
@@ -47,7 +54,8 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
       onSubmitted?.(absence);
       Alert.alert('Demande envoyée', 'Votre absence est en attente de validation.');
     } catch (error) {
-      Alert.alert('Erreur', "Impossible d'envoyer la demande pour l'instant.");
+      const message = error instanceof Error ? error.message : "Impossible d'envoyer la demande pour l'instant.";
+      Alert.alert('Erreur', message);
     } finally {
       setSubmitting(false);
     }
@@ -108,6 +116,24 @@ const styles = StyleSheet.create({
     minHeight: 100,
     textAlignVertical: 'top',
     backgroundColor: theme.colors.shell,
+  },
+  dateField: {
+    borderWidth: 1,
+    borderColor: theme.colors.clay,
+    borderRadius: theme.radii.md,
+    padding: theme.spacing.md,
+    backgroundColor: '#fff',
+  },
+  dateLabel: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  dateValue: {
+    marginTop: 4,
+    color: theme.colors.ink,
+    fontWeight: '600',
   },
   optionRow: {
     flexDirection: 'row',

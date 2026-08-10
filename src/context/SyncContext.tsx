@@ -1,21 +1,28 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { useAuthContext } from './AuthContext';
+import { checkIn, checkOut, markArrival } from '../services/api/attendance.api';
 
 const STORAGE_KEY = 'syncQueue';
 
-type SyncEventType = 'START' | 'END';
+type SyncEventType = 'ARRIVAL' | 'START' | 'END';
+type SyncStatus = 'pending' | 'sending' | 'failed';
 
 type SyncEvent = {
   id: string;
+  userId: string;
   interventionId: string;
   siteId: string;
   type: SyncEventType;
   timestamp: string;
   coordinates?: { latitude: number; longitude: number } | null;
+  status: SyncStatus;
+  error?: string | null;
 };
 
 type QueueInput = {
+  userId: string;
   interventionId: string;
   siteId: string;
   type: SyncEventType;
@@ -41,12 +48,19 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [pendingEvents, setPendingEvents] = useState<SyncEvent[]>([]);
   const [isOnline, setIsOnline] = useState(true);
   const [lastError, setLastError] = useState<string | null>(null);
+  const { token, user } = useAuthContext();
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((value) => {
         if (value) {
-          setPendingEvents(JSON.parse(value));
+          const parsed = JSON.parse(value);
+          const normalized: SyncEvent[] = parsed.map((evt: any) => ({
+            status: 'pending',
+            error: null,
+            ...evt,
+          }));
+          setPendingEvents(normalized);
         }
       })
       .catch(() => {});
@@ -64,26 +78,60 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  const mockUpload = useCallback(async (event: SyncEvent) => {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    return event;
-  }, []);
+  const uploadEvent = useCallback(
+    async (event: SyncEvent) => {
+      if (!token || !user) {
+        throw new Error('Token manquant');
+      }
+      if (event.type === 'ARRIVAL') {
+        if (!event.coordinates) throw new Error('Coordonnées manquantes');
+        return markArrival(token, {
+          userId: event.userId,
+          siteId: event.siteId,
+          latitude: event.coordinates.latitude,
+          longitude: event.coordinates.longitude,
+          interventionId: event.interventionId,
+        });
+      }
+      if (event.type === 'START') {
+        if (!event.coordinates) throw new Error('Coordonnées manquantes');
+        return checkIn(token, {
+          userId: event.userId,
+          siteId: event.siteId,
+          latitude: event.coordinates.latitude,
+          longitude: event.coordinates.longitude,
+          interventionId: event.interventionId,
+        });
+      }
+      if (event.type === 'END') {
+        return checkOut(token, { userId: event.userId, interventionId: event.interventionId });
+      }
+    },
+    [token, user],
+  );
 
   const flush = useCallback(async () => {
     if (!isOnline || pendingEvents.length === 0) {
       return;
     }
     for (const event of pendingEvents) {
+      setPendingEvents((prev) =>
+        prev.map((e) => (e.id === event.id ? { ...e, status: 'sending', error: null } : e)),
+      );
       try {
-        await mockUpload(event);
+        await uploadEvent(event);
         setPendingEvents((prev) => prev.filter((item) => item.id !== event.id));
         setLastError(null);
       } catch (error) {
-        setLastError(error instanceof Error ? error.message : 'Synchronisation impossible');
-        break;
+        const message = error instanceof Error ? error.message : 'Synchronisation impossible';
+        setLastError(message);
+        setPendingEvents((prev) =>
+          prev.map((e) => (e.id === event.id ? { ...e, status: 'failed', error: message } : e)),
+        );
+        break; // stop après le premier échec pour éviter le spam
       }
     }
-  }, [isOnline, pendingEvents, mockUpload]);
+  }, [isOnline, pendingEvents, uploadEvent]);
 
   useEffect(() => {
     if (isOnline) {
@@ -96,22 +144,25 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const event: SyncEvent = {
         id: `sync-${Date.now()}`,
         ...input,
+        status: 'pending',
+        error: null,
       };
 
       if (isOnline) {
         try {
-          await mockUpload(event);
+          await uploadEvent(event);
           setLastError(null);
           return;
         } catch (error) {
-          setLastError(error instanceof Error ? error.message : 'Synchronisation impossible');
+          const message = error instanceof Error ? error.message : 'Synchronisation impossible';
+          setLastError(message);
           // fallthrough to queueing locally
         }
       }
 
       setPendingEvents((prev) => [event, ...prev]);
     },
-    [isOnline, mockUpload],
+    [isOnline, uploadEvent],
   );
 
   const clearQueue = useCallback(() => {

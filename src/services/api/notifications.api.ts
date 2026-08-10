@@ -14,13 +14,13 @@ export async function listNotifications(token: string) {
   } satisfies NotificationItem));
 }
 
-export async function registerNotificationToken(token: string, pushToken: string) {
+export async function registerNotificationToken(token: string, expoToken?: string, deviceToken?: string) {
   return apiFetch<{ success: boolean }>({
     path: '/notifications/register-token',
     token,
     options: {
       method: 'POST',
-      body: JSON.stringify({ token: pushToken }),
+      body: JSON.stringify({ expoToken, deviceToken }),
     },
   });
 }

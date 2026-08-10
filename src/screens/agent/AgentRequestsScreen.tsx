@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { listMyAbsences } from '@/services/api/absences.api';
 import { Absence } from '@/types/absences';
 import { theme } from '@/config/theme';
@@ -56,6 +56,14 @@ export default function RequestsScreen() {
       setLoading(false);
     }
   }, [token, user, loadAbsences]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (token && user) {
+        loadAbsences();
+      }
+    }, [token, user, loadAbsences]),
+  );
 
   return (
     <HeaderLayout

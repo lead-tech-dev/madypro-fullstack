@@ -2,14 +2,10 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Linking,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
   Animated,
   Easing,
@@ -18,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
+import { Section } from '@/components/ui/Section';
 import { Intervention } from '@/types/intervention';
 import { getInterventionById, updateInterventionStatus } from '@/services/api/interventions.api';
 import { theme } from '@/config/theme';
@@ -33,6 +30,10 @@ import { useAuthContext } from '@/context/AuthContext';
 import { getSite } from '@/services/api/sites.api';
 import { Site } from '@/types/site';
 import { AgentStackParamList } from '@/navigation/types';
+import { RunningTimer } from '@/components/intervention/RunningTimer';
+import { AssignedAgentsList } from '@/components/intervention/AssignedAgentsList';
+import { ProblemModal } from '@/components/intervention/ProblemModal';
+import { getActualDate, buildDateTime, formatTime } from '@/utils/interventionTime';
 
 const TYPE_LABELS = {
   REGULAR: 'Intervention régulière',
@@ -50,14 +51,6 @@ const STATUS_LABELS: Record<Intervention['status'], string> = {
 
 const START_CACHE_KEY = (id: string) => `intervention:start:${id}`;
 
-const ANOMALY_OPTIONS: Array<{ value: AnomalyType; label: string }> = [
-  { value: 'CLEANLINESS', label: 'Propreté' },
-  { value: 'MISSING_SUPPLIES', label: 'Matériel manquant' },
-  { value: 'ACCESS', label: 'Accès impossible' },
-  { value: 'DAMAGE', label: 'Dégâts' },
-  { value: 'OTHER', label: 'Autre' },
-];
-
 export default function InterventionDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AgentStackParamList>>();
   const route = useRoute<RouteProp<AgentStackParamList, 'AgentIntervention'>>();
@@ -65,13 +58,20 @@ export default function InterventionDetailScreen() {
   const [intervention, setIntervention] = React.useState<Intervention | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isVerifying, setIsVerifying] = React.useState(false);
-  const [elapsed, setElapsed] = React.useState('00:00:00');
   const [isProblemModalVisible, setProblemModalVisible] = React.useState(false);
   const [problemType, setProblemType] = React.useState<AnomalyType>('CLEANLINESS');
   const [problemDescription, setProblemDescription] = React.useState('');
   const [problemPhotos, setProblemPhotos] = React.useState<string[]>([]);
   const [isSubmittingProblem, setSubmittingProblem] = React.useState(false);
-  const { isOnline, pendingEvents, pendingStarts, pendingEnds, queueEvent, clearQueue, lastError } = useSyncContext();
+  const {
+    isOnline,
+    pendingEvents,
+    pendingStarts,
+    pendingEnds,
+    queueEvent,
+    clearQueue,
+    lastError,
+  } = useSyncContext();
   const { token, user } = useAuthContext();
   const [site, setSite] = React.useState<Site | null>(null);
   const [isMarkingArrival, setMarkingArrival] = React.useState(false);
@@ -80,9 +80,6 @@ export default function InterventionDetailScreen() {
   const [startPersisted, setStartPersisted] = React.useState<string | null>(null);
   const [currentId, setCurrentId] = React.useState<string | null>(null);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const pulseAnim = React.useRef(new Animated.Value(1)).current;
-  const glowAnim = React.useRef(new Animated.Value(0)).current;
-  const progressAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     if (!id || !token) {
@@ -178,33 +175,6 @@ export default function InterventionDetailScreen() {
     }).start();
   }, [fadeAnim, currentId]);
 
-  React.useEffect(() => {
-    if (!isRunning) {
-      pulseAnim.setValue(1);
-      glowAnim.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.05, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    const glowLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 0.8, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    );
-    glowLoop.start();
-    return () => {
-      loop.stop();
-      glowLoop.stop();
-      pulseAnim.setValue(1);
-      glowAnim.setValue(0);
-    };
-  }, [isRunning, pulseAnim, glowAnim]);
   const startDate = React.useMemo(() => {
     if (!intervention) {
       return null;
@@ -254,26 +224,6 @@ export default function InterventionDetailScreen() {
     if (userAttendance?.checkOutTime) return formatTime(new Date(userAttendance.checkOutTime));
     return null;
   }, [intervention?.actualEndTime, userAttendance?.checkOutTime]);
-
-  React.useEffect(() => {
-    if (!plannedStart || !plannedEnd) {
-      progressAnim.setValue(0);
-      return;
-    }
-    const durationMs = plannedEnd.getTime() - plannedStart.getTime();
-    if (durationMs <= 0) {
-      progressAnim.setValue(0);
-      return;
-    }
-    const nowTs = isRunning ? Date.now() : plannedStart.getTime();
-    const target = Math.min(1, Math.max(0, (nowTs - plannedStart.getTime()) / durationMs));
-    Animated.timing(progressAnim, {
-      toValue: target,
-      duration: 300,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: false,
-    }).start();
-  }, [plannedStart, plannedEnd, isRunning, progressAnim]);
 
   React.useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30 * 1000);
@@ -326,16 +276,37 @@ export default function InterventionDetailScreen() {
         Alert.alert('Position requise', 'Impossible de récupérer votre position pour démarrer.');
         return;
       }
-      await checkIn(token, {
-        userId: user.id,
-        siteId: target.siteId,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        interventionId: target.id,
-      }).catch((err) => {
-        Alert.alert('Impossible de démarrer', err.message || 'Erreur lors du démarrage');
-        throw err;
-      });
+      if (isOnline) {
+        try {
+          await checkIn(token, {
+            userId: user.id,
+            siteId: target.siteId,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            interventionId: target.id,
+          });
+        } catch (err: any) {
+          Alert.alert('Démarrage hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.");
+          // on file en offline
+          queueEvent({
+            userId: user.id,
+            interventionId: target.id,
+            siteId: target.siteId,
+            type: 'START',
+            timestamp: now.toISOString(),
+            coordinates: coords,
+          });
+        }
+      } else {
+        queueEvent({
+          userId: user.id,
+          interventionId: target.id,
+          siteId: target.siteId,
+          type: 'START',
+          timestamp: now.toISOString(),
+          coordinates: coords,
+        });
+      }
       const displayTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       setIntervention((prev) =>
         prev
@@ -357,13 +328,6 @@ export default function InterventionDetailScreen() {
           : prev,
       );
       AsyncStorage.setItem(START_CACHE_KEY(target.id), now.toISOString()).catch(() => {});
-      queueEvent({
-        interventionId: target.id,
-        siteId: target.siteId,
-        type: 'START',
-        timestamp: now.toISOString(),
-        coordinates: coords,
-      });
       try {
         await updateInterventionStatus(token, target.id, 'IN_PROGRESS');
       } catch (err) {
@@ -380,10 +344,32 @@ export default function InterventionDetailScreen() {
     }
     const finishAction = async () => {
       const now = new Date();
-      await checkOut(token, { userId: user.id, interventionId: target.id }).catch((err) => {
-        Alert.alert('Impossible de terminer', err.message || 'Erreur lors de la fin');
-        throw err;
-      });
+      if (isOnline) {
+        try {
+          await checkOut(token, { userId: user.id, interventionId: target.id });
+        } catch (err: any) {
+          Alert.alert('Fin hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.");
+          const coords = await getCurrentCoordinates().catch(() => null);
+          queueEvent({
+            userId: user.id,
+            interventionId: target.id,
+            siteId: target.siteId,
+            type: 'END',
+            timestamp: now.toISOString(),
+            coordinates: coords ?? undefined,
+          });
+        }
+      } else {
+        const coords = await getCurrentCoordinates().catch(() => null);
+        queueEvent({
+          userId: user.id,
+          interventionId: target.id,
+          siteId: target.siteId,
+          type: 'END',
+          timestamp: now.toISOString(),
+          coordinates: coords ?? undefined,
+        });
+      }
       const displayTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       setIntervention((prev) =>
         prev
@@ -404,14 +390,6 @@ export default function InterventionDetailScreen() {
             }
           : prev,
       );
-      const coords = await getCurrentCoordinates().catch(() => null);
-      queueEvent({
-        interventionId: target.id,
-        siteId: target.siteId,
-        type: 'END',
-        timestamp: now.toISOString(),
-        coordinates: coords ?? undefined,
-      });
       AsyncStorage.removeItem(START_CACHE_KEY(target.id)).catch(() => {});
       // aligne le statut côté web (attente explicite pour éviter de rester "En cours")
       try {
@@ -445,12 +423,9 @@ export default function InterventionDetailScreen() {
 
     // Always refresh the site from backend to get latest GPS
     let targetSite = site;
-    console.log('Target site:', targetSite);
     if (!targetSite || targetSite.latitude === undefined || targetSite.longitude === undefined) {
-      
       try {
         const fetched = await getSite(token, intervention.siteId);
-        console.log('Fetched site:', fetched);
         const normalized: Site = {
           ...fetched,
           latitude: toNumber(fetched.latitude),
@@ -491,21 +466,52 @@ export default function InterventionDetailScreen() {
     setMarkingArrival(true);
     try {
       const coords = await getCurrentCoordinates();
-      await markArrival(token, {
-        userId: user.id,
-        siteId: intervention.siteId,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        interventionId: intervention.id,
-      });
-      Alert.alert('Présence enregistrée', 'Votre arrivée sur site a été enregistrée.');
+      if (isOnline) {
+        await markArrival(token, {
+          userId: user.id,
+          siteId: intervention.siteId,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          interventionId: intervention.id,
+        });
+        Alert.alert('Présence enregistrée', 'Votre arrivée sur site a été enregistrée.');
+      } else {
+        queueEvent({
+          userId: user.id,
+          interventionId: intervention.id,
+          siteId: intervention.siteId,
+          type: 'ARRIVAL',
+          timestamp: new Date().toISOString(),
+          coordinates: coords,
+        });
+        Alert.alert('Présence enregistrée hors ligne', 'Elle sera synchronisée dès le retour réseau.');
+      }
       setArrivalRecorded(true);
     } catch (error: any) {
-      Alert.alert("Impossible d’enregistrer la présence", error?.message ?? 'Erreur inconnue');
+      if (!isOnline) {
+        Alert.alert("Impossible d’enregistrer la présence", error?.message ?? 'Erreur inconnue');
+      } else {
+        // fallback offline
+        const coords = await getCurrentCoordinates().catch(() => null);
+        if (coords) {
+          queueEvent({
+            userId: user.id,
+            interventionId: intervention.id,
+            siteId: intervention.siteId,
+            type: 'ARRIVAL',
+            timestamp: new Date().toISOString(),
+            coordinates: coords,
+          });
+          Alert.alert('Présence enregistrée hors ligne', 'Elle sera synchronisée dès le retour réseau.');
+          setArrivalRecorded(true);
+        } else {
+          Alert.alert("Impossible d’enregistrer la présence", error?.message ?? 'Erreur inconnue');
+        }
+      }
     } finally {
       setMarkingArrival(false);
     }
-  }, [arrivalAllowedFrom, canMarkArrival, intervention, token, user, site]);
+  }, [arrivalAllowedFrom, canMarkArrival, intervention, token, user, site, isOnline, queueEvent]);
 
   const openMaps = React.useCallback(() => {
     if (!site) {
@@ -514,20 +520,6 @@ export default function InterventionDetailScreen() {
     const query = encodeURIComponent(`${site.name} ${site.address}`);
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
   }, [site]);
-
-  React.useEffect(() => {
-    if (!intervention || !isRunning || !startDate) {
-      setElapsed('00:00:00');
-      return;
-    }
-    const update = () => {
-      const diff = Date.now() - startDate.getTime();
-      setElapsed(formatDuration(diff));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, [intervention, isRunning, startDate]);
 
   // Heartbeat interval to keep backend updated while running
   React.useEffect(() => {
@@ -630,45 +622,25 @@ export default function InterventionDetailScreen() {
                 : 'Hors connexion, envoi dès le retour réseau.'}
             </Text>
             <Text style={styles.syncBannerText}>
-              Événements en attente : {pendingStarts.length} démarrage(s), {pendingEnds.length} fin(s)
+              Événements en attente : {pendingEvents.length} (Arrivée/Début/Fin)
             </Text>
+            {pendingEvents.slice(0, 5).map((evt) => (
+              <Text key={evt.id} style={styles.syncBannerText}>
+                • {evt.type} {evt.timestamp?.slice(11, 16)} — {evt.status ?? 'pending'}
+                {evt.status === 'failed' && evt.error ? ` (${evt.error})` : ''}
+              </Text>
+            ))}
             {lastError && <Text style={[styles.syncBannerText, { color: '#c62828' }]}>Dernière erreur : {lastError}</Text>}
+            {pendingEvents.length > 5 && (
+              <Text style={styles.syncBannerText}>… {pendingEvents.length - 5} élément(s) supplémentaires</Text>
+            )}
             {pendingEvents.length > 0 && (
               <Button title="Purger la file locale" variant="ghost" onPress={clearQueue} />
             )}
           </View>
         )}
-        {isRunning && (
-          <Animated.View style={[styles.runningPanel, { transform: [{ scale: pulseAnim }] }]}>
-            <Animated.View
-              style={[
-                styles.glow,
-                {
-                  opacity: glowAnim,
-                  transform: [{ scale: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.2] }) }],
-                },
-              ]}
-            />
-            <Text style={styles.runningLabel}>Intervention en cours</Text>
-            <Text style={styles.timerValue}>{elapsed}</Text>
-            <Text style={styles.textMuted}>Temps écoulé</Text>
-            {plannedStart && plannedEnd && (
-              <View style={styles.progressContainer}>
-                <Animated.View
-                  style={[
-                    styles.progressBar,
-                    {
-                      width: progressAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0%', '100%'],
-                      }),
-                    },
-                  ]}
-                />
-              </View>
-            )}
-          </Animated.View>
-        )}
+
+        <RunningTimer isRunning={isRunning} startDate={startDate} plannedStart={plannedStart} plannedEnd={plannedEnd} />
 
         <Section title="Type d’intervention">
           <Text style={styles.highlight}>{TYPE_LABELS[intervention.type]}</Text>
@@ -705,57 +677,7 @@ export default function InterventionDetailScreen() {
         </Section>
 
         <Section title="Agents assignés">
-          {intervention.agents?.length ? (
-            intervention.agents.map((agent) => {
-              const isCurrent = agent.id === user?.id;
-              const status = agent.attendanceStatus ?? (agent.checkOutTime ? 'COMPLETED' : agent.checkInTime ? 'IN_PROGRESS' : 'PENDING');
-              const statusLabel =
-                status === 'COMPLETED'
-                  ? 'Terminé'
-                  : status === 'IN_PROGRESS'
-                  ? 'En cours'
-                  : 'En attente';
-              return (
-                <View key={agent.id} style={styles.agentRow}>
-                  <View>
-                    <Text style={styles.row}>
-                      • {agent.name} {isCurrent ? '(vous)' : ''}
-                    </Text>
-                    <Text style={styles.textMuted}>
-                      Arrivée : {agent.arrivalTime ? formatTime(new Date(agent.arrivalTime)) : '—'} · Début :{' '}
-                      {agent.checkInTime ? formatTime(new Date(agent.checkInTime)) : '—'} · Fin :{' '}
-                      {agent.checkOutTime ? formatTime(new Date(agent.checkOutTime)) : '—'}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.agentBadge,
-                      status === 'COMPLETED'
-                        ? styles.badgeSuccess
-                        : status === 'IN_PROGRESS'
-                        ? styles.badgeWarning
-                        : styles.badgeInfo,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.agentBadgeText,
-                        status === 'COMPLETED'
-                          ? styles.badgeSuccessText
-                          : status === 'IN_PROGRESS'
-                          ? styles.badgeWarningText
-                          : styles.badgeInfoText,
-                      ]}
-                    >
-                      {statusLabel}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })
-          ) : (
-            <Text style={styles.textMuted}>Aucun agent associé.</Text>
-          )}
+          <AssignedAgentsList agents={intervention.agents} currentUserId={user?.id} />
         </Section>
 
         {intervention.type === 'PUNCTUAL' && (
@@ -893,196 +815,13 @@ export default function InterventionDetailScreen() {
   );
 }
 
-const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <View style={styles.section}>
-    <Text style={styles.sectionTitle}>{title}</Text>
-    {children}
-  </View>
-);
-
-type ProblemModalProps = {
-  visible: boolean;
-  onClose: () => void;
-  type: AnomalyType;
-  onTypeChange: (type: AnomalyType) => void;
-  description: string;
-  onDescriptionChange: (text: string) => void;
-  photos: string[];
-  onAddPhoto: () => Promise<void>;
-  onRemovePhoto: (uri: string) => void;
-  onSubmit: () => Promise<void>;
-  submitting: boolean;
-};
-
-const ProblemModal: React.FC<ProblemModalProps> = ({
-  visible,
-  onClose,
-  type,
-  onTypeChange,
-  description,
-  onDescriptionChange,
-  photos,
-  onAddPhoto,
-  onRemovePhoto,
-  onSubmit,
-  submitting,
-}) => (
-  <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Signaler un problème</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonLabel}>×</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.modalLabel}>Type d'anomalie</Text>
-        <View style={styles.typeOptions}>
-          {ANOMALY_OPTIONS.map((option) => {
-            const active = option.value === type;
-            return (
-              <TouchableOpacity
-                key={option.value}
-                style={[styles.typePill, active && styles.typePillActive]}
-                onPress={() => onTypeChange(option.value)}
-              >
-                <Text style={[styles.typePillLabel, active && styles.typePillLabelActive]}>
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        <Text style={styles.modalLabel}>Description</Text>
-        <TextInput
-          style={styles.textArea}
-          placeholder="Décrivez le problème rencontré…"
-          placeholderTextColor={theme.colors.muted}
-          multiline
-          value={description}
-          onChangeText={onDescriptionChange}
-        />
-        <Text style={styles.modalLabel}>Photos</Text>
-        <View style={styles.photoGrid}>
-          {photos.map((uri) => (
-            <View key={uri} style={styles.photoWrapper}>
-              <Image source={{ uri }} style={styles.photo} />
-              <TouchableOpacity
-                style={styles.photoRemove}
-                onPress={() => onRemovePhoto(uri)}
-              >
-                <Text style={styles.photoRemoveLabel}>×</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-          <TouchableOpacity style={styles.addPhoto} onPress={onAddPhoto}>
-            <Text style={styles.addPhotoLabel}>Ajouter une photo</Text>
-          </TouchableOpacity>
-        </View>
-        <Button
-          title={submitting ? 'Envoi…' : 'Envoyer'}
-          onPress={onSubmit}
-          disabled={submitting}
-        />
-      </View>
-    </View>
-  </Modal>
-);
-
 const styles = StyleSheet.create({
   sectionStack: {
     flex: 1,
   },
-  runningPanel: {
-    backgroundColor: theme.colors.primarySoft,
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing.xl,
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    overflow: 'hidden',
-  },
-  glow: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: theme.colors.primary,
-    opacity: 0.15,
-    zIndex: -1,
-  },
-  runningLabel: {
-    fontSize: 14,
-    textTransform: 'uppercase',
-    color: theme.colors.primary,
-    letterSpacing: 1,
-  },
-  timerValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: theme.colors.ink,
-  },
-  progressContainer: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#e8eef5',
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
-    borderRadius: 999,
-  },
-  section: {
-    backgroundColor: '#fff',
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing.xl,
-    gap: theme.spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
   highlight: {
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
     color: theme.colors.ink,
-  },
-  agentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  agentBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    minWidth: 90,
-    alignItems: 'center',
-  },
-  agentBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  badgeSuccess: {
-    backgroundColor: '#def5eb',
-  },
-  badgeSuccessText: {
-    color: '#0b874b',
-  },
-  badgeWarning: {
-    backgroundColor: '#fff5e0',
-  },
-  badgeWarningText: {
-    color: '#b15b00',
-  },
-  badgeInfo: {
-    backgroundColor: '#e5f1ff',
-  },
-  badgeInfoText: {
-    color: '#1e5aa6',
   },
   textMuted: {
     color: theme.colors.muted,
@@ -1111,148 +850,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   syncBannerTitle: {
-    fontWeight: '700',
+    fontFamily: theme.fonts.bodyBold,
     color: theme.colors.primary,
   },
   syncBannerText: {
     color: theme.colors.muted,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: theme.spacing.xl,
-    gap: theme.spacing.md,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.colors.clay,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeButtonLabel: {
-    fontSize: 20,
-    color: theme.colors.ink,
-  },
-  modalLabel: {
-    fontWeight: '600',
-    color: theme.colors.ink,
-  },
-  typeOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-  },
-  typePill: {
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.clay,
-  },
-  typePillActive: {
-    backgroundColor: theme.colors.primarySoft,
-  },
-  typePillLabel: {
-    color: theme.colors.muted,
-    fontWeight: '600',
-  },
-  typePillLabelActive: {
-    color: theme.colors.primary,
-  },
-  textArea: {
-    minHeight: 120,
-    borderRadius: theme.radii.md,
-    borderWidth: 1,
-    borderColor: theme.colors.clay,
-    padding: theme.spacing.md,
-    textAlignVertical: 'top',
-    color: theme.colors.ink,
-  },
-  photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.md,
-  },
-  photoWrapper: {
-    position: 'relative',
-  },
-  photo: {
-    width: 80,
-    height: 80,
-    borderRadius: theme.radii.md,
-  },
-  photoRemove: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#00000080',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoRemoveLabel: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  addPhoto: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.radii.md,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    borderStyle: 'dashed',
-  },
-  addPhotoLabel: {
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
 });
-
-function getActualDate(intervention: Intervention) {
-  if (intervention.actualStartAt) {
-    return new Date(intervention.actualStartAt);
-  }
-  if (intervention.actualStartTime) {
-    return buildDateTime(intervention.date, intervention.actualStartTime);
-  }
-  return null;
-}
-
-function buildDateTime(date: string, time: string) {
-  const normalized = time.length === 5 ? `${time}:00` : time;
-  return new Date(`${date}T${normalized}`);
-}
-
-function formatTime(date: Date) {
-  return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDuration(ms: number) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600)
-    .toString()
-    .padStart(2, '0');
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-    .toString()
-    .padStart(2, '0');
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  return `${hours}:${minutes}:${seconds}`;
-}

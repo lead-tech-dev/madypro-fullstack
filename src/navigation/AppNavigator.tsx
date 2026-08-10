@@ -17,6 +17,7 @@ import AgentNotificationsScreen from '@/screens/agent/AgentNotificationsScreen';
 import AgentProfileScreen from '@/screens/agent/AgentProfileScreen';
 import AgentInterventionScreen from '@/screens/agent/AgentInterventionScreen';
 import AgentChangePasswordScreen from '@/screens/agent/AgentChangePasswordScreen';
+import AgentSyncQueueScreen from '@/screens/agent/AgentSyncQueueScreen';
 import OnboardingScreen from '@/screens/OnboardingScreen';
 import LoginScreen from '@/screens/auth/LoginScreen';
 import ForgotPasswordScreen from '@/screens/auth/ForgotPasswordScreen';
@@ -87,6 +88,7 @@ function AgentNavigator() {
       <AgentStack.Screen name="AgentIntervention" component={AgentInterventionScreen} />
       <AgentStack.Screen name="AgentAbsenceForm" component={AgentAbsenceFormScreen} />
       <AgentStack.Screen name="AgentChangePassword" component={AgentChangePasswordScreen} />
+      <AgentStack.Screen name="AgentSyncQueue" component={AgentSyncQueueScreen} />
     </AgentStack.Navigator>
   );
 }

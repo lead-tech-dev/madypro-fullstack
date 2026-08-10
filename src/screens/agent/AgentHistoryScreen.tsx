@@ -31,6 +31,9 @@ export default function HistoryScreen() {
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]['value']>('ALL');
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]['value']>('ALL');
   const [hours, setHours] = useState({ week: 0, month: 0 });
+  const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
+  const [siteFilter, setSiteFilter] = useState<string>('ALL');
+  const [siteOptions, setSiteOptions] = useState<string[]>([]);
   const { token, user } = useAuthContext();
   const navigation = useNavigation();
   const now = useMemo(() => new Date(), []);
@@ -45,15 +48,20 @@ export default function HistoryScreen() {
         setRefreshing(false);
         return;
       }
+      const endISO = now.toISOString().slice(0, 10);
+      const startDateObj = new Date(now);
+      startDateObj.setDate(startDateObj.getDate() - rangeDays);
+      const startISO = startDateObj.toISOString().slice(0, 10);
       if (showLoader) setLoading(true);
       setError(null);
       try {
         const [history, weekHours, monthHours] = await Promise.all([
-          listInterventionsByRange(token, 'past', user.id),
+          fetchInterventions(token, { startDate: startISO, endDate: endISO, agentId: user.id }),
           computeHoursForRange(token, user.id, 'week', now),
           computeHoursForRange(token, user.id, 'month', now),
         ]);
         setInterventions(history);
+        setSiteOptions(['ALL', ...Array.from(new Set(history.map((i) => i.siteName).filter(Boolean)))]);
         setHours({ week: weekHours, month: monthHours });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Impossible de charger les interventions');
@@ -63,7 +71,7 @@ export default function HistoryScreen() {
         setRefreshing(false);
       }
     },
-    [now, token, user],
+    [now, token, user, rangeDays],
   );
 
   useFocusEffect(
@@ -75,17 +83,32 @@ export default function HistoryScreen() {
 
   const filtered = useMemo(() => {
     return interventions.filter((intervention) => {
-      if (statusFilter !== 'ALL' && intervention.status !== statusFilter) {
-        return false;
-      }
-      if (typeFilter !== 'ALL' && intervention.type !== typeFilter) {
-        return false;
-      }
+      if (statusFilter !== 'ALL' && intervention.status !== statusFilter) return false;
+      if (typeFilter !== 'ALL' && intervention.type !== typeFilter) return false;
+      if (siteFilter !== 'ALL' && intervention.siteName !== siteFilter) return false;
       return true;
     });
-  }, [interventions, statusFilter, typeFilter]);
+  }, [interventions, statusFilter, typeFilter, siteFilter]);
 
-  const stats = hours;
+  const filteredHours = useMemo(() => {
+    return filtered.reduce((total, intervention) => {
+      const startDate = getDateFromActual(
+        intervention.actualStartAt,
+        intervention.date,
+        intervention.actualStartTime ?? intervention.startTime,
+      );
+      const endDate = getDateFromActual(
+        intervention.actualEndAt,
+        intervention.date,
+        intervention.actualEndTime ?? intervention.endTime,
+      );
+      if (!startDate || !endDate) return total;
+      const hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
+      return total + hours;
+    }, 0);
+  }, [filtered]);
+
+  const stats = { ...hours, filtered: filteredHours };
 
   return (
     <HeaderLayout
@@ -105,17 +128,57 @@ export default function HistoryScreen() {
             tintColor={theme.colors.primary}
           />
         }
-        contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
+        contentContainerStyle={{
+          paddingBottom: theme.spacing.xl,
+          paddingHorizontal: theme.spacing.lg,
+          gap: theme.spacing.lg,
+        }}
       >
         <View style={styles.summaryCard}>
-          <View>
+          <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Semaine courante</Text>
             <Text style={styles.summaryValue}>{stats.week.toFixed(1)} h</Text>
           </View>
-          <View>
+          <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Mois en cours</Text>
             <Text style={styles.summaryValue}>{stats.month.toFixed(1)} h</Text>
           </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Période filtrée</Text>
+            <Text style={styles.summaryValue}>{stats.filtered.toFixed(1)} h</Text>
+          </View>
+        </View>
+
+        <View style={styles.filters}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            {[7, 30, 90].map((days) => {
+              const active = rangeDays === days;
+              return (
+                <Pressable
+                  key={days}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setRangeDays(days as 7 | 30 | 90)}
+                >
+                  <Text style={[styles.filterText, active && styles.filterTextActive]}>{days} jours</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            {siteOptions.map((site) => {
+              const active = siteFilter === site;
+              const label = site === 'ALL' ? 'Tous les sites' : site;
+              return (
+                <Pressable
+                  key={site}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setSiteFilter(site)}
+                >
+                  <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <View style={styles.filters}>
@@ -279,11 +342,10 @@ async function computeHoursForRange(token: string, agentId: string, range: 'week
       startDate: startISO,
       endDate: endISO,
       status: 'COMPLETED' as any,
-      pageSize: 500,
-    });
-    const attendanceItems =
-      Array.isArray(attendanceRes) ||
-      attendanceRes instanceof Array ? attendanceRes : (attendanceRes as any).items ?? (attendanceRes as any).data ?? [];
+    } as any);
+    const attendanceItems = Array.isArray(attendanceRes)
+      ? attendanceRes
+      : (attendanceRes as any).items ?? (attendanceRes as any).data ?? [];
     const completed = attendanceItems.filter((att: any) => att.status === 'COMPLETED');
     const attendanceHours = completed.reduce((total: number, att: any) => {
       // On ne compte que les heures réellement pointées (check-in / check-out)
@@ -358,10 +420,16 @@ function parseAttendanceTime(date: string, time?: string) {
 const styles = StyleSheet.create({
   summaryCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: theme.spacing.sm,
+    columnGap: theme.spacing.lg,
     backgroundColor: '#fff',
     borderRadius: theme.radii.lg,
     padding: theme.spacing.xl,
+  },
+  summaryItem: {
+    minWidth: '45%',
+    flexGrow: 1,
   },
   summaryLabel: {
     textTransform: 'uppercase',

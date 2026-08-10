@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { registerForPushNotificationsAsync } from '../services/notifications';
 import { NotificationItem } from '../types/notification';
@@ -14,14 +15,17 @@ type NotificationContextValue = {
   markAllAsRead: () => void;
   pushMockNotification: (notification: Partial<NotificationItem>) => void;
   refresh: () => Promise<void>;
+  unreadCount: number;
 };
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
+const STORAGE_KEY = 'notification-center';
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, user } = useAuthContext();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+  const [devicePushToken, setDevicePushToken] = useState<string | null>(null);
 
   const addNotification = useCallback((notification: NotificationItem) => {
     setItems((prev) => [notification, ...prev]);
@@ -59,13 +63,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return;
     }
     try {
+      const cached = await AsyncStorage.getItem(STORAGE_KEY);
+      const cachedItems: NotificationItem[] = cached ? JSON.parse(cached) : [];
+      const cachedRead = new Map(cachedItems.map((n) => [n.id, n.read]));
       const history = await listNotifications(token);
       setItems((prev) => {
-        // merge read state with previous entries
         const readMap = new Map(prev.map((item) => [item.id, item.read]));
         return history.map((notification) => ({
           ...notification,
-          read: readMap.get(notification.id) ?? false,
+          read: readMap.get(notification.id) ?? cachedRead.get(notification.id) ?? false,
         }));
       });
     } catch (error) {
@@ -86,12 +92,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [token, fetchNotifications]);
 
   useEffect(() => {
-    if (!token || !expoPushToken || !user) return;
-    console.log('[Push] Expo token obtenu', expoPushToken);
-    registerNotificationToken(token, expoPushToken).catch((error) => {
+    if (!token || !user) return;
+    if (!expoPushToken && !devicePushToken) {
+      console.warn('[Push] Aucun token à enregistrer (expo/native)');
+      return;
+    }
+    console.log('[Push] Enregistrement tokens', { expoPushToken, devicePushToken });
+    registerNotificationToken(token, expoPushToken || undefined, devicePushToken || undefined).catch((error) => {
       console.warn('Push token registration failed', error);
     });
-  }, [token, expoPushToken, user]);
+  }, [token, expoPushToken, devicePushToken, user]);
 
   useEffect(() => {
     Notifications.setNotificationHandler({
@@ -110,8 +120,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.warn('[Push] Aucun token obtenu (permission refusée ou simulateur).');
         return;
       }
-      console.log('[Push] Token Expo reçu', value);
-      setExpoPushToken(value);
+      console.log('[Push] Token Expo reçu', value?.expoToken);
+      console.log('[Push] Token natif reçu', value?.deviceToken);
+      if (value?.expoToken) setExpoPushToken(value.expoToken);
+      if (value?.deviceToken) setDevicePushToken(value.deviceToken);
     });
 
     const receiveSub = Notifications.addNotificationReceivedListener((notification) => {
@@ -171,6 +183,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     await fetchNotifications();
   }, [fetchNotifications]);
 
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items)).catch(() => {});
+  }, [items]);
+
+  const unreadCount = useMemo(() => items.filter((n) => !n.read).length, [items]);
+
   const value = useMemo(
     () => ({
       notifications: items,
@@ -178,8 +196,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       markAllAsRead,
       pushMockNotification,
       refresh,
+      unreadCount,
     }),
-    [items, markAsRead, markAllAsRead, pushMockNotification, refresh],
+    [items, markAsRead, markAllAsRead, pushMockNotification, refresh, unreadCount],
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

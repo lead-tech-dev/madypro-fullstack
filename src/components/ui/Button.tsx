@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: '#fff',
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
     letterSpacing: 1,
   },
   labelSm: {

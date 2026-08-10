@@ -65,6 +65,11 @@ export default function AgentProfileScreen() {
           />
         </View>
         <Button
+          title="File d'attente hors ligne"
+          variant="ghost"
+          onPress={() => navigation.navigate('AgentSyncQueue')}
+        />
+        <Button
           title="Modifier le mot de passe"
           variant="ghost"
           onPress={() => navigation.navigate('AgentChangePassword')}

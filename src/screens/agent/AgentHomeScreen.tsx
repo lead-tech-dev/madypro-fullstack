@@ -1,6 +1,8 @@
 import React, { useCallback } from 'react';
 import {
   ActivityIndicator,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -21,6 +23,7 @@ import { Intervention } from '@/types/intervention';
 import { listInterventionsByRange } from '@/services/api/interventions.api';
 import { useAuthContext } from '@/context/AuthContext';
 import { AgentStackParamList, AgentTabParamList } from '@/navigation/types';
+import { useSyncContext } from '@/context/SyncContext';
 
 type Navigation = CompositeNavigationProp<
   BottomTabNavigationProp<AgentTabParamList, 'AgentHome'>,
@@ -35,9 +38,11 @@ export default function AgentHomeScreen() {
   }>({ today: [], week: [] });
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
 
   const navigation = useNavigation<Navigation>();
   const { token, user } = useAuthContext();
+  const { flush } = useSyncContext();
 
   const loadInterventions = useCallback(async () => {
     if (!token || !user) {
@@ -78,62 +83,79 @@ export default function AgentHomeScreen() {
       ? 'Aucune intervention prévue aujourd’hui.'
       : 'Aucune intervention planifiée cette semaine.';
 
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await flush();
+      await loadInterventions();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [flush, loadInterventions]);
+
   return (
     <HeaderLayout
       title="Vos missions du jour"
       subtitle="Retrouvez interventions, sites et absences en un clin d'œil."
       accent="Agent Madypro Clean"
     >
-      <View style={styles.segmented}>
-        {[
-          { label: 'Aujourd’hui', value: 'today' as const },
-          { label: 'Cette semaine', value: 'week' as const },
-        ].map((tab) => {
-          const active = scope === tab.value;
-          return (
-            <TouchableOpacity
-              key={tab.value}
-              style={[styles.segmentButton, active && styles.segmentButtonActive]}
-              onPress={() => setScope(tab.value)}
-            >
-              <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+        }
+        contentContainerStyle={{ gap: theme.spacing.lg }}
+      >
+        <View style={styles.segmented}>
+          {[
+            { label: 'Aujourd’hui', value: 'today' as const },
+            { label: 'Cette semaine', value: 'week' as const },
+          ].map((tab) => {
+            const active = scope === tab.value;
+            return (
+              <TouchableOpacity
+                key={tab.value}
+                style={[styles.segmentButton, active && styles.segmentButtonActive]}
+                onPress={() => setScope(tab.value)}
+              >
+                <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      <View style={styles.block}>
-        <Text style={styles.sectionTitle}>
-          {scope === 'today' ? 'Planning du jour' : 'Planning à venir'}
-        </Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.block}>
+          <Text style={styles.sectionTitle}>
+            {scope === 'today' ? 'Planning du jour' : 'Planning à venir'}
+          </Text>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {isLoading ? (
-          <ActivityIndicator color={theme.colors.primary} />
-        ) : displayed.length === 0 ? (
-          <Text style={styles.empty}>{emptyLabel}</Text>
-        ) : (
-          <View style={styles.stack}>
-            {displayed.map((intervention) => (
-              <InterventionCard
-                key={intervention.id}
-                intervention={intervention}
-                onPress={(item) =>
-                  navigation.navigate('AgentIntervention', {
-                    id: item.id,
-                  })
-                }
-              />
-            ))}
-          </View>
-        )}
-      </View>
+          {isLoading ? (
+            <ActivityIndicator color={theme.colors.primary} />
+          ) : displayed.length === 0 ? (
+            <Text style={styles.empty}>{emptyLabel}</Text>
+          ) : (
+            <View style={styles.stack}>
+              {displayed.map((intervention) => (
+                <InterventionCard
+                  key={intervention.id}
+                  intervention={intervention}
+                  onPress={(item) =>
+                    navigation.navigate('AgentIntervention', {
+                      id: item.id,
+                    })
+                  }
+                />
+              ))}
+            </View>
+          )}
+        </View>
 
-      <TouchableOpacity onPress={() => navigation.navigate('AgentRequests')}>
-        <Text style={styles.link}>Déclarer une absence →</Text>
-      </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('AgentRequests')}>
+          <Text style={styles.link}>Déclarer une absence →</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </HeaderLayout>
   );
 }

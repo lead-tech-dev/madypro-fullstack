@@ -41,7 +41,14 @@ export async function registerForPushNotificationsAsync() {
     const { data } = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined,
     );
-    return data ?? null;
+    let deviceToken: string | null = null;
+    try {
+      const native = await Notifications.getDevicePushTokenAsync();
+      deviceToken = native?.data ?? null;
+    } catch (err) {
+      console.warn('Impossible de récupérer le token natif (FCM/APNs)', err);
+    }
+    return { expoToken: data ?? null, deviceToken };
   } catch (error) {
     console.warn('registerForPushNotificationsAsync failed', error);
     return null;

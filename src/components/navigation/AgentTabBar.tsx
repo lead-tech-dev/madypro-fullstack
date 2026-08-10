@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNotificationCenter } from '@/context/NotificationContext';
 
 Ionicons.loadFont?.();
 
@@ -18,6 +19,7 @@ type AgentTabBarProps = BottomTabBarProps & {
 export const AgentTabBar: React.FC<AgentTabBarProps> = ({ state, navigation, iconMap }) => {
   const insets = useSafeAreaInsets();
   const bottom = Math.max(8, insets.bottom + 8);
+   const { unreadCount } = useNotificationCenter();
 
   return (
     <View style={[styles.wrapper, { paddingBottom: bottom }]}>
@@ -47,6 +49,8 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({ state, navigation, ico
             });
           };
 
+          const showBadge = route.name === 'AgentNotifications' && unreadCount > 0;
+
           return (
             <TouchableOpacity
               key={route.key}
@@ -62,6 +66,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({ state, navigation, ico
                   size={isFocused ? 26 : 22}
                   color={isFocused ? '#020912' : '#6b645c'}
                 />
+                {showBadge && <View style={styles.badge} />}
               </View>
             </TouchableOpacity>
           );
@@ -108,8 +113,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
+    position: 'relative',
   },
   iconWrapperActive: {
     backgroundColor: '#dbe9e0',
+  },
+  badge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#d62828',
   },
 });
