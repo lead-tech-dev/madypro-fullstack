@@ -15,6 +15,7 @@ import {
 } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/config/theme';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -26,6 +27,7 @@ import { useAuthContext } from '@/context/AuthContext';
 import { AgentStackParamList, AgentTabParamList } from '@/navigation/types';
 import { useSyncContext } from '@/context/SyncContext';
 import { buildDateTime, formatTime } from '@/utils/interventionTime';
+import { describeWeatherCode, getCurrentWeather, WeatherSnapshot } from '@/services/api/weather.api';
 
 type Navigation = CompositeNavigationProp<
   BottomTabNavigationProp<AgentTabParamList, 'AgentHome'>,
@@ -76,6 +78,8 @@ function formatCountdown(target: Date, now: Date) {
   return `dans ${hours} h${rest ? ` ${rest}` : ''}`;
 }
 
+const HOME_CACHE_KEY = 'agent:home:interventions-cache';
+
 export default function AgentHomeScreen() {
   const [scope, setScope] = React.useState<'today' | 'week'>('today');
   const [interventions, setInterventions] = React.useState<{
@@ -85,6 +89,7 @@ export default function AgentHomeScreen() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [isOfflineCache, setIsOfflineCache] = React.useState(false);
   const [now, setNow] = React.useState(() => new Date());
 
   const navigation = useNavigation<Navigation>();
@@ -105,8 +110,27 @@ export default function AgentHomeScreen() {
         listInterventionsByRange(token, 'today', user.id),
         listInterventionsByRange(token, 'week', user.id),
       ]);
-      setInterventions({ today: todayList, week: weekList });
+      const next = { today: todayList, week: weekList };
+      setInterventions(next);
+      setIsOfflineCache(false);
+      AsyncStorage.setItem(HOME_CACHE_KEY, JSON.stringify({ userId: user.id, data: next, cachedAt: Date.now() })).catch(
+        () => {},
+      );
     } catch (err) {
+      const cached = await AsyncStorage.getItem(HOME_CACHE_KEY).catch(() => null);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed.userId === user.id) {
+            setInterventions(parsed.data);
+            setIsOfflineCache(true);
+            setError(null);
+            return;
+          }
+        } catch {
+          // cache corrompu, on ignore
+        }
+      }
       setError(err instanceof Error ? err.message : 'Impossible de charger les interventions');
       setInterventions({ today: [], week: [] });
     } finally {
@@ -133,6 +157,29 @@ export default function AgentHomeScreen() {
     () => computePriorityMoment(interventions.today, user?.id),
     [interventions.today, user?.id],
   );
+
+  const [weather, setWeather] = React.useState<WeatherSnapshot | null>(null);
+  const weatherSiteCoords = React.useMemo(() => {
+    const source = priority.kind !== 'none' ? priority.intervention : interventions.today[0];
+    if (!source || typeof source.siteLatitude !== 'number' || typeof source.siteLongitude !== 'number') {
+      return null;
+    }
+    return { latitude: source.siteLatitude, longitude: source.siteLongitude };
+  }, [priority, interventions.today]);
+
+  React.useEffect(() => {
+    if (!weatherSiteCoords) {
+      setWeather(null);
+      return;
+    }
+    let cancelled = false;
+    getCurrentWeather(weatherSiteCoords.latitude, weatherSiteCoords.longitude).then((result) => {
+      if (!cancelled) setWeather(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [weatherSiteCoords]);
 
   const displayed = scope === 'today' ? interventions.today : interventions.week;
   const emptyLabel =
@@ -179,6 +226,19 @@ export default function AgentHomeScreen() {
             </Text>
           </TouchableOpacity>
         )}
+        {isOfflineCache && (
+          <View style={styles.syncBadge}>
+            <Text style={styles.syncBadgeText}>Hors ligne — dernières données connues</Text>
+          </View>
+        )}
+
+        {weather && (
+          <View style={styles.weatherRow}>
+            <Text style={styles.weatherTemp}>{weather.temperatureC}°C</Text>
+            <Text style={styles.weatherLabel}>{describeWeatherCode(weather.weatherCode)} sur le site</Text>
+          </View>
+        )}
+
         {isLoading ? (
           <ActivityIndicator color={theme.colors.primary} />
         ) : priority.kind === 'in-progress' ? (
@@ -258,6 +318,21 @@ export default function AgentHomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  weatherRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: theme.spacing.sm,
+    alignSelf: 'flex-start',
+  },
+  weatherTemp: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 16,
+    color: theme.colors.ink,
+  },
+  weatherLabel: {
+    color: theme.colors.muted,
+    fontSize: 13,
+  },
   syncBadge: {
     backgroundColor: theme.colors.status.lateSoft,
     borderRadius: theme.radii.pill,
