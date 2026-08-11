@@ -7,4 +7,6 @@ export type User = {
   role: string;
   phone: string;
   active: boolean;
+  twoFactorEnabled?: boolean;
+  permissions?: string[];
 };

@@ -16,8 +16,23 @@ const ADMIN_MENU: NavItem[] = [
   { type: 'link', to: '/absences', label: 'Absences' },
   { type: 'link', to: '/notifications', label: 'Notifications' },
   { type: 'link', to: '/reports', label: 'Rapports' },
-  { type: 'link', to: '/settings', label: 'Paramètres' },
-  { type: 'link', to: '/audit', label: 'Audit' },
+  {
+    type: 'group',
+    label: 'Paramètres',
+    children: [
+      { to: '/settings', label: 'Général' },
+      { to: '/settings/security', label: 'Sécurité' },
+      { to: '/settings/webhooks', label: 'Webhooks' },
+    ],
+  },
+  {
+    type: 'group',
+    label: 'Audit',
+    children: [
+      { to: '/audit', label: 'Journal d’audit' },
+      { to: '/audit/login-history', label: 'Connexions' },
+    ],
+  },
 ];
 
 const SUPERVISOR_MENU: NavItem[] = [
@@ -37,7 +52,7 @@ type SidebarProps = {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { logout, user } = useAuthContext();
   const navigate = useNavigate();
-  const [portfolioOpen, setPortfolioOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const isSupervisor = user?.role?.toUpperCase() === 'SUPERVISOR';
   const menuItems = isSupervisor ? SUPERVISOR_MENU : ADMIN_MENU;
   const subtitle = isSupervisor ? 'Superviseur' : 'Admin';
@@ -57,13 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <p className="sidebar__subtitle">{subtitle}</p>
         </div>
       </div>
-      <nav
-        className="sidebar__nav"
-        onClick={(e) => {
-          onClose();
-          setPortfolioOpen(false);
-        }}
-      >
+      <nav className="sidebar__nav" onClick={() => onClose()}>
         {menuItems.map((item) => {
           if (item.type === 'link') {
             return (
@@ -79,27 +88,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             );
           }
           // group
+          const isGroupOpen = openGroup === item.label;
           return (
             <div key={item.label}>
               <div
                 role="button"
                 tabIndex={0}
-                className={`sidebar__link${portfolioOpen ? ' sidebar__link--active' : ''}`}
+                className={`sidebar__link${isGroupOpen ? ' sidebar__link--active' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setPortfolioOpen((prev) => !prev);
+                  setOpenGroup((prev) => (prev === item.label ? null : item.label));
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    setPortfolioOpen((prev) => !prev);
+                    setOpenGroup((prev) => (prev === item.label ? null : item.label));
                   }
                 }}
                 style={{ cursor: 'pointer' }}
               >
                 {item.label}
               </div>
-              {portfolioOpen && (
+              {isGroupOpen && (
                 <div className="sidebar__sublinks">
                   {item.children.map((child) => (
                     <NavLink

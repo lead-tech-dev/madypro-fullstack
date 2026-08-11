@@ -241,7 +241,21 @@ nommage : nouvelles pages sous `web/src/pages/<domaine>/`, routes déclarées da
 superviseurs), entrées de nav dans `web/src/components/layout/Sidebar.tsx` (le type
 `group` existant permet de regrouper plusieurs sous-écrans sous un même intitulé).
 
-## Sprint 17 (S33-S34) — UI Sécurité & permissions
+## Sprint 17 (S33-S34) — UI Sécurité & permissions ✅ terminé
+
+Réalisé tel que planifié, avec une page `SecuritySettingsPage.tsx` dédiée plutôt qu'un
+onglet dans `SettingsPage.tsx` (plus cohérent avec la nouvelle nav groupée). Groupes de
+navigation « Paramètres » et « Audit » ajoutés dans `Sidebar.tsx` (le composant ne
+supportait qu'un seul groupe dépliable à la fois — corrigé pour en gérer plusieurs
+indépendamment). Bug réel trouvé et corrigé en testant : la réponse de connexion
+n'incluait jamais `twoFactorEnabled`/`permissions`, donc la page Sécurité affichait
+« Désactivée » même quand la 2FA était active (`presentUser()` dans `auth.service.ts`).
+Testé en direct dans le navigateur (Chrome via automatisation) : cycle 2FA complet
+(activation, QR scanné via un vrai code TOTP généré, connexion à deux étapes,
+désactivation), journal des connexions avec vraies entrées, permissions accordées et
+retirées avec vérification en base, webhook créé/activé-désactivé/secret régénéré/
+supprimé. Données de test nettoyées après coup.
+
 
 **1. 2FA**
 - Écran : nouvel onglet « Sécurité » dans `SettingsPage.tsx`, plus un second écran de

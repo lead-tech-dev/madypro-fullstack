@@ -48,6 +48,8 @@ export class AuthService {
     role: string;
     phone: string;
     active: boolean;
+    twoFactorEnabled?: boolean;
+    permissions?: string[];
   }) {
     return {
       id: user.id,
@@ -58,6 +60,8 @@ export class AuthService {
       role: user.role,
       phone: user.phone,
       active: user.active,
+      twoFactorEnabled: user.twoFactorEnabled ?? false,
+      permissions: user.permissions ?? [],
     };
   }
 

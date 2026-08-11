@@ -7,6 +7,7 @@ import {
   createUser,
   getUser,
   updateUser,
+  updateUserPermissions,
   CreateUserPayload,
   UpdateUserPayload,
 } from '../../services/api/users.api';
@@ -16,6 +17,13 @@ const ROLE_OPTIONS = [
   { value: 'ADMIN', label: 'Admin' },
   { value: 'SUPERVISOR', label: 'Superviseur' },
   { value: 'AGENT', label: 'Agent' },
+];
+
+const PERMISSION_OPTIONS = [
+  { value: 'settings:manage', label: 'Gérer les paramètres' },
+  { value: 'users:manage', label: 'Gérer les utilisateurs' },
+  { value: 'reports:export', label: 'Exporter les rapports' },
+  { value: 'webhooks:manage', label: 'Gérer les webhooks' },
 ];
 
 const DEFAULT_FORM: CreateUserPayload = {
@@ -35,6 +43,8 @@ export const UserFormPage: React.FC = () => {
   const [form, setForm] = useState<CreateUserPayload>(DEFAULT_FORM);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [savingPermissions, setSavingPermissions] = useState(false);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -49,10 +59,29 @@ export const UserFormPage: React.FC = () => {
           role: user.role.toUpperCase(),
           password: '',
         });
+        setPermissions(user.permissions ?? []);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Utilisateur introuvable'))
       .finally(() => setLoading(false));
   }, [token, id]);
+
+  const togglePermission = (value: string) => {
+    setPermissions((prev) => (prev.includes(value) ? prev.filter((p) => p !== value) : [...prev, value]));
+  };
+
+  const savePermissions = async () => {
+    if (!token || !id) return;
+    setSavingPermissions(true);
+    try {
+      await updateUserPermissions(token, id, permissions);
+      notify('Permissions mises à jour', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Impossible de mettre à jour les permissions';
+      notify(message, 'error');
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
 
   const handleChange = (field: keyof CreateUserPayload, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -139,6 +168,33 @@ export const UserFormPage: React.FC = () => {
           </Button>
         </div>
       </form>
+
+      {isEdit && form.role !== 'ADMIN' && (
+        <article className="settings-card" style={{ marginTop: '1.5rem' }}>
+          <span className="card__meta">Accès</span>
+          <h3>Permissions granulaires</h3>
+          <p className="card__meta">
+            Accorde des droits spécifiques au-delà du rôle {form.role === 'SUPERVISOR' ? 'Superviseur' : 'Agent'}.
+          </p>
+          <div style={{ display: 'grid', gap: '0.5rem', marginTop: '1rem' }}>
+            {PERMISSION_OPTIONS.map((option) => (
+              <label key={option.value} className="settings-toggle" style={{ justifyContent: 'flex-start', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={permissions.includes(option.value)}
+                  onChange={() => togglePermission(option.value)}
+                />
+                <span style={{ textTransform: 'none' }}>{option.label}</span>
+              </label>
+            ))}
+          </div>
+          <div className="form-actions" style={{ marginTop: '1rem' }}>
+            <Button type="button" onClick={savePermissions} disabled={savingPermissions}>
+              {savingPermissions ? 'Enregistrement...' : 'Enregistrer les permissions'}
+            </Button>
+          </div>
+        </article>
+      )}
     </div>
   );
 };

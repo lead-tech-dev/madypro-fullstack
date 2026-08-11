@@ -80,3 +80,14 @@ export async function resetUserPassword(token: string, id: string): Promise<{ pa
 export async function getUser(token: string, id: string): Promise<User> {
   return apiFetch<User>({ path: `users/${id}`, token });
 }
+
+export async function updateUserPermissions(token: string, id: string, permissions: string[]): Promise<User> {
+  return apiFetch<User>({
+    path: `users/${id}/permissions`,
+    token,
+    options: {
+      method: 'PATCH',
+      body: JSON.stringify({ permissions }),
+    },
+  });
+}

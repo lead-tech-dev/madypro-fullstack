@@ -15,6 +15,9 @@ import { ReportsPage } from '../pages/reports/ReportsPage';
 import { SettingsPage } from '../pages/settings/SettingsPage';
 import { NotificationsPage } from '../pages/notifications/NotificationsPage';
 import { AuditPage } from '../pages/audit/AuditPage';
+import { LoginHistoryPage } from '../pages/audit/LoginHistoryPage';
+import { SecuritySettingsPage } from '../pages/settings/SecuritySettingsPage';
+import { WebhooksPage } from '../pages/settings/WebhooksPage';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 
 export const AdminRoutes = () => (
@@ -34,8 +37,11 @@ export const AdminRoutes = () => (
       <Route path="/absences/:id" element={<AbsenceDetailPage />} />
       <Route path="/reports" element={<ReportsPage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/settings/security" element={<SecuritySettingsPage />} />
+      <Route path="/settings/webhooks" element={<WebhooksPage />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/audit" element={<AuditPage />} />
+      <Route path="/audit/login-history" element={<LoginHistoryPage />} />
     </Route>
   </Route>
 );
