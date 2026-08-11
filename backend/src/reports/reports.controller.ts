@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
-import { Response } from 'express';
+import { Body, Controller, Get, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -52,5 +52,30 @@ export class ReportsController {
   @Post('payroll-breakdown/push')
   pushPayroll(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
     return this.service.pushPayrollToPayrollProvider(startDate, endDate);
+  }
+
+  @Get('comparison')
+  comparePeriods(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+    return this.service.comparePeriods(startDate, endDate);
+  }
+
+  @Get('site-benchmark')
+  getSiteBenchmark() {
+    return this.service.getSiteBenchmark();
+  }
+
+  @Get('billing')
+  getBillingReport(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+    return this.service.getBillingReport(startDate, endDate);
+  }
+
+  @Get('dashboard-layout')
+  getDashboardLayout(@Req() req: Request) {
+    return this.service.getDashboardLayout((req.user as any)?.sub);
+  }
+
+  @Put('dashboard-layout')
+  setDashboardLayout(@Req() req: Request, @Body() body: { layout: unknown }) {
+    return this.service.setDashboardLayout((req.user as any)?.sub, body.layout);
   }
 }

@@ -1,4 +1,4 @@
-import { IsArray, IsDateString, IsIn, IsOptional, IsString, ValidateIf, IsNotEmpty } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, ValidateIf, IsNotEmpty } from 'class-validator';
 import type { InterventionType } from '../entities/intervention.entity';
 
 export class CreateInterventionDto {
@@ -45,4 +45,8 @@ export class CreateInterventionDto {
   @IsOptional()
   @IsString()
   generatedFromRuleId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  billable?: boolean;
 }

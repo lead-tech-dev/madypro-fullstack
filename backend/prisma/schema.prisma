@@ -131,6 +131,7 @@ model User {
   leaveAllocations      LeaveAllocation[]
   chatThread            ChatMessage[]     @relation("ChatThread")
   chatMessagesSent      ChatMessage[]     @relation("ChatSender")
+  dashboardLayout       UserDashboardLayout?
 }
 
 model Certification {
@@ -349,6 +350,7 @@ model Intervention {
   status              InterventionStatus       @default(PLANNED)
   observation         String?
   clientSignature     String?
+  billable            Boolean                  @default(true)
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
   assignments         InterventionAssignment[]
@@ -573,5 +575,15 @@ model AuditLog {
   entityType String
   entityId   String?
   details    String?
+  before     Json?
+  after      Json?
   createdAt  DateTime    @default(now())
+}
+
+model UserDashboardLayout {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  layout    Json
+  updatedAt DateTime @updatedAt
 }

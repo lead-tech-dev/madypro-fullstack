@@ -188,15 +188,16 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 14 (S27-S28) — Rapports & business intelligence
+## Sprint 14 (S27-S28) — Rapports & business intelligence ✅ terminé
 
 **Back-office**
-- [ ] Comparaison période sur période (N-1)
-- [ ] Dashboard configurable (widgets réarrangeables)
-- [ ] Rapport de facturation (heures facturables vs internes)
-- [ ] Benchmark inter-sites
-- [ ] Export CSV conformité RGPD (audit)
-- [ ] Diff avant/après dans l'audit
+- [x] Comparaison période sur période (N-1) — `GET /reports/comparison`, période courante vs période précédente de même durée, deltas en %, gère proprement l'absence de données (pas de division par zéro)
+- [x] Dashboard configurable (widgets réarrangeables) — `UserDashboardLayout` (JSON par utilisateur), `GET/PUT /reports/dashboard-layout` ; UI web de réarrangement non construite dans ce sprint
+- [x] Rapport de facturation (heures facturables vs internes) — `Intervention.billable` + `GET /reports/billing`
+- [x] Benchmark inter-sites — `GET /reports/site-benchmark` (taux de complétion + anomalies sur 90 jours, classé)
+- [x] Export CSV conformité RGPD (audit) — `GET /audit/export.csv`
+- [x] Diff avant/après dans l'audit — `AuditLog.before`/`after` (JSON), câblé sur `UsersService.update` et `SitesService.update` comme démonstration
+- [ ] UI web back-office pour ces écrans — API uniquement dans ce sprint
 
 ---
 

@@ -353,6 +353,116 @@ export class ReportsService implements OnModuleInit {
     };
   }
 
+  async comparePeriods(startDate?: string, endDate?: string) {
+    const today = new Date();
+    const defaultEnd = today.toISOString().slice(0, 10);
+    const defaultStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const currentStart = startDate ?? defaultStart;
+    const currentEnd = endDate ?? defaultEnd;
+
+    const durationMs = new Date(currentEnd).getTime() - new Date(currentStart).getTime();
+    const previousEnd = new Date(new Date(currentStart).getTime() - 24 * 60 * 60 * 1000);
+    const previousStart = new Date(previousEnd.getTime() - durationMs);
+
+    const [current, previous] = await Promise.all([
+      this.performance(currentStart, currentEnd),
+      this.performance(previousStart.toISOString().slice(0, 10), previousEnd.toISOString().slice(0, 10)),
+    ]);
+
+    const percentDelta = (curr: number | null, prev: number | null) => {
+      if (curr == null || prev == null || prev === 0) return null;
+      return Math.round(((curr - prev) / prev) * 1000) / 10;
+    };
+
+    return {
+      current: { period: current.period, kpis: current.kpis, totals: current.totals },
+      previous: { period: previous.period, kpis: previous.kpis, totals: previous.totals },
+      deltas: {
+        punctualityRate: percentDelta(current.kpis.punctualityRate, previous.kpis.punctualityRate),
+        absenteeismRate: percentDelta(current.kpis.absenteeismRate, previous.kpis.absenteeismRate),
+        realizationRate: percentDelta(current.kpis.realizationRate, previous.kpis.realizationRate),
+        realizedMinutes: percentDelta(current.kpis.realizedMinutes, previous.kpis.realizedMinutes),
+      },
+    };
+  }
+
+  async getSiteBenchmark() {
+    const sites = await this.prisma.site.findMany({ where: { active: true } });
+    const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const results = await Promise.all(
+      sites.map(async (site) => {
+        const [interventions, anomalies] = await Promise.all([
+          this.prisma.intervention.findMany({
+            where: { siteId: site.id, date: { gte: since }, status: { in: ['COMPLETED', 'NEEDS_REVIEW', 'NO_SHOW'] } },
+            select: { status: true },
+          }),
+          this.prisma.anomaly.count({ where: { intervention: { siteId: site.id }, createdAt: { gte: since } } }),
+        ]);
+        const total = interventions.length;
+        const completed = interventions.filter((i) => i.status === 'COMPLETED').length;
+        const completionRate = total > 0 ? Math.round((completed / total) * 1000) / 10 : null;
+        return {
+          siteId: site.id,
+          siteName: site.name,
+          interventionsTotal: total,
+          completionRate,
+          anomalyCount: anomalies,
+        };
+      }),
+    );
+    return results
+      .filter((r) => r.interventionsTotal > 0)
+      .sort((a, b) => (b.completionRate ?? 0) - (a.completionRate ?? 0));
+  }
+
+  async getBillingReport(startDate?: string, endDate?: string) {
+    const today = new Date();
+    const defaultEnd = today.toISOString().slice(0, 10);
+    const defaultStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const start = this.startOfDay(new Date(startDate ?? defaultStart));
+    const end = this.endOfDay(new Date(endDate ?? defaultEnd));
+
+    const attendances = await this.prisma.attendance.findMany({
+      where: { date: { gte: start, lte: end }, checkInTime: { not: null }, checkOutTime: { not: null } },
+      include: { intervention: { select: { billable: true, siteId: true, site: { select: { name: true } } } } },
+    });
+
+    type Agg = { siteName: string; billableMinutes: number; internalMinutes: number };
+    const bySite = new Map<string, Agg>();
+    attendances.forEach((att) => {
+      const minutes = (att.checkOutTime!.getTime() - att.checkInTime!.getTime()) / 60000;
+      const siteId = att.intervention.siteId;
+      const existing = bySite.get(siteId) ?? { siteName: att.intervention.site.name, billableMinutes: 0, internalMinutes: 0 };
+      if (att.intervention.billable) {
+        existing.billableMinutes += minutes;
+      } else {
+        existing.internalMinutes += minutes;
+      }
+      bySite.set(siteId, existing);
+    });
+
+    const toHours = (m: number) => Math.round((m / 60) * 100) / 100;
+    return Array.from(bySite.entries()).map(([siteId, agg]) => ({
+      siteId,
+      siteName: agg.siteName,
+      billableHours: toHours(agg.billableMinutes),
+      internalHours: toHours(agg.internalMinutes),
+    }));
+  }
+
+  async getDashboardLayout(userId: string) {
+    const layout = await this.prisma.userDashboardLayout.findUnique({ where: { userId } });
+    return layout?.layout ?? null;
+  }
+
+  async setDashboardLayout(userId: string, layout: unknown) {
+    return this.prisma.userDashboardLayout.upsert({
+      where: { userId },
+      update: { layout: layout as any },
+      create: { userId, layout: layout as any },
+    });
+  }
+
   private isoWeekKey(date: Date) {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     const dayNum = d.getUTCDay() || 7;

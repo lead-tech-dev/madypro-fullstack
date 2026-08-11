@@ -831,6 +831,7 @@ export class InterventionsService implements OnModuleInit {
     if (dto.subType !== undefined) data.subType = dto.subType ?? null;
     if (dto.label !== undefined) data.label = dto.label ?? null;
     if (dto.observation !== undefined) data.observation = dto.observation ?? null;
+    if (dto.billable !== undefined) data.billable = dto.billable;
     if (dto.generatedFromRuleId !== undefined) {
       data.generatedFromRule = dto.generatedFromRuleId
         ? { connect: { id: dto.generatedFromRuleId } }

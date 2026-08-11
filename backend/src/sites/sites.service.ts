@@ -134,7 +134,7 @@ export class SitesService implements OnModuleInit {
   }
 
   async update(id: string, dto: UpdateSiteDto, actorId = 'system'): Promise<SiteView> {
-    this.ensureExists(id);
+    const existing = this.ensureExists(id);
     const data: any = {};
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.address !== undefined) data.address = dto.address;
@@ -157,6 +157,12 @@ export class SitesService implements OnModuleInit {
       };
     }
 
+    const changedFields = Object.keys(data).filter((k) => k !== 'supervisors');
+    const before: Record<string, unknown> = {};
+    changedFields.forEach((field) => {
+      before[field] = (existing as any)[field];
+    });
+
     const record = await this.prisma.site.update({
       where: { id },
       data,
@@ -165,12 +171,18 @@ export class SitesService implements OnModuleInit {
     const site = this.mapRecord(record);
     const index = this.sites.findIndex((item) => item.id === id);
     this.sites[index] = site;
+    const after: Record<string, unknown> = {};
+    changedFields.forEach((field) => {
+      after[field] = (site as any)[field];
+    });
     this.auditService.record({
       actorId,
       action: 'UPDATE_SITE',
       entityType: 'site',
       entityId: site.id,
       details: Object.keys(data).join(', ') || undefined,
+      before: changedFields.length ? before : undefined,
+      after: changedFields.length ? after : undefined,
     });
     return this.present(site);
   }

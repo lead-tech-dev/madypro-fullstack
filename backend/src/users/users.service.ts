@@ -146,18 +146,30 @@ export class UsersService implements OnModuleInit {
     if (dto.phone !== undefined) data.phone = dto.phone;
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
 
+    const changedFields = Object.keys(data).filter((k) => k !== 'password');
+    const before: Record<string, unknown> = {};
+    changedFields.forEach((field) => {
+      before[field] = (user as any)[field];
+    });
+
     const record = await this.prisma.user.update({
       where: { id: user.id },
       data,
     });
     const updated = this.mapRecord(record);
     this.upsertCache(updated);
+    const after: Record<string, unknown> = {};
+    changedFields.forEach((field) => {
+      after[field] = (updated as any)[field];
+    });
     this.auditService.record({
       actorId,
       action: 'UPDATE_USER',
       entityType: 'user',
       entityId: updated.id,
-      details: Object.keys(data).filter((k) => k !== 'password').join(', ') || undefined,
+      details: changedFields.join(', ') || undefined,
+      before: changedFields.length ? before : undefined,
+      after: changedFields.length ? after : undefined,
     });
     return this.toPublic(updated);
   }

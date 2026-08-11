@@ -18,6 +18,8 @@ export type AuditLogInput = {
   entityType: string;
   entityId?: string;
   details?: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
 };
 
 @Injectable()
@@ -27,7 +29,7 @@ export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   record(log: AuditLogInput) {
-    return this.prisma.auditLog.create({ data: log }).catch((err) => {
+    return this.prisma.auditLog.create({ data: log as any }).catch((err) => {
       this.logger.warn(`Échec d'enregistrement d'audit (${log.action}/${log.entityType}): ${err.message}`);
       return undefined;
     });
@@ -56,5 +58,39 @@ export class AuditService {
       this.prisma.auditLog.count({ where }),
     ]);
     return { items, total, page, pageSize };
+  }
+
+  async exportCsv(filters: AuditFilters = {}) {
+    const where: Record<string, unknown> = {};
+    if (filters.actorId) where.actorId = filters.actorId;
+    if (filters.action) where.action = filters.action;
+    if (filters.entityType) where.entityType = filters.entityType;
+    if (filters.startDate || filters.endDate) {
+      where.createdAt = {
+        ...(filters.startDate ? { gte: new Date(filters.startDate) } : {}),
+        ...(filters.endDate ? { lte: new Date(filters.endDate) } : {}),
+      };
+    }
+    const items = await this.prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const escape = (value: unknown) => {
+      const str = value == null ? '' : String(typeof value === 'object' ? JSON.stringify(value) : value);
+      return `"${str.replace(/"/g, '""')}"`;
+    };
+    const header = 'Date;Acteur;Action;Type;Entité;Détails;Avant;Après';
+    const lines = items.map((item) =>
+      [
+        item.createdAt.toISOString(),
+        item.actorId,
+        item.action,
+        item.entityType,
+        item.entityId ?? '',
+        item.details ?? '',
+        item.before ?? '',
+        item.after ?? '',
+      ]
+        .map(escape)
+        .join(';'),
+    );
+    return [header, ...lines].join('\n');
   }
 }
