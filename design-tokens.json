@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Jetons de design partagés cibles pour MadyPro Clean (web + mobile). Voir DESIGN_SYSTEM.md.",
+  "color": {
+    "primary": "#0E8E7C",
+    "primarySoft": "#DFF1EC",
+    "ink": "#132420",
+    "inkLight": "#7B8781",
+    "muted": "#5C6864",
+    "cream": "#F4F7F5",
+    "shell": "#FFFFFF",
+    "sage": "#D3EAE4",
+    "border": "#D6DEDA",
+    "accent": "#C7DAD3",
+    "danger": "#C24A3E",
+    "status": {
+      "onTime": "#2E8B57",
+      "onTimeSoft": "#E1F1E7",
+      "late": "#B9791E",
+      "lateSoft": "#F6E9D2",
+      "absent": "#C24A3E",
+      "absentSoft": "#F3DEDE",
+      "pending": "#7B8781",
+      "pendingSoft": "#E4E9E6"
+    }
+  },
+  "font": {
+    "display": "FjallaOne_400Regular",
+    "body": "Cabin_400Regular",
+    "bodyMedium": "Cabin_500Medium",
+    "bodySemiBold": "Cabin_600SemiBold",
+    "bodyBold": "Cabin_700Bold",
+    "webFallback": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+  },
+  "space": {
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "xxl": 32
+  },
+  "radius": {
+    "md": 20,
+    "lg": 28,
+    "pill": 999
+  }
+}

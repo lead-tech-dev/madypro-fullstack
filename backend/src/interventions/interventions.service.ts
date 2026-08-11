@@ -1274,6 +1274,42 @@ export class InterventionsService implements OnModuleInit {
     return { id: updated.id, clientSignature: updated.clientSignature };
   }
 
+  /**
+   * Payload minimal pensé pour un widget d'écran d'accueil natif (à construire
+   * séparément côté iOS/Android — non réalisable dans cet environnement, aucun
+   * outil de build natif ni device disponible). Retourne la mission en cours ou
+   * la prochaine mission du jour pour l'agent.
+   */
+  async getNextInterventionForUser(userId: string) {
+    const now = new Date();
+    const dayStart = this.toDateOnly(now.toISOString().slice(0, 10));
+    const dayEnd = this.endOfDay(now.toISOString().slice(0, 10));
+
+    const interventions = await this.prisma.intervention.findMany({
+      where: {
+        date: { gte: dayStart, lte: dayEnd },
+        status: { in: ['PLANNED', 'IN_PROGRESS'] },
+        assignments: { some: { userId } },
+      },
+      include: { site: { select: { name: true } }, attendances: { where: { userId } } },
+      orderBy: { startTime: 'asc' },
+    });
+
+    const inProgress = interventions.find((i) => i.status === 'IN_PROGRESS');
+    const target = inProgress ?? interventions.find((i) => i.status === 'PLANNED');
+    if (!target) {
+      return { hasNext: false };
+    }
+    return {
+      hasNext: true,
+      interventionId: target.id,
+      siteName: target.site.name,
+      startTime: target.startTime,
+      endTime: target.endTime,
+      status: target.status,
+    };
+  }
+
   async getAssignmentSuggestions(id: string) {
     const intervention = await this.prisma.intervention.findUnique({
       where: { id },

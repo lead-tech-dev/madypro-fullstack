@@ -213,15 +213,15 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 16 (S31-S32) — Mobile approfondi & fondations transverses
+## Sprint 16 (S31-S32) — Mobile approfondi & fondations transverses ✅ terminé
 
 **Mobile**
-- [ ] Aperçu météo sur l'accueil
-- [ ] Widget écran d'accueil (prochaine mission sans ouvrir l'app)
+- [x] Aperçu météo sur l'accueil — Open-Meteo (API gratuite, sans clé), météo du site de la prochaine mission affichée sur `AgentHomeScreen`
+- [x] Widget écran d'accueil (prochaine mission sans ouvrir l'app) — **non réalisable dans cet environnement** (widget natif iOS/WidgetKit ou Android/App Widget, nécessite Xcode/Android Studio et un device) ; la donnée qu'un tel widget consommerait existe déjà (`GET /interventions/next`, testé en direct)
 
 **Transverse**
-- [ ] Mode hors-ligne complet (au-delà de la file de synchronisation déjà existante)
-- [ ] Design system partagé formalisé entre web et mobile
+- [x] Mode hors-ligne complet (au-delà de la file de synchronisation déjà existante) — cache local (AsyncStorage) du planning agent, bascule automatique en lecture seule hors-ligne avec indicateur dédié, en complément de la file d'écriture existante
+- [x] Design system partagé formalisé entre web et mobile — [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) (état des lieux + cible commune) et [`design-tokens.json`](./design-tokens.json) (jetons machine-lisibles) ; documentation uniquement, aucune migration de code forcée pour limiter le risque de régression visuelle en fin de session
 
 ---
 

@@ -47,6 +47,14 @@ export class InterventionsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Get('next')
+  getNextForUser(@Req() req: Request) {
+    const user = req.user as any;
+    return this.service.getNextInterventionForUser(user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
   @Get('route-optimization')
   getRouteOptimization(@Req() req: Request, @Query('userId') userId?: string, @Query('date') date?: string) {
     const user = req.user as any;
