@@ -25,6 +25,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
+import { haversineDistanceMeters } from '../common/utils/geo';
 
 export type InterventionFilters = {
   startDate?: string;
@@ -1189,5 +1190,165 @@ export class InterventionsService implements OnModuleInit {
       done: item.done,
     });
     return item;
+  }
+
+  async setClientSignature(id: string, signature: string, actorId = 'system') {
+    await this.findRecord(id);
+    const updated = await this.prisma.intervention.update({
+      where: { id },
+      data: { clientSignature: signature },
+    });
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_INTERVENTION',
+      entityType: 'intervention',
+      entityId: id,
+      details: 'Signature client enregistrée',
+    });
+    return { id: updated.id, clientSignature: updated.clientSignature };
+  }
+
+  async getAssignmentSuggestions(id: string) {
+    const intervention = await this.prisma.intervention.findUnique({
+      where: { id },
+      include: { site: true, assignments: true },
+    });
+    if (!intervention) {
+      throw new NotFoundException('Intervention introuvable');
+    }
+    if (intervention.site.latitude == null || intervention.site.longitude == null) {
+      return { interventionId: id, candidates: [] };
+    }
+    const assignedIds = new Set(intervention.assignments.map((a) => a.userId));
+    const dateStr = intervention.date.toISOString().slice(0, 10);
+    const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+    const dayEnd = new Date(`${dateStr}T23:59:59.999Z`);
+    const start = new Date(`${dateStr}T${intervention.startTime}:00`);
+    const end = new Date(`${dateStr}T${intervention.endTime}:00`);
+
+    const agents = await this.prisma.user.findMany({ where: { role: 'AGENT', active: true } });
+    const [sameDayInterventions, sameDayAbsences, recentAttendance] = await Promise.all([
+      this.prisma.intervention.findMany({
+        where: { date: dayStart, id: { not: id }, status: { notIn: ['CANCELLED'] } },
+        include: { assignments: true },
+      }),
+      this.prisma.absence.findMany({
+        where: { status: 'APPROVED', from: { lte: dayEnd }, to: { gte: dayStart } },
+      }),
+      this.prisma.attendance.findMany({
+        where: { userId: { in: agents.map((a) => a.id) }, lastSeenLatitude: { not: null } },
+        orderBy: { lastSeenAt: 'desc' },
+        distinct: ['userId'],
+      }),
+    ]);
+
+    const busyIds = new Set<string>();
+    sameDayAbsences.forEach((a) => busyIds.add(a.userId));
+    sameDayInterventions.forEach((other) => {
+      const otherStart = new Date(`${dateStr}T${other.startTime}:00`);
+      const otherEnd = new Date(`${dateStr}T${other.endTime}:00`);
+      if (start < otherEnd && otherStart < end) {
+        other.assignments.forEach((a) => busyIds.add(a.userId));
+      }
+    });
+
+    const lastKnown = new Map(recentAttendance.map((a) => [a.userId, a]));
+
+    const candidates = agents
+      .filter((agent) => !assignedIds.has(agent.id) && !busyIds.has(agent.id))
+      .map((agent) => {
+        const attendance = lastKnown.get(agent.id);
+        const distanceMeters =
+          attendance?.lastSeenLatitude != null && attendance?.lastSeenLongitude != null
+            ? haversineDistanceMeters(
+                { latitude: attendance.lastSeenLatitude, longitude: attendance.lastSeenLongitude },
+                { latitude: intervention.site.latitude!, longitude: intervention.site.longitude! },
+              )
+            : null;
+        return {
+          id: agent.id,
+          name: `${agent.firstName} ${agent.lastName}`.trim(),
+          distanceMeters,
+        };
+      })
+      .sort((a, b) => {
+        if (a.distanceMeters == null) return 1;
+        if (b.distanceMeters == null) return -1;
+        return a.distanceMeters - b.distanceMeters;
+      });
+
+    return { interventionId: id, candidates };
+  }
+
+  async getRouteOptimization(userId: string, date: string) {
+    const dayStart = new Date(`${date}T00:00:00.000Z`);
+    const dayEnd = new Date(`${date}T23:59:59.999Z`);
+    const interventions = await this.prisma.intervention.findMany({
+      where: {
+        date: dayStart,
+        status: { notIn: ['CANCELLED'] },
+        assignments: { some: { userId } },
+      },
+      include: { site: true },
+    });
+    const withCoords = interventions.filter((i) => i.site.latitude != null && i.site.longitude != null);
+    if (withCoords.length <= 1) {
+      return {
+        userId,
+        date,
+        stops: withCoords.map((i) => ({ interventionId: i.id, siteName: i.site.name, startTime: i.startTime })),
+        totalDistanceMeters: 0,
+      };
+    }
+
+    // Heuristique du plus proche voisin à partir de l'intervention la plus tôt planifiée
+    const remaining = [...withCoords].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const route = [remaining.shift()!];
+    let totalDistance = 0;
+    while (remaining.length) {
+      const current = route[route.length - 1];
+      let nearestIndex = 0;
+      let nearestDistance = Infinity;
+      remaining.forEach((candidate, index) => {
+        const distance = haversineDistanceMeters(
+          { latitude: current.site.latitude!, longitude: current.site.longitude! },
+          { latitude: candidate.site.latitude!, longitude: candidate.site.longitude! },
+        );
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestIndex = index;
+        }
+      });
+      totalDistance += nearestDistance;
+      route.push(remaining.splice(nearestIndex, 1)[0]);
+    }
+
+    return {
+      userId,
+      date,
+      stops: route.map((i) => ({ interventionId: i.id, siteName: i.site.name, startTime: i.startTime })),
+      totalDistanceMeters: Math.round(totalDistance),
+    };
+  }
+
+  async estimateDuration(siteId: string, type?: string) {
+    const attendances = await this.prisma.attendance.findMany({
+      where: {
+        intervention: { siteId, ...(type ? { type: type as any } : {}) },
+        checkInTime: { not: null },
+        checkOutTime: { not: null },
+      },
+      select: { checkInTime: true, checkOutTime: true },
+      take: 200,
+      orderBy: { checkOutTime: 'desc' },
+    });
+    if (!attendances.length) {
+      return { siteId, type: type ?? null, sampleSize: 0, estimatedMinutes: null };
+    }
+    const durations = attendances.map(
+      (a) => (a.checkOutTime!.getTime() - a.checkInTime!.getTime()) / 60000,
+    );
+    const avg = durations.reduce((sum, d) => sum + d, 0) / durations.length;
+    return { siteId, type: type ?? null, sampleSize: durations.length, estimatedMinutes: Math.round(avg) };
   }
 }

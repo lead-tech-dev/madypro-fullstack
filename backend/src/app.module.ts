@@ -26,6 +26,7 @@ import { BadgesModule } from './badges/badges.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { ChatModule } from './chat/chat.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { ChatModule } from './chat/chat.module';
     OnboardingModule,
     AvailabilityModule,
     ChatModule,
+    InventoryModule,
   ],
 })
 export class AppModule {}

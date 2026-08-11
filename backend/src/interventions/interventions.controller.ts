@@ -6,6 +6,7 @@ import { UpdateInterventionDto } from './dto/update-intervention.dto';
 import { DuplicateInterventionDto } from './dto/duplicate-intervention.dto';
 import { CreateInterventionRuleDto } from './dto/create-rule.dto';
 import { UpdateInterventionRuleDto } from './dto/update-rule.dto';
+import { SetSignatureDto } from './dto/set-signature.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -42,6 +43,25 @@ export class InterventionsController {
       pageSize: parseInt(pageSize, 10) || 20,
     };
     return this.service.list(filters);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Get('route-optimization')
+  getRouteOptimization(@Req() req: Request, @Query('userId') userId?: string, @Query('date') date?: string) {
+    const user = req.user as any;
+    const targetUserId = user.role === 'AGENT' ? user.sub : userId;
+    if (!targetUserId || !date) {
+      return { userId: targetUserId, date, stops: [], totalDistanceMeters: 0 };
+    }
+    return this.service.getRouteOptimization(targetUserId, date);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('estimate-duration')
+  estimateDuration(@Query('siteId') siteId: string, @Query('type') type?: string) {
+    return this.service.estimateDuration(siteId, type);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -133,5 +153,19 @@ export class InterventionsController {
     @Req() req: Request,
   ) {
     return this.service.toggleChecklistItem(id, itemId, done, (req.user as any)?.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get(':id/assignment-suggestions')
+  getAssignmentSuggestions(@Param('id') id: string) {
+    return this.service.getAssignmentSuggestions(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
+  @Post(':id/signature')
+  setClientSignature(@Param('id') id: string, @Body() dto: SetSignatureDto, @Req() req: Request) {
+    return this.service.setClientSignature(id, dto.signature, (req.user as any)?.sub);
   }
 }

@@ -1029,4 +1029,32 @@ export class AttendanceService implements OnModuleInit {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return Math.round(R * c);
   }
+
+  async getLiveMap() {
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+    const records = await this.prisma.attendance.findMany({
+      where: {
+        status: 'PENDING',
+        checkInTime: { not: null },
+        checkOutTime: null,
+        lastSeenAt: { gte: cutoff },
+        lastSeenLatitude: { not: null },
+      },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        intervention: { select: { id: true, siteId: true, site: { select: { name: true } } } },
+      },
+      orderBy: { lastSeenAt: 'desc' },
+    });
+    return records.map((r) => ({
+      userId: r.userId,
+      agentName: `${r.user.firstName} ${r.user.lastName}`.trim(),
+      interventionId: r.interventionId,
+      siteId: r.intervention.siteId,
+      siteName: r.intervention.site.name,
+      latitude: r.lastSeenLatitude,
+      longitude: r.lastSeenLongitude,
+      lastSeenAt: r.lastSeenAt,
+    }));
+  }
 }

@@ -160,18 +160,19 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 12 (S23-S24) — Inventaire & interventions avancées
+## Sprint 12 (S23-S24) — Inventaire & interventions avancées ✅ terminé
 
 **Back-office**
-- [ ] Inventaire de fournitures par site + alerte de réapprovisionnement
-- [ ] Suggestion d'affectation par proximité GPS
-- [ ] Optimisation de tournées multi-sites
-- [ ] Vue carte temps réel des agents sur le terrain
-- [ ] Signature client en fin de prestation
-- [ ] Estimation de durée basée sur l'historique
+- [x] Inventaire de fournitures par site + alerte de réapprovisionnement — `InventoryItem`, `GET /inventory/low-stock`
+- [x] Suggestion d'affectation par proximité GPS — trie les agents disponibles par distance à partir de leur dernière position connue (heartbeat)
+- [x] Optimisation de tournées multi-sites — heuristique du plus proche voisin sur les interventions du jour d'un agent
+- [x] Vue carte temps réel des agents sur le terrain — `GET /attendance/live-map` (dernière position connue, fenêtre 30 min)
+- [x] Signature client en fin de prestation — `Intervention.clientSignature` (base64, convention du projet)
+- [x] Estimation de durée basée sur l'historique — moyenne des durées réelles (check-in → check-out) passées sur un site
+- [ ] UI web back-office pour ces écrans — API uniquement dans ce sprint
 
 **Mobile**
-- [ ] Scan code-barres pour l'inventaire de fournitures
+- [x] Scan code-barres pour l'inventaire de fournitures — nouvelle dépendance `expo-camera`, écran dédié (lecture + ajustement de quantité), validé par compilation Metro uniquement (pas de device/simulateur disponible dans cet environnement)
 
 ---
 

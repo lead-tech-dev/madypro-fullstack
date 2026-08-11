@@ -274,6 +274,7 @@ model Site {
   checklistItems     SiteChecklistItem[]
   contracts          SiteContract[]
   zones              SiteZone[]
+  inventoryItems     InventoryItem[]
 }
 
 model SiteContract {
@@ -287,6 +288,19 @@ model SiteContract {
   documentUrl String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+}
+
+model InventoryItem {
+  id           String   @id @default(cuid())
+  siteId       String
+  site         Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name         String
+  barcode      String?
+  unit         String   @default("unité")
+  quantity     Int      @default(0)
+  minThreshold Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model SiteZone {
@@ -333,6 +347,7 @@ model Intervention {
   photos              String[]               @default([])
   status              InterventionStatus       @default(PLANNED)
   observation         String?
+  clientSignature     String?
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
   assignments         InterventionAssignment[]

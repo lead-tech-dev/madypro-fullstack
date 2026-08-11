@@ -39,6 +39,12 @@ export class AttendanceController {
     });
   }
 
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('live-map')
+  getLiveMap() {
+    return this.service.getLiveMap();
+  }
+
   @Get(':id')
   detail(@Param('id') id: string) {
     return this.service.findOne(id);
