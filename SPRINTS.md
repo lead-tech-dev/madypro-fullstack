@@ -375,7 +375,14 @@ période bloquée ajoutée puis retirée. Données de test nettoyées après cou
   déjà rejetée côté API avec un message explicite — juste s'assurer que ce message
   remonte proprement dans le formulaire de demande.
 
-## Sprint 20 (S39-S40) — UI Communication
+## Sprint 20 (S39-S40) — UI Communication ✅ terminé
+
+Réalisé tel que planifié : `ChatPage.tsx` (deux colonnes, liste des conversations avec
+badge non-lus + fil de conversation), ajoutée au groupe de nav « Équipes ». Testé en
+direct dans le navigateur : message agent réel affiché avec badge non-lu, ouverture du
+fil marquant automatiquement comme lu (badge disparaît), réponse envoyée et affichée
+immédiatement. Données de test nettoyées après coup.
+
 
 **1. Chat interne (vue superviseur)**
 - Écran : `web/src/pages/team/ChatPage.tsx`, route `/messages`

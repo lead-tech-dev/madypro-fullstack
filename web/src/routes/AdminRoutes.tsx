@@ -23,6 +23,7 @@ import { TeamFeedPage } from '../pages/team/TeamFeedPage';
 import { BadgesPage } from '../pages/team/BadgesPage';
 import { OnboardingPage } from '../pages/team/OnboardingPage';
 import { AvailabilityPage } from '../pages/team/AvailabilityPage';
+import { ChatPage } from '../pages/team/ChatPage';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 
 export const AdminRoutes = () => (
@@ -37,6 +38,7 @@ export const AdminRoutes = () => (
       <Route path="/equipe/badges" element={<BadgesPage />} />
       <Route path="/equipe/onboarding" element={<OnboardingPage />} />
       <Route path="/equipe/disponibilites" element={<AvailabilityPage />} />
+      <Route path="/equipe/messages" element={<ChatPage />} />
       <Route path="/sites" element={<SitesListPage />} />
       <Route path="/sites/new" element={<SiteFormPage />} />
       <Route path="/sites/:id/edit" element={<SiteFormPage />} />

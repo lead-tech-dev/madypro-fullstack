@@ -19,6 +19,7 @@ const ADMIN_MENU: NavItem[] = [
       { to: '/equipe/badges', label: 'Badges' },
       { to: '/equipe/onboarding', label: 'Onboarding' },
       { to: '/equipe/disponibilites', label: 'Disponibilités' },
+      { to: '/equipe/messages', label: 'Messages' },
     ],
   },
   { type: 'link', to: '/interventions', label: 'Interventions' },
