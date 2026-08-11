@@ -21,6 +21,7 @@ export type AgentStackParamList = {
   AgentSyncQueue: undefined;
   AgentAvailability: undefined;
   AgentChat: undefined;
+  AgentInventoryScanner: undefined;
 };
 
 export type RootStackParamList = {

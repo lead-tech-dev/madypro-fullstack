@@ -80,6 +80,11 @@ export default function AgentProfileScreen() {
           onPress={() => navigation.navigate('AgentChat')}
         />
         <Button
+          title="Scanner l'inventaire"
+          variant="ghost"
+          onPress={() => navigation.navigate('AgentInventoryScanner')}
+        />
+        <Button
           title="Modifier le mot de passe"
           variant="ghost"
           onPress={() => navigation.navigate('AgentChangePassword')}

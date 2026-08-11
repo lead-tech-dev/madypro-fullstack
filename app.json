@@ -20,6 +20,14 @@
       "eas": {
         "projectId": "17de6227-dae4-4b36-b6c2-88433b7e1a0a"
       }
-    }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MadyPro Clean utilise l'appareil photo pour scanner les codes-barres de l'inventaire."
+        }
+      ]
+    ]
   }
 }
