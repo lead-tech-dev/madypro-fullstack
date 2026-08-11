@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Site } from '@prisma/client';
+import { randomBytes } from 'crypto';
+import * as QRCode from 'qrcode';
 import { PrismaService } from '../database/prisma.service';
 import { SiteEntity } from './entities/site.entity';
 import { CreateSiteDto } from './dto/create-site.dto';
@@ -336,6 +338,27 @@ export class SitesService implements OnModuleInit {
   async setPlanImage(siteId: string, planImageUrl: string | null) {
     this.ensureExists(siteId);
     return this.prisma.site.update({ where: { id: siteId }, data: { planImageUrl } });
+  }
+
+  async getQrCode(siteId: string) {
+    this.ensureExists(siteId);
+    let site = await this.prisma.site.findUnique({ where: { id: siteId } });
+    if (!site!.qrSecret) {
+      site = await this.prisma.site.update({
+        where: { id: siteId },
+        data: { qrSecret: randomBytes(12).toString('hex') },
+      });
+    }
+    const payload = `${siteId}:${site!.qrSecret}`;
+    const qrCodeDataUrl = await QRCode.toDataURL(payload);
+    return { siteId, code: payload, qrCodeDataUrl };
+  }
+
+  async validateQrCode(siteId: string, code?: string): Promise<boolean> {
+    if (!code) return false;
+    const site = await this.prisma.site.findUnique({ where: { id: siteId } });
+    if (!site?.qrSecret) return false;
+    return code === `${siteId}:${site.qrSecret}`;
   }
 
   async getIncidentTimeline(siteId: string) {

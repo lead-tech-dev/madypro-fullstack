@@ -506,12 +506,15 @@ export class AttendanceService implements OnModuleInit {
     if (site.latitude == null || site.longitude == null) {
       throw new BadRequestException("Les coordonnées du site sont manquantes.");
     }
-    const distance = this.computeDistance(
-      { latitude: dto.latitude, longitude: dto.longitude },
-      { ...site, latitude: site.latitude, longitude: site.longitude, supervisorIds: (site as any).supervisorIds ?? [] },
-    );
-    if (distance != null && distance > this.resolveMaxDistance(site as any)) {
-      throw new BadRequestException("Vous êtes trop loin du site pour démarrer l'intervention.");
+    const qrValid = await this.sitesService.validateQrCode(intervention.siteId, dto.qrCode);
+    if (!qrValid) {
+      const distance = this.computeDistance(
+        { latitude: dto.latitude, longitude: dto.longitude },
+        { ...site, latitude: site.latitude, longitude: site.longitude, supervisorIds: (site as any).supervisorIds ?? [] },
+      );
+      if (distance != null && distance > this.resolveMaxDistance(site as any)) {
+        throw new BadRequestException("Vous êtes trop loin du site pour démarrer l'intervention.");
+      }
     }
     // Anomalie horaire : check-in en dehors du créneau planifié (tolérance TIME_DRIFT_MS)
     const interventionDate = intervention.date.toISOString().slice(0, 10);
@@ -1028,6 +1031,61 @@ export class AttendanceService implements OnModuleInit {
       Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return Math.round(R * c);
+  }
+
+  async getAnomalies() {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const attendances = await this.prisma.attendance.findMany({
+      where: { date: { gte: since }, checkInTime: { not: null }, checkOutTime: { not: null } },
+      include: { user: { select: { firstName: true, lastName: true } }, intervention: { select: { siteId: true, site: { select: { name: true } } } } },
+    });
+
+    const durationsBySite = new Map<string, number[]>();
+    attendances.forEach((a) => {
+      const minutes = (a.checkOutTime!.getTime() - a.checkInTime!.getTime()) / 60000;
+      const list = durationsBySite.get(a.intervention.siteId) ?? [];
+      list.push(minutes);
+      durationsBySite.set(a.intervention.siteId, list);
+    });
+
+    const anomalies: any[] = [];
+    attendances.forEach((a) => {
+      const minutes = (a.checkOutTime!.getTime() - a.checkInTime!.getTime()) / 60000;
+      const siteDurations = durationsBySite.get(a.intervention.siteId) ?? [];
+      if (siteDurations.length >= 5) {
+        const avg = siteDurations.reduce((s, d) => s + d, 0) / siteDurations.length;
+        if (minutes < avg * 0.3 || minutes > avg * 2) {
+          anomalies.push({
+            type: 'SUSPICIOUS_DURATION',
+            attendanceId: a.id,
+            userId: a.userId,
+            agentName: `${a.user.firstName} ${a.user.lastName}`.trim(),
+            siteName: a.intervention.site.name,
+            date: a.date,
+            durationMinutes: Math.round(minutes),
+            siteAverageMinutes: Math.round(avg),
+          });
+        }
+      }
+    });
+
+    const outsideCounts = await this.prisma.attendance.groupBy({
+      by: ['userId'],
+      where: { date: { gte: since }, outsideSince: { not: null } },
+      _count: { userId: true },
+    });
+    for (const entry of outsideCounts) {
+      if (entry._count.userId < 3) continue;
+      const user = this.usersService.findOne(entry.userId);
+      anomalies.push({
+        type: 'REPEATED_OUTSIDE_ZONE',
+        userId: entry.userId,
+        agentName: user?.name ?? 'Agent inconnu',
+        occurrences: entry._count.userId,
+      });
+    }
+
+    return anomalies;
   }
 
   async getLiveMap() {

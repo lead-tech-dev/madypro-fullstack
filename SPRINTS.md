@@ -176,14 +176,15 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 13 (S25-S26) — Pointage avancé & paie
+## Sprint 13 (S25-S26) — Pointage avancé & paie ✅ terminé
 
 **Back-office**
-- [ ] QR code / badge NFC pour le pointage
-- [ ] Règles de majoration fines (nuit, dimanche, jours fériés — au-delà du seuil 35h simple)
-- [ ] Intégration paie directe (Payfit/Silae plutôt que CSV)
-- [ ] Alerte superviseur sur oubli de pointage (aujourd'hui seul l'agent est notifié)
-- [ ] Détection d'anomalies de pointage (durées suspectes, pointages hors zone répétés)
+- [x] QR code / badge NFC pour le pointage — QR par site (`GET /sites/:id/qr-code`, secret généré à la demande) accepté en alternative à la vérification GPS au check-in ; badge NFC non réalisable dans cet environnement (pas de matériel), non tenté
+- [x] Règles de majoration fines (nuit, dimanche, jours fériés — au-delà du seuil 35h simple) — ventilation normal/nuit(22h-6h)/dimanche/férié (jours fériés français calculés, y compris mobiles via l'algorithme de Gauss), coexiste avec l'export CSV existant
+- [x] Intégration paie directe (Payfit/Silae plutôt que CSV) — dispatch de la ventilation détaillée via l'infrastructure Webhooks existante (événement `payroll.export`), plutôt qu'un connecteur propriétaire fictif
+- [x] Alerte superviseur sur oubli de pointage — job toutes les 5 min, notifie les vrais superviseurs du site (table `SiteSupervisor`) si un agent affecté n'a pas pointé 15 min après le début prévu
+- [x] Détection d'anomalies de pointage (durées suspectes, pointages hors zone répétés) — `GET /attendance/anomalies` (durée hors norme vs moyenne du site, `outsideSince` répété ≥3 fois)
+- [ ] UI web back-office pour ces écrans — API uniquement dans ce sprint
 
 ---
 

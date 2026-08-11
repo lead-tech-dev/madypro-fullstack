@@ -43,4 +43,14 @@ export class ReportsController {
     res.setHeader('Content-Disposition', `attachment; filename="export-paie-${startDate ?? 'periode'}.csv"`);
     res.send(csv);
   }
+
+  @Get('payroll-breakdown')
+  payrollBreakdown(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+    return this.service.payrollBreakdown(startDate, endDate);
+  }
+
+  @Post('payroll-breakdown/push')
+  pushPayroll(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+    return this.service.pushPayrollToPayrollProvider(startDate, endDate);
+  }
 }

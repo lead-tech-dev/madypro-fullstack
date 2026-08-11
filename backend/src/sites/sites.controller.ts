@@ -170,4 +170,11 @@ export class SitesController {
   getQualityScore(@Param('id') id: string) {
     return this.service.getQualityScore(id);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get(':id/qr-code')
+  getQrCode(@Param('id') id: string) {
+    return this.service.getQrCode(id);
+  }
 }

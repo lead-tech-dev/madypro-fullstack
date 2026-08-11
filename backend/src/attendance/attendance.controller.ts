@@ -45,6 +45,12 @@ export class AttendanceController {
     return this.service.getLiveMap();
   }
 
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('anomalies')
+  getAnomalies() {
+    return this.service.getAnomalies();
+  }
+
   @Get(':id')
   detail(@Param('id') id: string) {
     return this.service.findOne(id);

@@ -71,6 +71,8 @@ export class InterventionsService implements OnModuleInit {
   private readonly endReminderNotified = new Set<string>(); // key: interventionId:userId
   private DAILY_SUMMARY_HOUR = 18; // heure locale
   private lastSummaryDay: string | null = null;
+  private MISSED_CHECKIN_GRACE_MS = 15 * 60 * 1000;
+  private readonly missedCheckInNotified = new Set<string>(); // key: interventionId:userId
 
   constructor(
     private readonly prisma: PrismaService,
@@ -130,6 +132,13 @@ export class InterventionsService implements OnModuleInit {
         this.logger.warn('Erreur notification fin imminente', err),
       );
     }, 2 * 60 * 1000);
+
+    // Alerte superviseur sur oubli de pointage
+    setInterval(() => {
+      this.notifyMissedCheckIns().catch((err) =>
+        this.logger.warn('Erreur alerte oubli de pointage', err),
+      );
+    }, 5 * 60 * 1000);
 
     // Résumé quotidien admin/superviseur
     setInterval(() => {
@@ -199,6 +208,62 @@ export class InterventionsService implements OnModuleInit {
         : 0;
       if (startAt < cutoff) {
         this.upcomingNotified.delete(key);
+      }
+    }
+  }
+
+  private async notifyMissedCheckIns() {
+    const now = new Date();
+    const dayStart = this.toDateOnly(now.toISOString().slice(0, 10));
+    const dayEnd = this.endOfDay(now.toISOString().slice(0, 10));
+
+    const candidates = await this.prisma.intervention.findMany({
+      where: { status: 'PLANNED', date: { gte: dayStart, lte: dayEnd } },
+      include: {
+        assignments: { include: { user: true } },
+        attendances: true,
+        site: { include: { supervisors: true } },
+      },
+    });
+
+    for (const intervention of candidates) {
+      if (!intervention.startTime) continue;
+      const startAt = this.combine(intervention.date.toISOString().slice(0, 10), intervention.startTime);
+      if (now.getTime() < startAt.getTime() + this.MISSED_CHECKIN_GRACE_MS) continue;
+
+      const checkedInIds = new Set(
+        intervention.attendances.filter((a) => a.checkInTime).map((a) => a.userId),
+      );
+      const missingAgents = intervention.assignments.filter((a) => !checkedInIds.has(a.userId));
+      if (!missingAgents.length || !intervention.site.supervisors.length) continue;
+
+      for (const assignment of missingAgents) {
+        const key = `${intervention.id}:${assignment.userId}`;
+        if (this.missedCheckInNotified.has(key)) continue;
+        this.missedCheckInNotified.add(key);
+        const agentName = `${assignment.user.firstName} ${assignment.user.lastName}`.trim();
+        for (const supervisor of intervention.site.supervisors) {
+          try {
+            await this.notifications.send({
+              title: 'Oubli de pointage probable',
+              message: `${agentName} n'a pas pointé pour ${(intervention as any).site?.name ?? 'le site'} (prévu à ${intervention.startTime}).`,
+              audience: 'AGENT',
+              targetId: supervisor.userId,
+            });
+          } catch (err) {
+            this.logger.warn(`Alerte oubli pointage échouée (${intervention.id} -> ${supervisor.userId}): ${err?.message || err}`);
+          }
+        }
+      }
+    }
+
+    const cutoff = now.getTime() - 24 * 60 * 60 * 1000;
+    for (const key of Array.from(this.missedCheckInNotified)) {
+      const [itvId] = key.split(':');
+      const rec = candidates.find((r) => r.id === itvId);
+      const startAt = rec ? this.combine(rec.date.toISOString().slice(0, 10), rec.startTime ?? '00:00').getTime() : 0;
+      if (startAt < cutoff) {
+        this.missedCheckInNotified.delete(key);
       }
     }
   }

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { MailerService } from '../notifications/mailer.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 @Injectable()
 export class ReportsService implements OnModuleInit {
@@ -13,6 +14,7 @@ export class ReportsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly settingsService: SettingsService,
     private readonly mailer: MailerService,
+    private readonly webhooksService: WebhooksService,
   ) {}
 
   onModuleInit() {
@@ -420,5 +422,144 @@ export class ReportsService implements OnModuleInit {
         `${r.agentName};${r.agentEmail};${r.week};${r.normalHours.toFixed(2)};${r.overtimeHours.toFixed(2)};${r.totalHours.toFixed(2)}`,
     );
     return [header, ...lines].join('\n');
+  }
+
+  private getEasterSunday(year: number): Date {
+    // Algorithme de Gauss (calendrier grégorien)
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(Date.UTC(year, month - 1, day));
+  }
+
+  private getFrenchPublicHolidays(year: number): Set<string> {
+    const easter = this.getEasterSunday(year);
+    const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 86400000);
+    const dates = [
+      new Date(Date.UTC(year, 0, 1)),
+      addDays(easter, 1),
+      new Date(Date.UTC(year, 4, 1)),
+      new Date(Date.UTC(year, 4, 8)),
+      addDays(easter, 39),
+      addDays(easter, 50),
+      new Date(Date.UTC(year, 6, 14)),
+      new Date(Date.UTC(year, 7, 15)),
+      new Date(Date.UTC(year, 10, 1)),
+      new Date(Date.UTC(year, 10, 11)),
+      new Date(Date.UTC(year, 11, 25)),
+    ];
+    return new Set(dates.map((d) => d.toISOString().slice(0, 10)));
+  }
+
+  /**
+   * Ventilation fine des heures : normal / nuit (22h-6h) / dimanche / jour férié.
+   * Un jour férié ou dimanche majore l'intégralité de la vacation (pas de cumul avec la nuit).
+   */
+  async payrollBreakdown(startDate?: string, endDate?: string) {
+    const today = new Date();
+    const defaultEnd = today.toISOString().slice(0, 10);
+    const defaultStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const period = { startDate: startDate ?? defaultStart, endDate: endDate ?? defaultEnd };
+    const start = this.startOfDay(new Date(period.startDate));
+    const end = this.endOfDay(new Date(period.endDate));
+
+    const attendances = await this.prisma.attendance.findMany({
+      where: { date: { gte: start, lte: end }, checkInTime: { not: null }, checkOutTime: { not: null } },
+      include: { user: true },
+    });
+
+    const holidaysByYear = new Map<number, Set<string>>();
+    const getHolidays = (year: number) => {
+      if (!holidaysByYear.has(year)) {
+        holidaysByYear.set(year, this.getFrenchPublicHolidays(year));
+      }
+      return holidaysByYear.get(year)!;
+    };
+
+    type Agg = {
+      agentName: string;
+      agentEmail: string;
+      normalMinutes: number;
+      nightMinutes: number;
+      sundayMinutes: number;
+      holidayMinutes: number;
+    };
+    const byAgent = new Map<string, Agg>();
+
+    const nightOverlapMinutes = (checkIn: Date, checkOut: Date) => {
+      let minutes = 0;
+      const cursor = new Date(checkIn);
+      cursor.setUTCHours(0, 0, 0, 0);
+      while (cursor.getTime() < checkOut.getTime()) {
+        const nightStart = new Date(cursor.getTime() + 22 * 60 * 60 * 1000);
+        const nightEnd = new Date(cursor.getTime() + 30 * 60 * 60 * 1000); // 06:00 le lendemain
+        const overlapStart = Math.max(checkIn.getTime(), nightStart.getTime());
+        const overlapEnd = Math.min(checkOut.getTime(), nightEnd.getTime());
+        if (overlapEnd > overlapStart) {
+          minutes += (overlapEnd - overlapStart) / 60000;
+        }
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      return minutes;
+    };
+
+    attendances.forEach((att) => {
+      if (!att.checkInTime || !att.checkOutTime) return;
+      const dateKey = att.date.toISOString().slice(0, 10);
+      const year = att.date.getUTCFullYear();
+      const totalMinutes = Math.max(0, (att.checkOutTime.getTime() - att.checkInTime.getTime()) / 60000);
+      const key = att.userId;
+      const existing = byAgent.get(key) ?? {
+        agentName: `${att.user.firstName} ${att.user.lastName}`.trim(),
+        agentEmail: att.user.email,
+        normalMinutes: 0,
+        nightMinutes: 0,
+        sundayMinutes: 0,
+        holidayMinutes: 0,
+      };
+
+      if (getHolidays(year).has(dateKey)) {
+        existing.holidayMinutes += totalMinutes;
+      } else if (att.date.getUTCDay() === 0) {
+        existing.sundayMinutes += totalMinutes;
+      } else {
+        const night = Math.min(totalMinutes, nightOverlapMinutes(att.checkInTime, att.checkOutTime));
+        existing.nightMinutes += night;
+        existing.normalMinutes += totalMinutes - night;
+      }
+      byAgent.set(key, existing);
+    });
+
+    const toHours = (minutes: number) => Math.round((minutes / 60) * 100) / 100;
+    return Array.from(byAgent.values())
+      .map((agg) => ({
+        agentName: agg.agentName,
+        agentEmail: agg.agentEmail,
+        normalHours: toHours(agg.normalMinutes),
+        nightHours: toHours(agg.nightMinutes),
+        sundayHours: toHours(agg.sundayMinutes),
+        holidayHours: toHours(agg.holidayMinutes),
+      }))
+      .sort((a, b) => a.agentName.localeCompare(b.agentName));
+  }
+
+  async pushPayrollToPayrollProvider(startDate?: string, endDate?: string) {
+    const breakdown = await this.payrollBreakdown(startDate, endDate);
+    await this.webhooksService.dispatch('payroll.export', {
+      period: { startDate, endDate },
+      rows: breakdown,
+    });
+    return { dispatched: true, agentCount: breakdown.length };
   }
 }

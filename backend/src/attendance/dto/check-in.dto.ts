@@ -23,4 +23,8 @@ export class CheckInDto {
   @IsString()
   @IsNotEmpty({ message: 'Une photo est requise pour démarrer le pointage.' })
   photo!: string;
+
+  @IsString()
+  @IsOptional()
+  qrCode?: string;
 }

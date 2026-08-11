@@ -267,6 +267,7 @@ model Site {
   toleranceMinutes      Int?
   minimumDurationMinutes Int?
   planImageUrl       String?
+  qrSecret           String?
   supervisors        SiteSupervisor[]
   interventions      Intervention[]
   absences           Absence[]
