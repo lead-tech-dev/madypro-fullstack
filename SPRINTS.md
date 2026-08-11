@@ -234,67 +234,239 @@ pour rendre ce qui existe déjà réellement utilisable par les admins/supervise
 Sprint 10 fait exception : son enrichissement du centre de notifications a déjà été
 livré côté web pendant la phase 1.
 
-## Sprint 17 — UI Sécurité & permissions
+Toutes les API listées ci-dessous existent déjà, ont été testées en direct sur Neon et
+n'ont besoin d'aucun changement backend — ce n'est que du câblage front. Convention de
+nommage : nouvelles pages sous `web/src/pages/<domaine>/`, routes déclarées dans
+`web/src/routes/AdminRoutes.tsx` (et `SupervisionRoutes.tsx` si pertinent pour les
+superviseurs), entrées de nav dans `web/src/components/layout/Sidebar.tsx` (le type
+`group` existant permet de regrouper plusieurs sous-écrans sous un même intitulé).
 
-- [ ] 2FA : activation/désactivation dans le profil admin (QR code, code de confirmation)
-- [ ] Journal des connexions : page admin (liste, filtre par succès/échec, IP/UA)
-- [ ] Permissions granulaires : gestion par utilisateur (cases à cocher par permission)
-- [ ] Webhooks : CRUD (liste, création, rotation de secret, activation/désactivation)
+## Sprint 17 (S33-S34) — UI Sécurité & permissions
 
-## Sprint 18 — UI Équipes avancées
+**1. 2FA**
+- Écran : nouvel onglet « Sécurité » dans `SettingsPage.tsx`, plus un second écran de
+  connexion (code à 6 chiffres) déclenché quand `POST /auth/login` répond
+  `{ twoFactorRequired: true, userId }`
+- Flux : « Activer » → `POST /auth/two-factor/setup` (affiche QR + secret) → saisie du
+  code → `POST /auth/two-factor/confirm` ; « Désactiver » → mot de passe →
+  `POST /auth/two-factor/disable`
+- Connexion à deux étapes : `POST /auth/login/two-factor`
 
-- [ ] Habilitations & documents RH : section dans la fiche agent (liste, alerte d'expiration, upload)
-- [ ] Échange de shift : liste des demandes (accepter/refuser/annuler)
-- [ ] Fil d'actualité d'équipe : flux (publier, lire, supprimer)
-- [ ] Badges : catalogue (créer) + attribution (par agent, historique)
-- [ ] Onboarding : gestion du modèle + suivi de checklist par nouvel agent
-- [ ] Disponibilités déclarées : vue consolidée admin/superviseur (calendrier par agent)
+**2. Journal des connexions**
+- Écran : `web/src/pages/audit/LoginHistoryPage.tsx`, route `/audit/login-history`,
+  lien depuis `AuditPage.tsx`
+- Tableau paginé (date, email, succès/échec, raison, IP, user-agent) —
+  `GET /auth/login-history?page=&pageSize=`
 
-## Sprint 19 — UI Absences avancées
+**3. Permissions granulaires**
+- Écran : cases à cocher ajoutées dans `UserFormPage.tsx` (visibles pour les
+  utilisateurs non-ADMIN) — `PATCH /users/:id/permissions`
+- Permissions actuellement définies côté backend : `settings:manage`, `users:manage`,
+  `reports:export`, `webhooks:manage`
 
-- [ ] Validation à deux niveaux : bouton « valider niveau 1 » + indicateur d'étape sur la fiche absence
-- [ ] Solde de congés : affichage par agent + édition de l'allocation annuelle
-- [ ] Périodes bloquées : CRUD (calendrier des périodes de forte activité)
+**4. Webhooks**
+- Écran : `web/src/pages/settings/WebhooksPage.tsx`, route `/settings/webhooks`
+- Tableau (URL, événements, statut, dernière rotation) + création, activer/désactiver,
+  régénérer le secret (affiché une seule fois à la génération), suppression —
+  `GET/POST /webhooks`, `PATCH /webhooks/:id`, `PATCH /webhooks/:id/status`,
+  `POST /webhooks/:id/rotate-secret`, `DELETE /webhooks/:id`
+- Événements existants à lister dans le formulaire de création : `intervention.created`,
+  `intervention.updated`, `intervention.status`, `intervention.checklist`,
+  `attendance.checkin`, `attendance.checkout`, `attendance.arrival`, `payroll.export`
 
-## Sprint 20 — UI Communication
+## Sprint 18 (S35-S36) — UI Équipes avancées
 
-- [ ] Chat interne : vue superviseur (liste des conversations par agent, fil de messages, envoi)
+**1. Habilitations & documents RH**
+- Écran : deux nouveaux onglets dans `UserFormPage.tsx` (ou une future page détail
+  agent dédiée) : « Habilitations » et « Documents »
+- Habilitations : liste + création (libellé, date d'obtention, date d'expiration),
+  alerte visuelle si expiration proche — `GET/POST /certifications`,
+  `PATCH/DELETE /certifications/:id` ; bandeau global des habilitations expirantes sur
+  le dashboard admin — `GET /certifications/expiring?days=30`
+- Documents : upload (converti en base64 côté client, convention déjà utilisée pour les
+  photos), liste par type (CONTRACT/BADGE/LICENSE/OTHER) —
+  `GET/POST /employee-documents`, `DELETE /employee-documents/:id`
 
-## Sprint 21 — UI Sites enrichis
+**2. Échange de shift**
+- Écran : `web/src/pages/interventions/ShiftSwapsPage.tsx`, route
+  `/interventions/echanges`
+- Liste des demandes avec statut (PENDING/ACCEPTED/REJECTED/CANCELLED), actions
+  accepter/refuser (arbitrage admin) — `GET /shift-swaps`,
+  `POST /shift-swaps/:id/accept|reject|cancel`
 
-- [ ] Contrats/SLA : section dans la fiche site + alerte d'échéance
-- [ ] Multi-zones : gestion des zones (bâtiment/étage) dans la fiche site
-- [ ] Plan des locaux : upload d'image + suivi des zones à traiter
-- [ ] Timeline d'incidents & score qualité : affichage dans la fiche site
+**3. Fil d'actualité d'équipe**
+- Écran : `web/src/pages/team/TeamFeedPage.tsx`, route `/equipe/actualites`, nouveau
+  groupe de nav « Équipe »
+- Zone de publication + flux chronologique + suppression (auteur ou admin) —
+  `GET/POST /team-feed`, `DELETE /team-feed/:id`
 
-## Sprint 22 — UI Inventaire & interventions avancées
+**4. Badges**
+- Écran : `web/src/pages/team/BadgesPage.tsx` (sous le même groupe nav « Équipe »)
+- Catalogue (créer un badge : code, libellé, description, icône) + formulaire
+  d'attribution (agent, badge, période optionnelle type `2026-08` pour un « agent du
+  mois », note) + historique par agent — `GET/POST /badges`,
+  `GET/POST /badges/awards`, `DELETE /badges/awards/:id`
 
-- [ ] Inventaire par site : CRUD + alertes de réapprovisionnement
-- [ ] Suggestions d'affectation par proximité GPS : intégré au flux d'affectation
-- [ ] Carte temps réel des agents sur le terrain
-- [ ] Optimisation de tournées : vue superviseur (ordre optimisé + distance)
-- [ ] Signature client & estimation de durée : affichage dans la fiche intervention
+**5. Onboarding**
+- Écran : `web/src/pages/team/OnboardingPage.tsx` — gestion du modèle (liste ordonnée
+  d'étapes, `GET/POST/DELETE /onboarding/template`) ; côté fiche agent, bouton
+  « Lancer l'onboarding » (`POST /onboarding/users/:userId/seed`) puis liste à cocher
+  (`GET /onboarding/users/:userId`, `PATCH /onboarding/items/:id`)
 
-## Sprint 23 — UI Pointage avancé & paie
+**6. Disponibilités déclarées**
+- Écran : vue consolidée dans `SupervisorPlanningPage.tsx` ou nouvelle
+  `web/src/pages/team/AvailabilityPage.tsx` — calendrier par agent (disponible /
+  indisponible) sur une période — `GET /availability?from=&to=`
 
-- [ ] QR code de pointage : génération/affichage/impression par site
-- [ ] Ventilation paie détaillée (nuit/dimanche/férié) : vue + déclenchement de l'envoi vers le prestataire de paie
-- [ ] Détection d'anomalies de pointage : tableau de bord dédié
+## Sprint 19 (S37-S38) — UI Absences avancées
 
-## Sprint 24 — UI Rapports & business intelligence
+**1. Validation à deux niveaux**
+- Écran : `AbsenceDetailPage.tsx` existant — si `requiresSecondApproval` et
+  `!level1ApprovedBy`, le bouton d'approbation finale est désactivé et un bouton
+  « Valider (niveau 1) » apparaît ; badge d'état une fois validé (« Niveau 1 validé par
+  X le … ») — `POST /absences/:id/approve-level1`, le champ `requiresSecondApproval` /
+  `level1ApprovedBy` / `level1ApprovedAt` est déjà renvoyé par `GET /absences/:id`
 
-- [ ] Comparaison période sur période : graphiques + deltas
-- [ ] Dashboard configurable : réarrangement des widgets (glisser-déposer)
-- [ ] Rapport de facturation : heures facturables vs internes par site
-- [ ] Benchmark inter-sites : tableau classé
-- [ ] Diff avant/après dans l'audit : affichage dans le détail d'une entrée d'audit
+**2. Solde de congés**
+- Écran : section dans la fiche agent (ou colonne dans `AbsencesListPage.tsx`) +
+  modale d'édition de l'allocation annuelle — `GET /absences/leave-balance/:userId?year=`,
+  `PATCH /absences/leave-balance/:userId`
 
-## Sprint 25 — UI Plateforme & portail client
+**3. Périodes bloquées**
+- Écran : section dans `AbsencesListPage.tsx` — liste + création (dates, raison) +
+  suppression — `GET /absences/blocked-periods/list`, `POST /absences/blocked-periods`,
+  `DELETE /absences/blocked-periods/:id`
+- Note UX : une tentative de demande d'absence par un agent sur une période bloquée est
+  déjà rejetée côté API avec un message explicite — juste s'assurer que ce message
+  remonte proprement dans le formulaire de demande.
 
-- [ ] Gestion des clés API (création, révocation, historique d'usage)
-- [ ] Gestion des jetons de portail client (par site, révocation)
-- [ ] Devis/facturation : CRUD + cycle de statut (brouillon/envoyé/payé/annulé)
-- [ ] Formulaires personnalisables : constructeur de champs + consultation des soumissions
+## Sprint 20 (S39-S40) — UI Communication
+
+**1. Chat interne (vue superviseur)**
+- Écran : `web/src/pages/team/ChatPage.tsx`, route `/messages`
+- Layout deux colonnes : liste des conversations à gauche (agent, dernier message,
+  badge non-lus), fil de conversation + zone de saisie à droite —
+  `GET /chat/threads` (liste), `GET /chat/threads/:userId` (fil),
+  `POST /chat/threads/:userId/messages` (envoi), `PATCH /chat/threads/:userId/read`
+  (marquer lu à l'ouverture du fil)
+- Rafraîchissement : polling simple (15-30s) suffit, cohérent avec l'implémentation
+  mobile existante ; pas de WebSocket à ce stade.
+
+## Sprint 21 (S41-S42) — UI Sites enrichis
+
+Tous les items ci-dessous s'ajoutent comme nouveaux onglets dans `SiteFormPage.tsx`
+(ou une future `SiteDetailPage.tsx` si la page actuelle reste un simple formulaire).
+
+**1. Contrats/SLA** — onglet « Contrats » : liste + création (libellé, dates, détail
+SLA, document) — `GET/POST /sites/:id/contracts`, `DELETE /sites/:id/contracts/:contractId` ;
+bandeau des contrats proches échéance sur le dashboard admin —
+`GET /sites/contracts/expiring?days=30`
+
+**2. Multi-zones** — onglet « Zones » : liste ordonnée, création (libellé, étage),
+case à cocher « traité » — `GET/POST /sites/:id/zones`, `PATCH/DELETE /sites/:id/zones/:zoneId`
+
+**3. Plan des locaux** — dans le même onglet « Zones » : upload d'image (base64)
+affichée en fond de plan — `PATCH /sites/:id/plan`
+
+**4. Timeline incidents & score qualité** — onglet « Qualité » : score mis en évidence
+(sur 100, calculé glissant sur 90 jours) + liste chronologique des anomalies —
+`GET /sites/:id/quality-score`, `GET /sites/:id/incidents`
+
+## Sprint 22 (S43-S44) — UI Inventaire & interventions avancées
+
+**1. Inventaire par site** — onglet « Inventaire » dans la fiche site : tableau (nom,
+code-barres, quantité, seuil), alerte visuelle si quantité ≤ seuil, ajustement rapide
+(+1/-1) — `GET/POST /inventory?siteId=`, `PATCH /inventory/:id/adjust`,
+`DELETE /inventory/:id` ; bandeau de réapprovisionnement sur le dashboard —
+`GET /inventory/low-stock`
+
+**2. Suggestions d'affectation GPS** — dans le flux d'affectation d'une intervention
+(`InterventionsPage.tsx` ou son formulaire), bouton « Suggérer un agent » listant les
+candidats disponibles triés par distance à leur dernière position connue —
+`GET /interventions/:id/assignment-suggestions`
+
+**3. Carte temps réel** — `web/src/pages/supervision/LiveMapPage.tsx`, route
+`/supervision/carte` : carte (bibliothèque à choisir, ex. Leaflet + OpenStreetMap, pas
+de clé API requise contrairement à Google Maps) avec un marqueur par agent en mission —
+`GET /attendance/live-map`, rafraîchi par polling (30-60s)
+
+**4. Optimisation de tournées** — dans `SupervisorPlanningPage.tsx` : sélection d'un
+agent + date → affichage de l'ordre de visite optimisé et de la distance totale —
+`GET /interventions/route-optimization?userId=&date=`
+
+**5. Signature client & estimation de durée** — dans le détail d'une intervention :
+affichage de la signature (image) si `clientSignature` est renseigné ; à la création
+d'une intervention, afficher à titre indicatif la durée moyenne historique du site —
+`GET /interventions/estimate-duration?siteId=&type=`
+
+## Sprint 23 (S45-S46) — UI Pointage avancé & paie
+
+**1. QR code de pointage** — onglet dans la fiche site : affichage du QR (image déjà
+en base64) avec bouton « Imprimer » (impression ciblée sur cette zone) —
+`GET /sites/:id/qr-code`
+
+**2. Ventilation paie détaillée** — nouvel onglet « Paie détaillée » dans
+`ReportsPage.tsx` : tableau normal/nuit/dimanche/férié par agent sur une période,
+bouton « Envoyer au prestataire de paie » — `GET /reports/payroll-breakdown`,
+`POST /reports/payroll-breakdown/push` (nécessite qu'un webhook `payroll.export` soit
+configuré au préalable — dépend du Sprint 17)
+
+**3. Détection d'anomalies de pointage** — nouvel onglet ou section dans
+`AttendanceListPage.tsx` : liste des anomalies (durée suspecte vs moyenne du site,
+zone hors périmètre répétée) — `GET /attendance/anomalies`
+
+## Sprint 24 (S47-S48) — UI Rapports & business intelligence
+
+**1. Comparaison de périodes** — dans `ReportsPage.tsx` : sélecteur de période +
+affichage côte à côte période courante / période précédente avec deltas colorés
+(vert/rouge) — `GET /reports/comparison`
+
+**2. Dashboard configurable** — sur `DashboardPage.tsx` : mode « édition » permettant
+de réordonner/masquer les widgets (glisser-déposer, ex. `@dnd-kit/core` — nouvelle
+dépendance à évaluer), persistance de la disposition —
+`GET/PUT /reports/dashboard-layout`. **Lot le plus complexe de la phase 2** (seule
+fonctionnalité nécessitant une interaction drag-and-drop) ; à isoler en fin de sprint
+si le temps manque, le reste de la phase 2 n'en dépend pas.
+
+**3. Rapport de facturation** — onglet dans `ReportsPage.tsx` : tableau heures
+facturables vs internes par site — `GET /reports/billing` ; la bascule
+facturable/interne d'une intervention se fait depuis son détail
+(`PATCH /interventions/:id` avec `{ billable: boolean }`)
+
+**4. Benchmark inter-sites** — onglet dans `ReportsPage.tsx` : tableau classé (taux de
+complétion, nombre d'anomalies, sur 90 jours glissants) — `GET /reports/site-benchmark`
+
+**5. Diff avant/après dans l'audit** — dans `AuditPage.tsx` : ligne dépliable
+affichant `before`/`after` en diff visuel (valeur précédente barrée, nouvelle valeur en
+évidence) ; aucun nouvel endpoint, les champs sont déjà présents dans `GET /audit`
+- Export RGPD : bouton lien direct vers `GET /audit/export.csv` (déjà un simple
+  téléchargement, pas de composant particulier)
+
+## Sprint 25 (S49-S50) — UI Plateforme & portail client
+
+**1. Clés API** — `web/src/pages/settings/ApiKeysPage.tsx`, route `/settings/api-keys` :
+création (la clé n'est affichée qu'une seule fois, à la génération), révocation, date
+de dernière utilisation — `GET/POST /platform/api-keys`, `DELETE /platform/api-keys/:id`
+
+**2. Jetons de portail client** — section dans la fiche site (ou même page que les
+clés API) : génération d'un lien portail par site (affiche l'URL
+`https://…/public-api/portal/:token` à copier/partager), révocation —
+`GET/POST /platform/portal-tokens`, `DELETE /platform/portal-tokens/:id`
+
+**3. Devis/facturation** — `web/src/pages/billing/QuotesPage.tsx`, route `/devis` :
+liste filtrable par site/statut, création (site, intervention optionnelle, libellé,
+montant, échéance, document), changement de statut
+(brouillon → envoyé → payé/annulé) — `GET/POST /quotes`, `PATCH /quotes/:id/status`,
+`DELETE /quotes/:id`
+
+**4. Formulaires personnalisables** — `web/src/pages/forms/FormsPage.tsx`, route
+`/formulaires` : constructeur simple (ajouter des champs — clé, libellé, type,
+obligatoire) + consultation des soumissions par formulaire —
+`GET/POST/DELETE /forms`, `GET /forms/:id/submissions` (la soumission elle-même se
+fait côté terrain — mobile ou lien partagé —, pas depuis cet écran de gestion)
+
+- Documentation API : lien direct vers `GET /api/docs` (Swagger déjà généré, aucun
+  écran à construire)
 
 ---
 
