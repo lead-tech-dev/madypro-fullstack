@@ -9,7 +9,18 @@ type NavItem =
 const ADMIN_MENU: NavItem[] = [
   { type: 'link', to: '/dashboard', label: 'Tableau de bord' },
   { type: 'link', to: '/sites', label: 'Sites' },
-  { type: 'link', to: '/users', label: 'Équipes' },
+  {
+    type: 'group',
+    label: 'Équipes',
+    children: [
+      { to: '/users', label: 'Liste' },
+      { to: '/equipe/echanges', label: 'Échanges de shift' },
+      { to: '/equipe/actualites', label: 'Fil d’actualité' },
+      { to: '/equipe/badges', label: 'Badges' },
+      { to: '/equipe/onboarding', label: 'Onboarding' },
+      { to: '/equipe/disponibilites', label: 'Disponibilités' },
+    ],
+  },
   { type: 'link', to: '/interventions', label: 'Interventions' },
   { type: 'link', to: '/planning', label: 'Planning' },
   { type: 'link', to: '/attendance', label: 'Pointages' },

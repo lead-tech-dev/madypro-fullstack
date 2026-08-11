@@ -11,6 +11,15 @@ import {
   CreateUserPayload,
   UpdateUserPayload,
 } from '../../services/api/users.api';
+import {
+  listCertifications,
+  createCertification,
+  deleteCertification,
+  listEmployeeDocuments,
+  createEmployeeDocument,
+  deleteEmployeeDocument,
+} from '../../services/api/team.api';
+import { Certification, EmployeeDocument } from '../../types/team';
 import { useAuthContext } from '../../context/AuthContext';
 
 const ROLE_OPTIONS = [
@@ -45,6 +54,69 @@ export const UserFormPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  const [certifications, setCertifications] = useState<Certification[]>([]);
+  const [newCert, setNewCert] = useState({ label: '', expiresAt: '' });
+  const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
+  const [newDoc, setNewDoc] = useState({ type: 'CONTRACT', label: '', file: null as File | null });
+
+  const loadTeamExtras = React.useCallback(() => {
+    if (!token || !id) return;
+    listCertifications(token, id).then(setCertifications).catch(() => {});
+    listEmployeeDocuments(token, id).then(setDocuments).catch(() => {});
+  }, [token, id]);
+
+  useEffect(loadTeamExtras, [loadTeamExtras]);
+
+  const submitCertification = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!token || !id || !newCert.label.trim()) return;
+    try {
+      await createCertification(token, {
+        userId: id,
+        label: newCert.label.trim(),
+        expiresAt: newCert.expiresAt || undefined,
+      });
+      setNewCert({ label: '', expiresAt: '' });
+      loadTeamExtras();
+      notify('Habilitation ajoutée', 'success');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible d’ajouter', 'error');
+    }
+  };
+
+  const removeCertification = async (certId: string) => {
+    if (!token) return;
+    await deleteCertification(token, certId).catch(() => {});
+    loadTeamExtras();
+  };
+
+  const readFileAsBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const submitDocument = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!token || !id || !newDoc.file || !newDoc.label.trim()) return;
+    try {
+      const fileUrl = await readFileAsBase64(newDoc.file);
+      await createEmployeeDocument(token, { userId: id, type: newDoc.type, label: newDoc.label.trim(), fileUrl });
+      setNewDoc({ type: 'CONTRACT', label: '', file: null });
+      loadTeamExtras();
+      notify('Document ajouté', 'success');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible d’ajouter', 'error');
+    }
+  };
+
+  const removeDocument = async (docId: string) => {
+    if (!token) return;
+    await deleteEmployeeDocument(token, docId).catch(() => {});
+    loadTeamExtras();
+  };
 
   useEffect(() => {
     if (!token || !id) return;
@@ -193,6 +265,115 @@ export const UserFormPage: React.FC = () => {
               {savingPermissions ? 'Enregistrement...' : 'Enregistrer les permissions'}
             </Button>
           </div>
+        </article>
+      )}
+
+      {isEdit && (
+        <article className="settings-card" style={{ marginTop: '1.5rem' }}>
+          <span className="card__meta">RH</span>
+          <h3>Habilitations</h3>
+          <div className="table-wrapper">
+            <table className="table" aria-label="habilitations">
+              <thead>
+                <tr>
+                  <th>Libellé</th>
+                  <th>Expiration</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {certifications.map((cert) => {
+                  const expiringSoon =
+                    cert.expiresAt && new Date(cert.expiresAt).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
+                  return (
+                    <tr key={cert.id}>
+                      <td>{cert.label}</td>
+                      <td style={expiringSoon ? { color: '#dc2626', fontWeight: 600 } : undefined}>
+                        {cert.expiresAt ? cert.expiresAt.slice(0, 10) : '—'}
+                      </td>
+                      <td>
+                        <Button type="button" variant="ghost" onClick={() => removeCertification(cert.id)}>
+                          Supprimer
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <form className="form-row" onSubmit={submitCertification} style={{ marginTop: '1rem' }}>
+            <Input
+              label="Libellé"
+              value={newCert.label}
+              onChange={(event) => setNewCert((prev) => ({ ...prev, label: event.target.value }))}
+              placeholder="Habilitation électrique"
+            />
+            <Input
+              type="date"
+              label="Expiration"
+              value={newCert.expiresAt}
+              onChange={(event) => setNewCert((prev) => ({ ...prev, expiresAt: event.target.value }))}
+            />
+            <Button type="submit">Ajouter</Button>
+          </form>
+        </article>
+      )}
+
+      {isEdit && (
+        <article className="settings-card" style={{ marginTop: '1.5rem' }}>
+          <span className="card__meta">RH</span>
+          <h3>Documents</h3>
+          <div className="table-wrapper">
+            <table className="table" aria-label="documents">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Libellé</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {documents.map((doc) => (
+                  <tr key={doc.id}>
+                    <td>{doc.type}</td>
+                    <td>{doc.label}</td>
+                    <td>
+                      <Button type="button" variant="ghost" onClick={() => removeDocument(doc.id)}>
+                        Supprimer
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <form className="form-row" onSubmit={submitDocument} style={{ marginTop: '1rem' }}>
+            <Select
+              label="Type"
+              value={newDoc.type}
+              onChange={(event) => setNewDoc((prev) => ({ ...prev, type: event.target.value }))}
+              options={[
+                { value: 'CONTRACT', label: 'Contrat' },
+                { value: 'BADGE', label: 'Badge' },
+                { value: 'LICENSE', label: 'Permis' },
+                { value: 'OTHER', label: 'Autre' },
+              ]}
+            />
+            <Input
+              label="Libellé"
+              value={newDoc.label}
+              onChange={(event) => setNewDoc((prev) => ({ ...prev, label: event.target.value }))}
+            />
+            <label className="form-field">
+              <span>Fichier</span>
+              <input
+                type="file"
+                onChange={(event) => setNewDoc((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
+              />
+            </label>
+            <Button type="submit">Ajouter</Button>
+          </form>
         </article>
       )}
     </div>

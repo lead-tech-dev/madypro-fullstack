@@ -288,7 +288,17 @@ supprimé. Données de test nettoyées après coup.
   `intervention.updated`, `intervention.status`, `intervention.checklist`,
   `attendance.checkin`, `attendance.checkout`, `attendance.arrival`, `payroll.export`
 
-## Sprint 18 (S35-S36) — UI Équipes avancées
+## Sprint 18 (S35-S36) — UI Équipes avancées ✅ terminé
+
+Réalisé tel que planifié : habilitations/documents intégrés à `UserFormPage.tsx`,
+nouveau groupe de nav « Équipes » (Liste, Échanges, Actualités, Badges, Onboarding,
+Disponibilités). Testé en direct dans le navigateur sur un vrai agent : ajout/
+suppression d'habilitation, création/suppression de publication, création de badge +
+attribution + révocation, ajout d'étape au modèle d'onboarding + lancement pour un
+agent + coche persistée en base (vérifié), pages Échanges et Disponibilités validées
+(rendu + états vides corrects, endpoints déjà éprouvés lors des tests backend du
+Sprint 8). Données de test nettoyées après coup.
+
 
 **1. Habilitations & documents RH**
 - Écran : deux nouveaux onglets dans `UserFormPage.tsx` (ou une future page détail

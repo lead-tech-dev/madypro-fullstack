@@ -18,6 +18,11 @@ import { AuditPage } from '../pages/audit/AuditPage';
 import { LoginHistoryPage } from '../pages/audit/LoginHistoryPage';
 import { SecuritySettingsPage } from '../pages/settings/SecuritySettingsPage';
 import { WebhooksPage } from '../pages/settings/WebhooksPage';
+import { ShiftSwapsPage } from '../pages/team/ShiftSwapsPage';
+import { TeamFeedPage } from '../pages/team/TeamFeedPage';
+import { BadgesPage } from '../pages/team/BadgesPage';
+import { OnboardingPage } from '../pages/team/OnboardingPage';
+import { AvailabilityPage } from '../pages/team/AvailabilityPage';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 
 export const AdminRoutes = () => (
@@ -27,6 +32,11 @@ export const AdminRoutes = () => (
       <Route path="/users" element={<UsersListPage />} />
       <Route path="/users/new" element={<UserFormPage />} />
       <Route path="/users/:id/edit" element={<UserFormPage />} />
+      <Route path="/equipe/echanges" element={<ShiftSwapsPage />} />
+      <Route path="/equipe/actualites" element={<TeamFeedPage />} />
+      <Route path="/equipe/badges" element={<BadgesPage />} />
+      <Route path="/equipe/onboarding" element={<OnboardingPage />} />
+      <Route path="/equipe/disponibilites" element={<AvailabilityPage />} />
       <Route path="/sites" element={<SitesListPage />} />
       <Route path="/sites/new" element={<SiteFormPage />} />
       <Route path="/sites/:id/edit" element={<SiteFormPage />} />
