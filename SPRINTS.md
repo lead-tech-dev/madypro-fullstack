@@ -225,10 +225,83 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
+# Phase 2 — Rattrapage UI web back-office (Sprints 17-25)
+
+Les Sprints 7 à 16 ont livré leurs fonctionnalités uniquement côté API (voir notes
+« UI web back-office non construite » dans chaque sprint ci-dessus). Cette phase
+construit les écrans web correspondants, dans le même ordre thématique que la phase 1,
+pour rendre ce qui existe déjà réellement utilisable par les admins/superviseurs.
+Sprint 10 fait exception : son enrichissement du centre de notifications a déjà été
+livré côté web pendant la phase 1.
+
+## Sprint 17 — UI Sécurité & permissions
+
+- [ ] 2FA : activation/désactivation dans le profil admin (QR code, code de confirmation)
+- [ ] Journal des connexions : page admin (liste, filtre par succès/échec, IP/UA)
+- [ ] Permissions granulaires : gestion par utilisateur (cases à cocher par permission)
+- [ ] Webhooks : CRUD (liste, création, rotation de secret, activation/désactivation)
+
+## Sprint 18 — UI Équipes avancées
+
+- [ ] Habilitations & documents RH : section dans la fiche agent (liste, alerte d'expiration, upload)
+- [ ] Échange de shift : liste des demandes (accepter/refuser/annuler)
+- [ ] Fil d'actualité d'équipe : flux (publier, lire, supprimer)
+- [ ] Badges : catalogue (créer) + attribution (par agent, historique)
+- [ ] Onboarding : gestion du modèle + suivi de checklist par nouvel agent
+- [ ] Disponibilités déclarées : vue consolidée admin/superviseur (calendrier par agent)
+
+## Sprint 19 — UI Absences avancées
+
+- [ ] Validation à deux niveaux : bouton « valider niveau 1 » + indicateur d'étape sur la fiche absence
+- [ ] Solde de congés : affichage par agent + édition de l'allocation annuelle
+- [ ] Périodes bloquées : CRUD (calendrier des périodes de forte activité)
+
+## Sprint 20 — UI Communication
+
+- [ ] Chat interne : vue superviseur (liste des conversations par agent, fil de messages, envoi)
+
+## Sprint 21 — UI Sites enrichis
+
+- [ ] Contrats/SLA : section dans la fiche site + alerte d'échéance
+- [ ] Multi-zones : gestion des zones (bâtiment/étage) dans la fiche site
+- [ ] Plan des locaux : upload d'image + suivi des zones à traiter
+- [ ] Timeline d'incidents & score qualité : affichage dans la fiche site
+
+## Sprint 22 — UI Inventaire & interventions avancées
+
+- [ ] Inventaire par site : CRUD + alertes de réapprovisionnement
+- [ ] Suggestions d'affectation par proximité GPS : intégré au flux d'affectation
+- [ ] Carte temps réel des agents sur le terrain
+- [ ] Optimisation de tournées : vue superviseur (ordre optimisé + distance)
+- [ ] Signature client & estimation de durée : affichage dans la fiche intervention
+
+## Sprint 23 — UI Pointage avancé & paie
+
+- [ ] QR code de pointage : génération/affichage/impression par site
+- [ ] Ventilation paie détaillée (nuit/dimanche/férié) : vue + déclenchement de l'envoi vers le prestataire de paie
+- [ ] Détection d'anomalies de pointage : tableau de bord dédié
+
+## Sprint 24 — UI Rapports & business intelligence
+
+- [ ] Comparaison période sur période : graphiques + deltas
+- [ ] Dashboard configurable : réarrangement des widgets (glisser-déposer)
+- [ ] Rapport de facturation : heures facturables vs internes par site
+- [ ] Benchmark inter-sites : tableau classé
+- [ ] Diff avant/après dans l'audit : affichage dans le détail d'une entrée d'audit
+
+## Sprint 25 — UI Plateforme & portail client
+
+- [ ] Gestion des clés API (création, révocation, historique d'usage)
+- [ ] Gestion des jetons de portail client (par site, révocation)
+- [ ] Devis/facturation : CRUD + cycle de statut (brouillon/envoyé/payé/annulé)
+- [ ] Formulaires personnalisables : constructeur de champs + consultation des soumissions
+
+---
+
 ## Hors sprint — initiative stratégique à cadrer séparément
 
 - **Application superviseur dédiée** (aujourd'hui web responsive uniquement, pas d'app native superviseur) — plus gros chantier qu'un sprint, à cadrer à part si prioritaire (périmètre, budget, delai).
 
 ---
 
-*Établi à partir des plans « Plan d'amélioration — MadyPro Clean », « Refonte mobile — MadyPro Clean » et des deux listes de fonctionnalités best-in-class (août 2026). À ajuster sprint après sprint selon la vélocité réelle.*
+*Établi à partir des plans « Plan d'amélioration — MadyPro Clean », « Refonte mobile — MadyPro Clean » et des deux listes de fonctionnalités best-in-class (août 2026). Phase 2 (Sprints 17-25) ajoutée pour rattraper l'UI web des Sprints 7-16. À ajuster sprint après sprint selon la vélocité réelle.*
