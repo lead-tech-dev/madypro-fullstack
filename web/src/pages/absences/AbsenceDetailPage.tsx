@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getAbsence, getReplacementSuggestions, ReplacementSuggestion, updateAbsenceStatus } from '../../services/api/absences.api';
+import {
+  getAbsence,
+  getReplacementSuggestions,
+  ReplacementSuggestion,
+  updateAbsenceStatus,
+  approveAbsenceLevel1,
+  getLeaveBalance,
+  LeaveBalance,
+} from '../../services/api/absences.api';
 import { Absence, AbsenceStatus } from '../../types/absence';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -11,6 +19,7 @@ export const AbsenceDetailPage: React.FC = () => {
   const [absence, setAbsence] = useState<Absence | null>(null);
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<ReplacementSuggestion | null>(null);
+  const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const navigate = useNavigate();
 
   const loadDetail = () => {
@@ -25,6 +34,13 @@ export const AbsenceDetailPage: React.FC = () => {
             .catch(() => setSuggestions(null));
         } else {
           setSuggestions(null);
+        }
+        if (data.type === 'PAID_LEAVE') {
+          getLeaveBalance(token, data.agent.id, new Date(data.from).getFullYear())
+            .then(setLeaveBalance)
+            .catch(() => setLeaveBalance(null));
+        } else {
+          setLeaveBalance(null);
         }
       })
       .catch((err) => {
@@ -45,6 +61,18 @@ export const AbsenceDetailPage: React.FC = () => {
     try {
       await updateAbsenceStatus(token, id, { status, validatedBy: 'Admin Madypro', comment });
       notify(status === 'APPROVED' ? 'Demande approuvée' : 'Demande rejetée');
+      loadDetail();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Action impossible';
+      notify(message, 'error');
+    }
+  };
+
+  const handleApproveLevel1 = async () => {
+    if (!token || !id) return;
+    try {
+      await approveAbsenceLevel1(token, id);
+      notify('Niveau 1 validé');
       loadDetail();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Action impossible';
@@ -109,6 +137,24 @@ export const AbsenceDetailPage: React.FC = () => {
           <span>Origine</span>
           <strong>{absence.manual ? 'Saisie admin' : `Demande ${absence.createdBy}`}</strong>
         </div>
+        {leaveBalance && (
+          <div className="detail-grid__item">
+            <span>Solde de congés {leaveBalance.year}</span>
+            <strong>
+              {leaveBalance.remaining} / {leaveBalance.allocatedDays} j restants
+            </strong>
+            <small>{leaveBalance.usedDays} j déjà utilisés</small>
+          </div>
+        )}
+        {absence.requiresSecondApproval && (
+          <div className="detail-grid__item">
+            <span>Validation à deux niveaux</span>
+            <strong>
+              {absence.level1ApprovedBy ? 'Niveau 1 validé' : 'Niveau 1 en attente'}
+            </strong>
+            {absence.level1ApprovedAt && <small>le {absence.level1ApprovedAt.slice(0, 10)}</small>}
+          </div>
+        )}
         {absence.attachment && (
           <div className="detail-grid__item">
             <span>Pièce justificative</span>
@@ -151,9 +197,15 @@ export const AbsenceDetailPage: React.FC = () => {
 
       {absence.status === 'PENDING' && (
         <div className="form-actions" style={{ marginTop: '1.5rem' }}>
-          <Button type="button" onClick={() => handleDecision('APPROVED')}>
-            Approuver
-          </Button>
+          {absence.requiresSecondApproval && !absence.level1ApprovedBy ? (
+            <Button type="button" onClick={handleApproveLevel1}>
+              Valider (niveau 1)
+            </Button>
+          ) : (
+            <Button type="button" onClick={() => handleDecision('APPROVED')}>
+              Approuver
+            </Button>
+          )}
           <Button type="button" variant="ghost" onClick={() => handleDecision('REJECTED')}>
             Rejeter
           </Button>

@@ -342,7 +342,18 @@ Sprint 8). Données de test nettoyées après coup.
   `web/src/pages/team/AvailabilityPage.tsx` — calendrier par agent (disponible /
   indisponible) sur une période — `GET /availability?from=&to=`
 
-## Sprint 19 (S37-S38) — UI Absences avancées
+## Sprint 19 (S37-S38) — UI Absences avancées ✅ terminé
+
+Réalisé tel que planifié : gating à deux niveaux câblé sur `AbsenceDetailPage.tsx` ET
+sur l'action rapide de `AbsencesListPage.tsx` (le bouton bascule automatiquement entre
+« Valider (niveau 1) » et « Approuver »), solde de congés affiché sur la fiche détail
+pour les congés payés, périodes bloquées gérées depuis une nouvelle section de
+`AbsencesListPage.tsx`. Testé en direct dans le navigateur : demande longue créée via
+le flux agent réel (`POST /absences/request`, `requiresSecondApproval` calculé
+automatiquement), validation niveau 1 puis approbation finale suivies en direct avec
+mise à jour du solde de congés (25 → 14 jours restants sur une absence de 11 jours),
+période bloquée ajoutée puis retirée. Données de test nettoyées après coup.
+
 
 **1. Validation à deux niveaux**
 - Écran : `AbsenceDetailPage.tsx` existant — si `requiresSecondApproval` et

@@ -4,6 +4,11 @@ import {
   listAbsences,
   createManualAbsence,
   updateAbsenceStatus,
+  approveAbsenceLevel1,
+  listBlockedPeriods,
+  createBlockedPeriod,
+  deleteBlockedPeriod,
+  BlockedPeriod,
   AbsenceFilters,
   ManualAbsencePayload,
   AbsencePage,
@@ -83,6 +88,34 @@ export const AbsencesListPage: React.FC = () => {
   const [manualForm, setManualForm] = useState<ManualFormState>(EMPTY_MANUAL_FORM);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [blockedPeriods, setBlockedPeriods] = useState<BlockedPeriod[]>([]);
+  const [newBlockedPeriod, setNewBlockedPeriod] = useState({ from: '', to: '', reason: '' });
+
+  const loadBlockedPeriods = () => {
+    if (!token) return;
+    listBlockedPeriods(token).then(setBlockedPeriods).catch(() => {});
+  };
+
+  useEffect(loadBlockedPeriods, [token]);
+
+  const submitBlockedPeriod = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!token || !newBlockedPeriod.from || !newBlockedPeriod.to || !newBlockedPeriod.reason.trim()) return;
+    try {
+      await createBlockedPeriod(token, newBlockedPeriod);
+      setNewBlockedPeriod({ from: '', to: '', reason: '' });
+      loadBlockedPeriods();
+      notify('Période bloquée ajoutée');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible d’ajouter', 'error');
+    }
+  };
+
+  const removeBlockedPeriod = async (id: string) => {
+    if (!token) return;
+    await deleteBlockedPeriod(token, id).catch(() => {});
+    loadBlockedPeriods();
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -190,6 +223,17 @@ export const AbsencesListPage: React.FC = () => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Action impossible';
       notify(message, 'error');
+    }
+  };
+
+  const handleApproveLevel1 = async (absence: Absence) => {
+    if (!token) return;
+    try {
+      await approveAbsenceLevel1(token, absence.id);
+      notify('Niveau 1 validé');
+      fetchAbsences();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Action impossible', 'error');
     }
   };
 
@@ -420,14 +464,25 @@ export const AbsencesListPage: React.FC = () => {
                         </Link>
                         {absence.status === 'PENDING' && (
                           <>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              className="btn--compact"
-                              onClick={() => handleDecision(absence, 'APPROVED')}
-                            >
-                              Approuver
-                            </Button>
+                            {absence.requiresSecondApproval && !absence.level1ApprovedBy ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="btn--compact"
+                                onClick={() => handleApproveLevel1(absence)}
+                              >
+                                Valider (niveau 1)
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="btn--compact"
+                                onClick={() => handleDecision(absence, 'APPROVED')}
+                              >
+                                Approuver
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               variant="ghost"
@@ -466,6 +521,60 @@ export const AbsencesListPage: React.FC = () => {
         </Button>
         <span className="card__meta">{pageData.total} résultats</span>
       </div>
+
+      <section className="panel" style={{ marginTop: '1.5rem' }}>
+        <h3>Périodes bloquées</h3>
+        <p className="card__meta">
+          Aucune nouvelle demande d’absence ne peut être créée sur ces périodes (forte activité).
+        </p>
+        <div className="table-wrapper">
+          <table className="table" aria-label="périodes bloquées">
+            <thead>
+              <tr>
+                <th>Du</th>
+                <th>Au</th>
+                <th>Raison</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {blockedPeriods.map((period) => (
+                <tr key={period.id}>
+                  <td>{period.from.slice(0, 10)}</td>
+                  <td>{period.to.slice(0, 10)}</td>
+                  <td>{period.reason}</td>
+                  <td>
+                    <Button type="button" variant="ghost" onClick={() => removeBlockedPeriod(period.id)}>
+                      Retirer
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <form className="form-row" onSubmit={submitBlockedPeriod} style={{ marginTop: '1rem' }}>
+          <Input
+            type="date"
+            label="Du"
+            value={newBlockedPeriod.from}
+            onChange={(event) => setNewBlockedPeriod((prev) => ({ ...prev, from: event.target.value }))}
+          />
+          <Input
+            type="date"
+            label="Au"
+            value={newBlockedPeriod.to}
+            onChange={(event) => setNewBlockedPeriod((prev) => ({ ...prev, to: event.target.value }))}
+          />
+          <Input
+            label="Raison"
+            value={newBlockedPeriod.reason}
+            onChange={(event) => setNewBlockedPeriod((prev) => ({ ...prev, reason: event.target.value }))}
+            placeholder="Période de forte activité"
+          />
+          <Button type="submit">Ajouter</Button>
+        </form>
+      </section>
     </div>
   );
 };

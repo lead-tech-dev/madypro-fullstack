@@ -22,4 +22,7 @@ export type Absence = {
     id: string;
     name: string;
   };
+  requiresSecondApproval?: boolean;
+  level1ApprovedBy?: string;
+  level1ApprovedAt?: string;
 };

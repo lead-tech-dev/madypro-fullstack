@@ -100,3 +100,40 @@ export type ReplacementSuggestion = {
 export async function getReplacementSuggestions(token: string, id: string) {
   return apiFetch<ReplacementSuggestion>({ path: `absences/${id}/replacement-suggestions`, token });
 }
+
+export async function approveAbsenceLevel1(token: string, id: string) {
+  return apiFetch<Absence>({ path: `absences/${id}/approve-level1`, token, options: { method: 'POST' } });
+}
+
+export type LeaveBalance = { userId: string; year: number; allocatedDays: number; usedDays: number; remaining: number };
+
+export async function getLeaveBalance(token: string, userId: string, year?: number) {
+  const query = year ? `?year=${year}` : '';
+  return apiFetch<LeaveBalance>({ path: `absences/leave-balance/${userId}${query}`, token });
+}
+
+export async function setLeaveAllocation(token: string, userId: string, year: number, allocatedDays: number) {
+  return apiFetch<{ allocatedDays: number }>({
+    path: `absences/leave-balance/${userId}`,
+    token,
+    options: { method: 'PATCH', body: JSON.stringify({ year, allocatedDays }) },
+  });
+}
+
+export type BlockedPeriod = { id: string; from: string; to: string; reason: string };
+
+export async function listBlockedPeriods(token: string) {
+  return apiFetch<BlockedPeriod[]>({ path: 'absences/blocked-periods/list', token });
+}
+
+export async function createBlockedPeriod(token: string, payload: { from: string; to: string; reason: string }) {
+  return apiFetch<BlockedPeriod>({
+    path: 'absences/blocked-periods',
+    token,
+    options: { method: 'POST', body: JSON.stringify(payload) },
+  });
+}
+
+export async function deleteBlockedPeriod(token: string, id: string) {
+  return apiFetch<{ deleted: boolean }>({ path: `absences/blocked-periods/${id}`, token, options: { method: 'DELETE' } });
+}
