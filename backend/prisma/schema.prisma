@@ -277,6 +277,8 @@ model Site {
   contracts          SiteContract[]
   zones              SiteZone[]
   inventoryItems     InventoryItem[]
+  quotes             Quote[]
+  clientPortalTokens ClientPortalToken[]
 }
 
 model SiteContract {
@@ -361,6 +363,7 @@ model Intervention {
   attendances         Attendance[]
   checklistItems      InterventionChecklistItem[]
   shiftSwapRequests   ShiftSwapRequest[]
+  quotes              Quote[]
 }
 
 model InterventionChecklistItem {
@@ -578,6 +581,69 @@ model AuditLog {
   before     Json?
   after      Json?
   createdAt  DateTime    @default(now())
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  PAID
+  CANCELLED
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  label      String
+  key        String    @unique
+  scopes     String[]  @default([])
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+}
+
+model ClientPortalToken {
+  id        String   @id @default(cuid())
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Quote {
+  id             String        @id @default(cuid())
+  siteId         String
+  site           Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  interventionId String?
+  intervention   Intervention? @relation(fields: [interventionId], references: [id])
+  label          String
+  amount         Float
+  status         QuoteStatus   @default(DRAFT)
+  issuedAt       DateTime      @default(now())
+  dueAt          DateTime?
+  documentUrl    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model CustomForm {
+  id          String                  @id @default(cuid())
+  name        String
+  fields      Json
+  active      Boolean                 @default(true)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  submissions CustomFormSubmission[]
+}
+
+model CustomFormSubmission {
+  id             String     @id @default(cuid())
+  formId         String
+  form           CustomForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  interventionId String?
+  siteId         String?
+  submittedBy    String
+  data           Json
+  createdAt      DateTime   @default(now())
 }
 
 model UserDashboardLayout {

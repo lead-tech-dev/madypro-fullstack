@@ -201,14 +201,15 @@ Sprints 0-6 : périmètre initial des deux plans, terminés. Sprints 7-16 : back
 
 ---
 
-## Sprint 15 (S29-S30) — Plateforme & portail client
+## Sprint 15 (S29-S30) — Plateforme & portail client ✅ terminé
 
 **Back-office**
-- [ ] Intégrations tierces (calendrier, messagerie)
-- [ ] API publique documentée
-- [ ] Portail client en lecture seule
-- [ ] Devis/facturation liés à l'intervention
-- [ ] Formulaires personnalisables (inspections, sécurité)
+- [x] Intégrations tierces (calendrier, messagerie) — flux iCalendar par site (`GET /public-api/calendar/:siteId`, abonnable depuis Google/Outlook) ; la messagerie sortante est déjà couverte par les Webhooks (Sprint 7)
+- [x] API publique documentée — Swagger/OpenAPI sur `/api/docs`, endpoints publics `/public-api/*` protégés par clé API (`ApiKey`, gérées via `/platform/api-keys`)
+- [x] Portail client en lecture seule — jeton par site (`ClientPortalToken`, géré via `/platform/portal-tokens`), accès sans compte à `/public-api/portal/:token` (résumé + score qualité + interventions récentes + incidents)
+- [x] Devis/facturation liés à l'intervention — `Quote` (brouillon/envoyé/payé/annulé), lié à un site et optionnellement une intervention
+- [x] Formulaires personnalisables (inspections, sécurité) — `CustomForm` (champs définis en JSON) + `CustomFormSubmission`
+- [ ] UI web back-office pour ces écrans — API uniquement dans ce sprint
 
 ---
 

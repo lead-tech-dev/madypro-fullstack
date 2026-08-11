@@ -27,6 +27,10 @@ import { OnboardingModule } from './onboarding/onboarding.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { ChatModule } from './chat/chat.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { PlatformModule } from './platform/platform.module';
+import { PublicApiModule } from './public-api/public-api.module';
+import { QuotesModule } from './quotes/quotes.module';
+import { FormsModule } from './forms/forms.module';
 
 @Module({
   imports: [
@@ -58,6 +62,10 @@ import { InventoryModule } from './inventory/inventory.module';
     AvailabilityModule,
     ChatModule,
     InventoryModule,
+    PlatformModule,
+    PublicApiModule,
+    QuotesModule,
+    FormsModule,
   ],
 })
 export class AppModule {}
