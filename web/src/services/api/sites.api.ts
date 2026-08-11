@@ -1,4 +1,5 @@
 import { Site, SiteChecklistItem } from '../../types/site';
+import { SiteContract, SiteZone, SiteIncident, SiteQualityScore } from '../../types/siteAdvanced';
 import { apiFetch } from './client';
 
 export type SitePayload = {
@@ -97,4 +98,73 @@ export async function deleteSiteChecklistItem(token: string, siteId: string, ite
     token,
     options: { method: 'DELETE' },
   });
+}
+
+// Contrats/SLA
+export async function listSiteContracts(token: string, siteId: string) {
+  return apiFetch<SiteContract[]>({ path: `sites/${siteId}/contracts`, token });
+}
+export async function createSiteContract(
+  token: string,
+  siteId: string,
+  payload: { label: string; startDate: string; endDate: string; slaDetails?: string },
+) {
+  return apiFetch<SiteContract>({
+    path: `sites/${siteId}/contracts`,
+    token,
+    options: { method: 'POST', body: JSON.stringify(payload) },
+  });
+}
+export async function deleteSiteContract(token: string, siteId: string, contractId: string) {
+  return apiFetch<{ deleted: boolean }>({
+    path: `sites/${siteId}/contracts/${contractId}`,
+    token,
+    options: { method: 'DELETE' },
+  });
+}
+export async function listExpiringContracts(token: string, days = 30) {
+  return apiFetch<SiteContract[]>({ path: `sites/contracts/expiring?days=${days}`, token });
+}
+
+// Zones
+export async function listSiteZones(token: string, siteId: string) {
+  return apiFetch<SiteZone[]>({ path: `sites/${siteId}/zones`, token });
+}
+export async function createSiteZone(token: string, siteId: string, payload: { label: string; floor?: string }) {
+  return apiFetch<SiteZone>({
+    path: `sites/${siteId}/zones`,
+    token,
+    options: { method: 'POST', body: JSON.stringify(payload) },
+  });
+}
+export async function updateSiteZone(token: string, siteId: string, zoneId: string, payload: { completed?: boolean }) {
+  return apiFetch<SiteZone>({
+    path: `sites/${siteId}/zones/${zoneId}`,
+    token,
+    options: { method: 'PATCH', body: JSON.stringify(payload) },
+  });
+}
+export async function deleteSiteZone(token: string, siteId: string, zoneId: string) {
+  return apiFetch<{ deleted: boolean }>({
+    path: `sites/${siteId}/zones/${zoneId}`,
+    token,
+    options: { method: 'DELETE' },
+  });
+}
+
+// Plan des locaux
+export async function setSitePlanImage(token: string, siteId: string, planImageUrl: string | null) {
+  return apiFetch<Site>({
+    path: `sites/${siteId}/plan`,
+    token,
+    options: { method: 'PATCH', body: JSON.stringify({ planImageUrl }) },
+  });
+}
+
+// Qualité
+export async function getSiteIncidents(token: string, siteId: string) {
+  return apiFetch<SiteIncident[]>({ path: `sites/${siteId}/incidents`, token });
+}
+export async function getSiteQualityScore(token: string, siteId: string) {
+  return apiFetch<SiteQualityScore>({ path: `sites/${siteId}/quality-score`, token });
 }

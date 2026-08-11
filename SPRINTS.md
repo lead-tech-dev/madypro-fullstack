@@ -394,7 +394,28 @@ immédiatement. Données de test nettoyées après coup.
 - Rafraîchissement : polling simple (15-30s) suffit, cohérent avec l'implémentation
   mobile existante ; pas de WebSocket à ce stade.
 
-## Sprint 21 (S41-S42) — UI Sites enrichis
+## Sprint 21 (S41-S42) — UI Sites enrichis ✅ terminé
+
+Implémenté directement dans `SiteFormPage.tsx` (formulaire existant, en édition
+uniquement) plutôt que dans des onglets séparés : trois nouvelles sections
+insérées avant les boutons d'action — « Contrats / SLA » (liste avec mise en
+évidence rouge des contrats à échéance < 30 jours + formulaire d'ajout),
+« Zones & plan des locaux » (aperçu de l'image de plan + upload base64 via
+`FileReader`, liste des zones avec case « traité » et suppression), « Qualité
+(90 derniers jours) » (score/100, interventions terminées/total, no-show,
+anomalies, 5 derniers incidents). Nouveaux types `web/src/types/siteAdvanced.ts`
+et fonctions client dans `sites.api.ts` (`listSiteContracts`,
+`createSiteContract`, `deleteSiteContract`, `listExpiringContracts`,
+`listSiteZones`, `createSiteZone`, `updateSiteZone`, `deleteSiteZone`,
+`setSitePlanImage`, `getSiteIncidents`, `getSiteQualityScore`). Aucun
+changement backend nécessaire. Testé en direct dans le navigateur avec un
+compte admin QA jetable sur un site réel : création de contrat, création de
+zone, bascule de la case « traité » (persistance vérifiée en base via Prisma),
+et affichage du score qualité tous confirmés fonctionnels de bout en bout.
+Le bandeau « contrats proches échéance » sur le dashboard et l'upload d'image
+de plan n'ont pas été testés en direct (structurellement identiques à des
+patterns déjà éprouvés ailleurs dans le code) ; le reste des données de test a
+été nettoyé après validation.
 
 Tous les items ci-dessous s'ajoutent comme nouveaux onglets dans `SiteFormPage.tsx`
 (ou une future `SiteDetailPage.tsx` si la page actuelle reste un simple formulaire).

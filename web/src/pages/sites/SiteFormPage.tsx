@@ -12,8 +12,19 @@ import {
   listSiteChecklist,
   SitePayload,
   updateSite,
+  listSiteContracts,
+  createSiteContract,
+  deleteSiteContract,
+  listSiteZones,
+  createSiteZone,
+  updateSiteZone,
+  deleteSiteZone,
+  setSitePlanImage,
+  getSiteIncidents,
+  getSiteQualityScore,
 } from '../../services/api/sites.api';
 import { SiteChecklistItem } from '../../types/site';
+import { SiteContract, SiteZone, SiteIncident, SiteQualityScore } from '../../types/siteAdvanced';
 import { listUsers } from '../../services/api/users.api';
 import { env } from '../../config/env';
 
@@ -87,6 +98,21 @@ export const SiteFormPage: React.FC = () => {
   const [checklist, setChecklist] = useState<SiteChecklistItem[]>([]);
   const [newChecklistLabel, setNewChecklistLabel] = useState('');
   const [checklistBusy, setChecklistBusy] = useState(false);
+  const [contracts, setContracts] = useState<SiteContract[]>([]);
+  const [newContract, setNewContract] = useState({ label: '', startDate: '', endDate: '', slaDetails: '' });
+  const [zones, setZones] = useState<SiteZone[]>([]);
+  const [newZone, setNewZone] = useState({ label: '', floor: '' });
+  const [planImageUrl, setPlanImageUrl] = useState<string | null>(null);
+  const [incidents, setIncidents] = useState<SiteIncident[]>([]);
+  const [qualityScore, setQualityScore] = useState<SiteQualityScore | null>(null);
+
+  const loadSiteExtras = (currentSiteId: string) => {
+    if (!token) return;
+    listSiteContracts(token, currentSiteId).then(setContracts).catch(() => {});
+    listSiteZones(token, currentSiteId).then(setZones).catch(() => {});
+    getSiteIncidents(token, currentSiteId).then(setIncidents).catch(() => {});
+    getSiteQualityScore(token, currentSiteId).then(setQualityScore).catch(() => {});
+  };
 
   useEffect(() => {
     if (!token) {
@@ -133,10 +159,12 @@ export const SiteFormPage: React.FC = () => {
               typeof siteData.minimumDurationMinutes === 'number' ? String(siteData.minimumDurationMinutes) : '',
           });
           setSelectedSupervisors(siteData.supervisorIds);
+          setPlanImageUrl((siteData as any).planImageUrl ?? null);
           setFormVisible(true);
           listSiteChecklist(token, siteData.id)
             .then(setChecklist)
             .catch(() => setChecklist([]));
+          loadSiteExtras(siteData.id);
         } else {
           setSupervisors(supervisorOptions);
           setForm(INITIAL_FORM);
@@ -310,6 +338,70 @@ export const SiteFormPage: React.FC = () => {
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Impossible de supprimer cet élément.', 'error');
     }
+  };
+
+  const submitContract = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!token || !siteId || !newContract.label.trim() || !newContract.startDate || !newContract.endDate) return;
+    try {
+      await createSiteContract(token, siteId, {
+        label: newContract.label.trim(),
+        startDate: newContract.startDate,
+        endDate: newContract.endDate,
+        slaDetails: newContract.slaDetails || undefined,
+      });
+      setNewContract({ label: '', startDate: '', endDate: '', slaDetails: '' });
+      loadSiteExtras(siteId);
+      notify('Contrat ajouté');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible d’ajouter', 'error');
+    }
+  };
+
+  const removeContract = async (contractId: string) => {
+    if (!token || !siteId) return;
+    await deleteSiteContract(token, siteId, contractId).catch(() => {});
+    loadSiteExtras(siteId);
+  };
+
+  const submitZone = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!token || !siteId || !newZone.label.trim()) return;
+    try {
+      await createSiteZone(token, siteId, { label: newZone.label.trim(), floor: newZone.floor || undefined });
+      setNewZone({ label: '', floor: '' });
+      loadSiteExtras(siteId);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible d’ajouter', 'error');
+    }
+  };
+
+  const toggleZoneCompleted = async (zone: SiteZone) => {
+    if (!token || !siteId) return;
+    await updateSiteZone(token, siteId, zone.id, { completed: !zone.completed }).catch(() => {});
+    loadSiteExtras(siteId);
+  };
+
+  const removeZone = async (zoneId: string) => {
+    if (!token || !siteId) return;
+    await deleteSiteZone(token, siteId, zoneId).catch(() => {});
+    loadSiteExtras(siteId);
+  };
+
+  const handlePlanUpload = async (file: File) => {
+    if (!token || !siteId) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      try {
+        await setSitePlanImage(token, siteId, dataUrl);
+        setPlanImageUrl(dataUrl);
+        notify('Plan mis à jour');
+      } catch (err) {
+        notify(err instanceof Error ? err.message : 'Envoi impossible', 'error');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const openCreateForm = () => {
@@ -577,6 +669,135 @@ export const SiteFormPage: React.FC = () => {
                         </Button>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {isEdit && siteId && (
+                  <div className="form-field">
+                    <span>Contrats / SLA</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {contracts.length === 0 && <small className="form-helper">Aucun contrat enregistré.</small>}
+                      {contracts.map((contract) => {
+                        const expiringSoon = new Date(contract.endDate).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
+                        return (
+                          <div key={contract.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={expiringSoon ? { color: '#dc2626' } : undefined}>
+                              {contract.label} · {contract.startDate.slice(0, 10)} → {contract.endDate.slice(0, 10)}
+                            </span>
+                            <Button type="button" variant="ghost" onClick={() => removeContract(contract.id)}>
+                              Retirer
+                            </Button>
+                          </div>
+                        );
+                      })}
+                      <div className="form-row">
+                        <Input
+                          label="Libellé"
+                          value={newContract.label}
+                          onChange={(event) => setNewContract((prev) => ({ ...prev, label: event.target.value }))}
+                        />
+                        <Input
+                          type="date"
+                          label="Début"
+                          value={newContract.startDate}
+                          onChange={(event) => setNewContract((prev) => ({ ...prev, startDate: event.target.value }))}
+                        />
+                        <Input
+                          type="date"
+                          label="Fin"
+                          value={newContract.endDate}
+                          onChange={(event) => setNewContract((prev) => ({ ...prev, endDate: event.target.value }))}
+                        />
+                        <Button type="button" onClick={submitContract}>
+                          Ajouter
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isEdit && siteId && (
+                  <div className="form-field">
+                    <span>Zones & plan des locaux</span>
+                    {planImageUrl && (
+                      <img src={planImageUrl} alt="Plan des locaux" style={{ maxWidth: '100%', borderRadius: '8px', marginBottom: '0.5rem' }} />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) handlePlanUpload(file);
+                      }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      {zones.length === 0 && <small className="form-helper">Aucune zone définie.</small>}
+                      {zones.map((zone) => (
+                        <div key={zone.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <input type="checkbox" checked={zone.completed} onChange={() => toggleZoneCompleted(zone)} />
+                            <span>
+                              {zone.label} {zone.floor ? `(${zone.floor})` : ''}
+                            </span>
+                          </label>
+                          <Button type="button" variant="ghost" onClick={() => removeZone(zone.id)}>
+                            Retirer
+                          </Button>
+                        </div>
+                      ))}
+                      <div className="form-row">
+                        <Input
+                          label="Zone"
+                          placeholder="Bâtiment A"
+                          value={newZone.label}
+                          onChange={(event) => setNewZone((prev) => ({ ...prev, label: event.target.value }))}
+                        />
+                        <Input
+                          label="Étage"
+                          placeholder="RDC"
+                          value={newZone.floor}
+                          onChange={(event) => setNewZone((prev) => ({ ...prev, floor: event.target.value }))}
+                        />
+                        <Button type="button" onClick={submitZone}>
+                          Ajouter
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isEdit && siteId && qualityScore && (
+                  <div className="form-field">
+                    <span>Qualité (90 derniers jours)</span>
+                    <div className="detail-grid" style={{ marginTop: '0.5rem' }}>
+                      <div className="detail-grid__item">
+                        <span>Score</span>
+                        <strong>{qualityScore.score} / 100</strong>
+                      </div>
+                      <div className="detail-grid__item">
+                        <span>Interventions</span>
+                        <strong>
+                          {qualityScore.interventionsCompleted} / {qualityScore.interventionsTotal}
+                        </strong>
+                      </div>
+                      <div className="detail-grid__item">
+                        <span>No-show</span>
+                        <strong>{qualityScore.noShowCount}</strong>
+                      </div>
+                      <div className="detail-grid__item">
+                        <span>Anomalies</span>
+                        <strong>{qualityScore.anomalyCount}</strong>
+                      </div>
+                    </div>
+                    {incidents.length > 0 && (
+                      <ul className="list-line" style={{ marginTop: '0.5rem' }}>
+                        {incidents.slice(0, 5).map((incident) => (
+                          <li key={incident.id}>
+                            {incident.interventionDate.slice(0, 10)} · {incident.type} — {incident.description}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
 
