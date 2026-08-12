@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -27,6 +29,8 @@ import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { haversineDistanceMeters } from '../common/utils/geo';
 import { checkAttendanceCompleteness } from './attendance-completeness.util';
+import { computeRuleOccurrences } from './recurrence.util';
+import { ApprovalsService } from '../approvals/approvals.service';
 
 export type InterventionFilters = {
   startDate?: string;
@@ -74,6 +78,7 @@ export class InterventionsService implements OnModuleInit {
   private lastSummaryDay: string | null = null;
   private MISSED_CHECKIN_GRACE_MS = 15 * 60 * 1000;
   private readonly missedCheckInNotified = new Set<string>(); // key: interventionId:userId
+  private readonly GENERATION_HORIZON_DAYS = 56; // 8 semaines
 
   constructor(
     private readonly prisma: PrismaService,
@@ -83,6 +88,8 @@ export class InterventionsService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
+    @Inject(forwardRef(() => ApprovalsService))
+    private readonly approvals: ApprovalsService,
   ) {}
 
   async onModuleInit() {
@@ -1009,6 +1016,48 @@ export class InterventionsService implements OnModuleInit {
     return view;
   }
 
+  /**
+   * Applique un lot d'occurrences généré par une règle de récurrence, une fois approuvé par un
+   * admin. Tout ou rien : chaque occurrence est d'abord revalidée (conflits d'affectation) avant
+   * qu'aucune ne soit créée, pour ne jamais laisser un lot à moitié appliqué.
+   */
+  async createBatch(
+    payload: {
+      siteId: string;
+      startTime: string;
+      endTime: string;
+      agentIds: string[];
+      ruleId: string;
+      ruleLabel?: string;
+      occurrences: { date: string }[];
+    },
+    actorId: string,
+  ) {
+    for (const occurrence of payload.occurrences) {
+      if (payload.agentIds.length) {
+        await this.checkAssignmentConflicts(payload.agentIds, occurrence.date, payload.startTime, payload.endTime);
+      }
+    }
+    const created: InterventionView[] = [];
+    for (const occurrence of payload.occurrences) {
+      const view = await this.create(
+        {
+          type: 'REGULAR',
+          siteId: payload.siteId,
+          date: occurrence.date,
+          startTime: payload.startTime,
+          endTime: payload.endTime,
+          label: payload.ruleLabel,
+          agentIds: payload.agentIds,
+          generatedFromRuleId: payload.ruleId,
+        } as CreateInterventionDto,
+        actorId,
+      );
+      created.push(view);
+    }
+    return created;
+  }
+
   async duplicate(id: string, dto: DuplicateInterventionDto, actorId = 'system') {
     const record = await this.findRecord(id);
     const agentIds = record.assignments.map((a) => a.userId);
@@ -1081,11 +1130,22 @@ export class InterventionsService implements OnModuleInit {
     return view;
   }
 
-  async listRules(): Promise<InterventionRuleEntity[]> {
-    const rules = await this.prisma.interventionRule.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-    return rules.map((rule) => ({
+  private presentRule(rule: {
+    id: string;
+    siteId: string;
+    agentIds: string[];
+    label: string;
+    startTime: string;
+    endTime: string;
+    daysOfWeek: number[];
+    intervalWeeks: number;
+    startDate: Date;
+    endDate: Date | null;
+    active: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }): InterventionRuleEntity {
+    return {
       id: rule.id,
       siteId: rule.siteId,
       agentIds: rule.agentIds,
@@ -1093,10 +1153,20 @@ export class InterventionsService implements OnModuleInit {
       startTime: rule.startTime,
       endTime: rule.endTime,
       daysOfWeek: rule.daysOfWeek,
+      intervalWeeks: rule.intervalWeeks,
+      startDate: rule.startDate,
+      endDate: rule.endDate,
       active: rule.active,
       createdAt: rule.createdAt,
       updatedAt: rule.updatedAt,
-    }));
+    };
+  }
+
+  async listRules(): Promise<InterventionRuleEntity[]> {
+    const rules = await this.prisma.interventionRule.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return rules.map((rule) => this.presentRule(rule));
   }
 
   async createRule(dto: CreateInterventionRuleDto) {
@@ -1107,22 +1177,14 @@ export class InterventionsService implements OnModuleInit {
         startTime: dto.startTime,
         endTime: dto.endTime,
         daysOfWeek: dto.daysOfWeek,
+        intervalWeeks: dto.intervalWeeks ?? 1,
+        startDate: dto.startDate ? new Date(dto.startDate) : new Date(),
+        endDate: dto.endDate ? new Date(dto.endDate) : null,
         agentIds: dto.agentIds,
         active: dto.active ?? true,
       },
     });
-    return {
-      id: rule.id,
-      siteId: rule.siteId,
-      agentIds: rule.agentIds,
-      label: rule.label,
-      startTime: rule.startTime,
-      endTime: rule.endTime,
-      daysOfWeek: rule.daysOfWeek,
-      active: rule.active,
-      createdAt: rule.createdAt,
-      updatedAt: rule.updatedAt,
-    };
+    return this.presentRule(rule);
   }
 
   async updateRule(id: string, dto: UpdateInterventionRuleDto) {
@@ -1132,6 +1194,9 @@ export class InterventionsService implements OnModuleInit {
     if (dto.startTime !== undefined) data.startTime = dto.startTime;
     if (dto.endTime !== undefined) data.endTime = dto.endTime;
     if (dto.daysOfWeek) data.daysOfWeek = dto.daysOfWeek;
+    if (dto.intervalWeeks !== undefined) data.intervalWeeks = dto.intervalWeeks;
+    if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
+    if (dto.endDate !== undefined) data.endDate = dto.endDate ? new Date(dto.endDate) : null;
     if (dto.agentIds) data.agentIds = dto.agentIds;
     if (dto.active !== undefined) data.active = dto.active;
 
@@ -1139,18 +1204,7 @@ export class InterventionsService implements OnModuleInit {
       where: { id },
       data,
     });
-    return {
-      id: rule.id,
-      siteId: rule.siteId,
-      agentIds: rule.agentIds,
-      label: rule.label,
-      startTime: rule.startTime,
-      endTime: rule.endTime,
-      daysOfWeek: rule.daysOfWeek,
-      active: rule.active,
-      createdAt: rule.createdAt,
-      updatedAt: rule.updatedAt,
-    };
+    return this.presentRule(rule);
   }
 
   async toggleRule(id: string, active: boolean) {
@@ -1158,70 +1212,79 @@ export class InterventionsService implements OnModuleInit {
       where: { id },
       data: { active },
     });
-    return {
-      id: rule.id,
-      siteId: rule.siteId,
-      agentIds: rule.agentIds,
-      label: rule.label,
-      startTime: rule.startTime,
-      endTime: rule.endTime,
-      daysOfWeek: rule.daysOfWeek,
-      active: rule.active,
-      createdAt: rule.createdAt,
-      updatedAt: rule.updatedAt,
-    };
+    return this.presentRule(rule);
   }
 
+  /**
+   * Propose (sans jamais créer directement) les occurrences des 8 prochaines semaines pour
+   * chaque règle active. Une ApprovalRequest CREATE_RECURRING_BATCH par règle, à valider par un
+   * admin — la génération ne crée plus d'intervention en direct (voir plan multi-agents /
+   * validation admin).
+   */
   private async generateFromRules() {
     if (this.generatingRules) {
       return;
     }
     this.generatingRules = true;
     try {
-      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      const dateStr = tomorrow.toISOString().slice(0, 10);
-      const day = tomorrow.getUTCDay();
-      const dateStart = this.toDateOnly(dateStr);
-      const dateEnd = this.endOfDay(dateStr);
-      const rules = await this.prisma.interventionRule.findMany({
-        where: {
-          active: true,
-          daysOfWeek: { has: day },
-        },
-      });
+      const horizonStart = this.toDateOnly(new Date().toISOString().slice(0, 10));
+      const horizonEnd = new Date(horizonStart.getTime() + this.GENERATION_HORIZON_DAYS * 24 * 60 * 60 * 1000);
+      const rules = await this.prisma.interventionRule.findMany({ where: { active: true } });
 
       for (const rule of rules) {
-        const existing = await this.prisma.intervention.findFirst({
-          where: {
-            generatedFromRuleId: rule.id,
-            date: {
-              gte: dateStart,
-              lte: dateEnd,
-            },
+        const occurrences = computeRuleOccurrences(
+          {
+            daysOfWeek: rule.daysOfWeek,
+            intervalWeeks: rule.intervalWeeks,
+            startDate: rule.startDate,
+            endDate: rule.endDate,
           },
+          horizonStart,
+          horizonEnd,
+        );
+        if (!occurrences.length) continue;
+
+        const [existingInterventions, existingBatches] = await Promise.all([
+          this.prisma.intervention.findMany({
+            where: { generatedFromRuleId: rule.id, date: { gte: horizonStart, lte: horizonEnd } },
+            select: { date: true },
+          }),
+          this.prisma.approvalRequest.findMany({
+            where: {
+              entityType: 'InterventionRule',
+              entityId: rule.id,
+              actionType: 'CREATE_RECURRING_BATCH',
+              status: { in: ['PENDING', 'APPROVED'] },
+            },
+            select: { payload: true },
+          }),
+        ]);
+
+        const covered = new Set<string>(existingInterventions.map((i) => i.date.toISOString().slice(0, 10)));
+        existingBatches.forEach((batch) => {
+          const occ = (batch.payload as any)?.occurrences as { date: string }[] | undefined;
+          occ?.forEach((o) => covered.add(o.date));
         });
-        if (existing) continue;
-        const created = await this.prisma.intervention.create({
-          data: {
+
+        const newDates = occurrences.filter((date) => !covered.has(date));
+        if (!newDates.length) continue;
+
+        await this.approvals.createRequest({
+          actionType: 'CREATE_RECURRING_BATCH',
+          entityType: 'InterventionRule',
+          entityId: rule.id,
+          payload: {
+            ruleId: rule.id,
+            ruleLabel: rule.label,
             siteId: rule.siteId,
-            date: dateStart,
             startTime: rule.startTime,
             endTime: rule.endTime,
-            type: 'REGULAR',
-            label: rule.label,
-            generatedFromRuleId: rule.id,
-            assignments: rule.agentIds.length
-              ? {
-                  create: rule.agentIds.map((userId) => ({ userId })),
-                }
-              : undefined,
+            agentIds: rule.agentIds,
+            occurrences: newDates.map((date) => ({ date })),
           },
-          include: { assignments: true, trucks: true, attendances: true },
+          requestedById: null,
+          summary: `${newDates.length} occurrence(s) — ${rule.label}`,
         });
-        const view = this.present(this.toEntity(created), (created as any).attendances);
-        this.notifyAssignedAgents(view, 'created').catch((err) =>
-          this.logger.warn(`Notification agents échouée: ${err.message}`),
-        );
       }
     } catch (error) {
       this.logger.error('Erreur lors de la génération programmée', error.stack);

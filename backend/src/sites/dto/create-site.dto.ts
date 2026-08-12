@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateSiteDto {
   @IsString()
@@ -43,6 +43,10 @@ export class CreateSiteDto {
   @IsOptional()
   @IsString()
   contactPhone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  contactEmail?: string;
 
   @IsOptional()
   @IsArray()

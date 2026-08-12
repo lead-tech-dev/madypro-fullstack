@@ -29,6 +29,9 @@ export class InterventionRuleEntity {
   startTime!: string;
   endTime!: string;
   daysOfWeek!: number[];
+  intervalWeeks: number = 1;
+  startDate!: Date;
+  endDate?: Date | null;
   active: boolean = true;
   createdAt!: Date;
   updatedAt!: Date;

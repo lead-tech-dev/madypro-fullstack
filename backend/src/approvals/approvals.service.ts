@@ -9,7 +9,8 @@ export type ApprovalActionType =
   | 'UPDATE_INTERVENTION_SCHEDULE'
   | 'ASSIGN_AGENT'
   | 'UNASSIGN_AGENT'
-  | 'CANCEL_INTERVENTION';
+  | 'CANCEL_INTERVENTION'
+  | 'CREATE_RECURRING_BATCH';
 
 export type CreateApprovalRequestInput = {
   actionType: ApprovalActionType;
@@ -17,7 +18,8 @@ export type CreateApprovalRequestInput = {
   entityId?: string | null;
   payload: Record<string, unknown>;
   previousState?: Record<string, unknown> | null;
-  requestedById: string;
+  /** Absent pour une proposition générée automatiquement (aucun humain à l'origine). */
+  requestedById?: string | null;
   summary: string;
 };
 
@@ -27,6 +29,7 @@ const ACTION_LABELS: Record<ApprovalActionType, string> = {
   ASSIGN_AGENT: 'Ajout d’agent',
   UNASSIGN_AGENT: 'Retrait d’agent',
   CANCEL_INTERVENTION: 'Annulation d’intervention',
+  CREATE_RECURRING_BATCH: 'Génération d’interventions récurrentes',
 };
 
 @Injectable()
@@ -60,28 +63,36 @@ export class ApprovalsService {
         entityId: input.entityId ?? null,
         payload: input.payload as any,
         previousState: (input.previousState ?? null) as any,
-        requestedById: input.requestedById,
+        requestedById: input.requestedById ?? null,
       },
     });
 
-    const requester = this.usersService.findOne(input.requestedById);
+    const requester = input.requestedById ? this.usersService.findOne(input.requestedById) : null;
     this.auditService.record({
-      actorId: input.requestedById,
+      actorId: input.requestedById ?? 'system',
       action: 'CREATE_APPROVAL_REQUEST',
       entityType: input.entityType,
       entityId: input.entityId ?? request.id,
       details: `${ACTION_LABELS[input.actionType]} : ${input.summary}`,
     });
-    try {
-      await this.notifications.send({
-        audience: 'AGENT',
-        targetId: input.requestedById,
-        title: 'Nouvelle demande de validation',
-        message: `${requester?.name ?? 'Un superviseur'} demande : ${ACTION_LABELS[input.actionType]} — ${input.summary}`,
-        category: 'approval',
-      });
-    } catch (err) {
-      this.logger.warn(`Notification de demande d'approbation échouée: ${(err as Error).message}`);
+    // Notification uniquement pour une demande initiée par un humain (superviseur) : le feed
+    // remonte quand même la demande à tous les admins (voir NotificationsService.feed(), qui ne
+    // filtre pas par audience/targetId pour ADMIN/SUPERVISOR). Pour une génération automatique,
+    // pas de destinataire pertinent via ce canal orienté agents (AGENT/SITE_AGENTS/ALL_AGENTS
+    // toucherait les agents mobiles à tort) : la page "Demandes de validation" suffit à la rendre
+    // visible côté admin.
+    if (input.requestedById) {
+      try {
+        await this.notifications.send({
+          audience: 'AGENT',
+          targetId: input.requestedById,
+          title: 'Nouvelle demande de validation',
+          message: `${requester?.name ?? 'Un superviseur'} demande : ${ACTION_LABELS[input.actionType]} — ${input.summary}`,
+          category: 'approval',
+        });
+      } catch (err) {
+        this.logger.warn(`Notification de demande d'approbation échouée: ${(err as Error).message}`);
+      }
     }
 
     return request;
@@ -134,7 +145,8 @@ export class ApprovalsService {
     return request;
   }
 
-  private async notifyRequester(userId: string, title: string, message: string) {
+  private async notifyRequester(userId: string | null, title: string, message: string) {
+    if (!userId) return;
     try {
       await this.notifications.send({
         audience: 'AGENT',
@@ -166,7 +178,9 @@ export class ApprovalsService {
     ]);
     const withNames = items.map((item) => ({
       ...item,
-      requestedByName: this.usersService.findOne(item.requestedById)?.name ?? item.requestedById,
+      requestedByName: item.requestedById
+        ? this.usersService.findOne(item.requestedById)?.name ?? item.requestedById
+        : 'Génération automatique',
       reviewedByName: item.reviewedById ? this.usersService.findOne(item.reviewedById)?.name ?? item.reviewedById : undefined,
     }));
     return { items: withNames, total, page, pageSize };

@@ -177,4 +177,11 @@ export class SitesController {
   getQrCode(@Param('id') id: string) {
     return this.service.getQrCode(id);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post(':id/send-planning')
+  sendPlanning(@Param('id') id: string, @Body('periodWeeks') periodWeeks: number, @Req() req: Request) {
+    return this.service.sendPlanning(id, periodWeeks && periodWeeks > 0 ? periodWeeks : 4, (req.user as any)?.sub);
+  }
 }

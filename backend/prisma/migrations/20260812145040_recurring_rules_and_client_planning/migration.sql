@@ -1,0 +1,13 @@
+-- AlterEnum
+ALTER TYPE "ApprovalActionType" ADD VALUE 'CREATE_RECURRING_BATCH';
+
+-- AlterEnum
+ALTER TYPE "AuditAction" ADD VALUE 'SEND_CLIENT_PLANNING';
+
+-- AlterTable
+ALTER TABLE "InterventionRule" ADD COLUMN     "endDate" TIMESTAMP(3),
+ADD COLUMN     "intervalWeeks" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "startDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- AlterTable
+ALTER TABLE "Site" ADD COLUMN     "contactEmail" TEXT;

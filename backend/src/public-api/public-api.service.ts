@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { PlatformService } from '../platform/platform.service';
 import { SitesService } from '../sites/sites.service';
+import { buildIcs } from '../common/utils/ics';
 
 @Injectable()
 export class PublicApiService {
@@ -39,34 +40,7 @@ export class PublicApiService {
       where: { siteId, date: { gte: from, lte: to }, status: { not: 'CANCELLED' } },
       orderBy: { date: 'asc' },
     });
-    return this.buildIcs(site.name, interventions);
-  }
-
-  private buildIcs(siteName: string, interventions: { id: string; date: Date; startTime: string; endTime: string; label: string | null; status: string }[]) {
-    const toIcsDate = (dateStr: string, time: string) => {
-      const [h, m] = time.split(':');
-      return `${dateStr.replace(/-/g, '')}T${h.padStart(2, '0')}${m.padStart(2, '0')}00`;
-    };
-    const events = interventions.map((intervention) => {
-      const dateStr = intervention.date.toISOString().slice(0, 10);
-      return [
-        'BEGIN:VEVENT',
-        `UID:${intervention.id}@madyproclean.com`,
-        `DTSTART:${toIcsDate(dateStr, intervention.startTime)}`,
-        `DTEND:${toIcsDate(dateStr, intervention.endTime)}`,
-        `SUMMARY:${(intervention.label ?? 'Intervention').replace(/\n/g, ' ')} — ${siteName}`,
-        `STATUS:${intervention.status === 'CANCELLED' ? 'CANCELLED' : 'CONFIRMED'}`,
-        'END:VEVENT',
-      ].join('\r\n');
-    });
-    return [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//MadyPro Clean//Planning//FR',
-      `X-WR-CALNAME:MadyPro Clean — ${siteName}`,
-      ...events,
-      'END:VCALENDAR',
-    ].join('\r\n');
+    return buildIcs(site.name, interventions);
   }
 
   async getPortalSummary(token: string) {

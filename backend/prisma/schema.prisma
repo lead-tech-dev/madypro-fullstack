@@ -81,6 +81,7 @@ enum AuditAction {
   CREATE_APPROVAL_REQUEST
   APPROVE_REQUEST
   REJECT_REQUEST
+  SEND_CLIENT_PLANNING
 }
 
 enum ShiftSwapStatus {
@@ -108,6 +109,7 @@ enum ApprovalActionType {
   ASSIGN_AGENT
   UNASSIGN_AGENT
   CANCEL_INTERVENTION
+  CREATE_RECURRING_BATCH
 }
 
 enum ApprovalStatus {
@@ -162,8 +164,8 @@ model ApprovalRequest {
   payload       Json
   previousState Json?
   status        ApprovalStatus     @default(PENDING)
-  requestedById String
-  requestedBy   User               @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  requestedById String?
+  requestedBy   User?              @relation("ApprovalRequester", fields: [requestedById], references: [id])
   reviewedById  String?
   reviewedBy    User?              @relation("ApprovalReviewer", fields: [reviewedById], references: [id])
   reviewComment String?
@@ -303,6 +305,7 @@ model Site {
   accessCode             String?
   contactName            String?
   contactPhone           String?
+  contactEmail           String?
   photos                 String[]            @default([])
   gpsDistanceMeters      Int?
   toleranceMinutes       Int?
@@ -443,6 +446,9 @@ model InterventionRule {
   startTime     String
   endTime       String
   daysOfWeek    Int[]
+  intervalWeeks Int            @default(1)
+  startDate     DateTime       @default(now())
+  endDate       DateTime?
   agentIds      String[]
   active        Boolean        @default(true)
   createdAt     DateTime       @default(now())

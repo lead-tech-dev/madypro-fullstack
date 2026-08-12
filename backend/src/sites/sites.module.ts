@@ -3,9 +3,10 @@ import { SitesController } from './sites.controller';
 import { SitesService } from './sites.service';
 import { UsersModule } from '../users/users.module';
 import { AuditModule } from '../audit/audit.module';
+import { MailerModule } from '../notifications/mailer.module';
 
 @Module({
-  imports: [UsersModule, AuditModule],
+  imports: [UsersModule, AuditModule, MailerModule],
   controllers: [SitesController],
   providers: [SitesService],
   exports: [SitesService],

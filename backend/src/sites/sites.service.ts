@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Site } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import * as QRCode from 'qrcode';
@@ -10,6 +10,8 @@ import { UsersService } from '../users/users.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
 import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
+import { MailerService } from '../notifications/mailer.service';
+import { buildIcs } from '../common/utils/ics';
 
 type SiteView = SiteEntity & {
   supervisors: { id: string; name: string }[];
@@ -28,6 +30,7 @@ export class SitesService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly auditService: AuditService,
+    private readonly mailerService: MailerService,
   ) {}
 
   async onModuleInit() {
@@ -56,6 +59,7 @@ export class SitesService implements OnModuleInit {
       accessCode: (record as any).accessCode ?? undefined,
       contactName: (record as any).contactName ?? undefined,
       contactPhone: (record as any).contactPhone ?? undefined,
+      contactEmail: (record as any).contactEmail ?? undefined,
       photos: (record as any).photos ?? [],
       gpsDistanceMeters: (record as any).gpsDistanceMeters ?? undefined,
       toleranceMinutes: (record as any).toleranceMinutes ?? undefined,
@@ -109,6 +113,7 @@ export class SitesService implements OnModuleInit {
         accessCode: dto.accessCode ?? null,
         contactName: dto.contactName ?? null,
         contactPhone: dto.contactPhone ?? null,
+        contactEmail: dto.contactEmail ?? null,
         photos: dto.photos ?? [],
         gpsDistanceMeters: dto.gpsDistanceMeters ?? null,
         toleranceMinutes: dto.toleranceMinutes ?? null,
@@ -146,6 +151,7 @@ export class SitesService implements OnModuleInit {
     if (dto.accessCode !== undefined) data.accessCode = dto.accessCode;
     if (dto.contactName !== undefined) data.contactName = dto.contactName;
     if (dto.contactPhone !== undefined) data.contactPhone = dto.contactPhone;
+    if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
     if (dto.photos !== undefined) data.photos = dto.photos;
     if (dto.gpsDistanceMeters !== undefined) data.gpsDistanceMeters = dto.gpsDistanceMeters;
     if (dto.toleranceMinutes !== undefined) data.toleranceMinutes = dto.toleranceMinutes;
@@ -418,5 +424,75 @@ export class SitesService implements OnModuleInit {
       noShowCount: noShow,
       anomalyCount: anomalies,
     };
+  }
+
+  /**
+   * Envoie par email au contact du site son planning des `periodWeeks` prochaines semaines
+   * (résumé HTML + pièce jointe .ics). Ne porte que sur des interventions déjà réelles
+   * (jamais une proposition de lot en attente de validation) : le client ne doit jamais voir un
+   * planning pas encore approuvé par l'admin.
+   */
+  async sendPlanning(id: string, periodWeeks: number, actorId = 'system') {
+    const site = this.ensureExists(id);
+    if (!site.contactEmail) {
+      throw new BadRequestException("Aucun email de contact n'est renseigné pour ce site.");
+    }
+    const from = new Date();
+    const to = new Date(from.getTime() + periodWeeks * 7 * 24 * 60 * 60 * 1000);
+    const interventions = await this.prisma.intervention.findMany({
+      where: { siteId: id, date: { gte: from, lte: to }, status: { notIn: ['CANCELLED'] } },
+      orderBy: { date: 'asc' },
+    });
+    if (!interventions.length) {
+      throw new BadRequestException("Aucune intervention planifiée sur cette période pour ce site.");
+    }
+
+    const ics = buildIcs(site.name, interventions);
+    const html = this.buildPlanningEmailHtml(site.name, interventions, periodWeeks);
+    await this.mailerService.send(site.contactEmail, `Planning ${site.name} — ${periodWeeks} prochaine(s) semaine(s)`, html, {
+      filename: 'planning.ics',
+      content: ics,
+      type: 'text/calendar',
+    });
+
+    this.auditService.record({
+      actorId,
+      action: 'SEND_CLIENT_PLANNING',
+      entityType: 'site',
+      entityId: id,
+      details: `${interventions.length} intervention(s) envoyée(s) à ${site.contactEmail}`,
+    });
+
+    return { sent: true, count: interventions.length, to: site.contactEmail };
+  }
+
+  private buildPlanningEmailHtml(
+    siteName: string,
+    interventions: { date: Date; startTime: string; endTime: string; label: string | null }[],
+    periodWeeks: number,
+  ) {
+    const rows = interventions
+      .map((i) => {
+        const dateLabel = i.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+        return `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee;">${dateLabel}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;">${i.startTime} – ${i.endTime}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;">${i.label ?? 'Intervention'}</td></tr>`;
+      })
+      .join('');
+    return `
+      <div style="font-family:sans-serif;color:#132420;">
+        <h2>Planning — ${siteName}</h2>
+        <p>Voici les interventions prévues pour les ${periodWeeks} prochaine(s) semaine(s). Un fichier .ics est joint pour l'importer dans votre agenda.</p>
+        <table style="border-collapse:collapse;width:100%;max-width:600px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #0E8E7C;">Date</th>
+              <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #0E8E7C;">Horaire</th>
+              <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #0E8E7C;">Intervention</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <p style="color:#5C6864;font-size:13px;margin-top:24px;">Madypro Clean</p>
+      </div>
+    `;
   }
 }
