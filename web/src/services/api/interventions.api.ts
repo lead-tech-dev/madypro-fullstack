@@ -1,4 +1,12 @@
-import { Intervention, InterventionRule, InterventionStatus, InterventionType } from '../../types/intervention';
+import {
+  AssignmentSuggestion,
+  DurationEstimate,
+  Intervention,
+  InterventionRule,
+  InterventionStatus,
+  InterventionType,
+  RouteOptimizationResult,
+} from '../../types/intervention';
 import { apiFetch } from './client';
 
 export type InterventionFilters = {
@@ -153,5 +161,29 @@ export async function toggleRule(token: string, id: string, active: boolean) {
       method: 'PATCH',
       body: JSON.stringify({ active }),
     },
+  });
+}
+
+export async function getAssignmentSuggestions(token: string, interventionId: string) {
+  return apiFetch<AssignmentSuggestion>({ path: `interventions/${interventionId}/assignment-suggestions`, token });
+}
+
+export async function getRouteOptimization(token: string, userId: string, date: string) {
+  return apiFetch<RouteOptimizationResult>({
+    path: `interventions/route-optimization?userId=${encodeURIComponent(userId)}&date=${encodeURIComponent(date)}`,
+    token,
+  });
+}
+
+export async function estimateDuration(token: string, siteId: string, type?: string) {
+  const query = type ? `siteId=${encodeURIComponent(siteId)}&type=${encodeURIComponent(type)}` : `siteId=${encodeURIComponent(siteId)}`;
+  return apiFetch<DurationEstimate>({ path: `interventions/estimate-duration?${query}`, token });
+}
+
+export async function setClientSignature(token: string, interventionId: string, signature: string) {
+  return apiFetch<{ id: string; clientSignature: string }>({
+    path: `interventions/${interventionId}/signature`,
+    token,
+    options: { method: 'POST', body: JSON.stringify({ signature }) },
   });
 }

@@ -16,7 +16,27 @@ export type Intervention = {
   truckLabels: string[];
   observation?: string;
   photos?: string[];
+  clientSignature?: string;
   status: InterventionStatus;
+};
+
+export type AssignmentSuggestion = {
+  interventionId: string;
+  candidates: { id: string; name: string; distanceMeters: number | null }[];
+};
+
+export type RouteOptimizationResult = {
+  userId: string;
+  date: string;
+  stops: { interventionId: string; siteName: string; startTime: string }[];
+  totalDistanceMeters: number;
+};
+
+export type DurationEstimate = {
+  siteId: string;
+  type: string | null;
+  sampleSize: number;
+  estimatedMinutes: number | null;
 };
 
 export type InterventionRule = {

@@ -435,7 +435,33 @@ affichée en fond de plan — `PATCH /sites/:id/plan`
 (sur 100, calculé glissant sur 90 jours) + liste chronologique des anomalies —
 `GET /sites/:id/quality-score`, `GET /sites/:id/incidents`
 
-## Sprint 22 (S43-S44) — UI Inventaire & interventions avancées
+## Sprint 22 (S43-S44) — UI Inventaire & interventions avancées ✅ terminé
+
+Les 5 fonctionnalités ont été implémentées : (1) section « Inventaire » ajoutée
+dans `SiteFormPage.tsx` (tableau nom/code-barres/quantité/seuil, alerte rouge
+sous le seuil, ajustement +1/-1, ajout/suppression) + bandeau « Réapprovisionnement
+nécessaire » sur `DashboardPage.tsx` ; (2) bouton « Suggérer un agent » dans le
+formulaire d'édition de `InterventionsPage.tsx`, listant les candidats disponibles
+triés par distance GPS avec ajout en un clic à la liste d'agents ; (3) nouvelle
+page `LiveMapPage.tsx` (route `/supervision/carte`, accessible aux admins et
+superviseurs) affichant une carte Mapbox GL (lib `mapbox-gl` installée) avec un
+marqueur par agent en mission, rafraîchie par polling 30s ; (4) section
+« Optimisation de tournée » dans `SupervisorPlanningPage.tsx` (sélection agent +
+date → ordre de visite optimisé et distance totale) ; (5) durée moyenne
+historique affichée dans le formulaire de création d'intervention (calculée par
+site/type), et upload de signature client (image) dans le détail d'une
+intervention terminée. Nouveaux fichiers : `types/inventory.ts`,
+`services/api/inventory.api.ts`, `pages/supervision/LiveMapPage.tsx` ; types et
+fonctions client ajoutés à `intervention.ts`/`interventions.api.ts` et
+`attendance.ts`/`attendance.api.ts`. Aucun changement backend nécessaire. Testé
+en direct dans le navigateur avec un compte admin QA jetable : ajout d'article
+d'inventaire et ajustement de quantité (persistance vérifiée en base), bandeau
+de réapprovisionnement affiché correctement, carte temps réel rendue sans erreur
+console, suggestions d'affectation GPS avec distances correctes et ajout à la
+sélection d'agents, optimisation de tournée avec distance calculée, estimation
+de durée moyenne affichée dynamiquement, et upload/persistance de signature
+client (vérifiée en base) — tous confirmés fonctionnels de bout en bout. Données
+de test nettoyées après validation.
 
 **1. Inventaire par site** — onglet « Inventaire » dans la fiche site : tableau (nom,
 code-barres, quantité, seuil), alerte visuelle si quantité ≤ seuil, ajustement rapide

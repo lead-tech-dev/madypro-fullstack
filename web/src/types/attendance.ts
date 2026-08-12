@@ -32,3 +32,14 @@ export type Attendance = {
     checkOut?: AttendanceLocation;
   };
 };
+
+export type LiveMapEntry = {
+  userId: string;
+  agentName: string;
+  interventionId: string;
+  siteId: string;
+  siteName: string;
+  latitude: number | null;
+  longitude: number | null;
+  lastSeenAt: string;
+};

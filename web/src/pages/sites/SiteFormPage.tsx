@@ -23,8 +23,10 @@ import {
   getSiteIncidents,
   getSiteQualityScore,
 } from '../../services/api/sites.api';
+import { listInventory, createInventoryItem, adjustInventoryItem, deleteInventoryItem } from '../../services/api/inventory.api';
 import { SiteChecklistItem } from '../../types/site';
 import { SiteContract, SiteZone, SiteIncident, SiteQualityScore } from '../../types/siteAdvanced';
+import { InventoryItem } from '../../types/inventory';
 import { listUsers } from '../../services/api/users.api';
 import { env } from '../../config/env';
 
@@ -105,6 +107,8 @@ export const SiteFormPage: React.FC = () => {
   const [planImageUrl, setPlanImageUrl] = useState<string | null>(null);
   const [incidents, setIncidents] = useState<SiteIncident[]>([]);
   const [qualityScore, setQualityScore] = useState<SiteQualityScore | null>(null);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [newInventoryItem, setNewInventoryItem] = useState({ name: '', barcode: '', unit: '', quantity: '0', minThreshold: '0' });
 
   const loadSiteExtras = (currentSiteId: string) => {
     if (!token) return;
@@ -112,6 +116,7 @@ export const SiteFormPage: React.FC = () => {
     listSiteZones(token, currentSiteId).then(setZones).catch(() => {});
     getSiteIncidents(token, currentSiteId).then(setIncidents).catch(() => {});
     getSiteQualityScore(token, currentSiteId).then(setQualityScore).catch(() => {});
+    listInventory(token, currentSiteId).then(setInventory).catch(() => {});
   };
 
   useEffect(() => {
@@ -402,6 +407,38 @@ export const SiteFormPage: React.FC = () => {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const submitInventoryItem = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!token || !siteId || !newInventoryItem.name.trim()) return;
+    try {
+      await createInventoryItem(token, {
+        siteId,
+        name: newInventoryItem.name.trim(),
+        barcode: newInventoryItem.barcode || undefined,
+        unit: newInventoryItem.unit || undefined,
+        quantity: Number(newInventoryItem.quantity) || 0,
+        minThreshold: Number(newInventoryItem.minThreshold) || 0,
+      });
+      setNewInventoryItem({ name: '', barcode: '', unit: '', quantity: '0', minThreshold: '0' });
+      loadSiteExtras(siteId);
+      notify('Article ajouté');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible d’ajouter', 'error');
+    }
+  };
+
+  const adjustInventory = async (itemId: string, delta: number) => {
+    if (!token || !siteId) return;
+    await adjustInventoryItem(token, itemId, delta).catch(() => {});
+    loadSiteExtras(siteId);
+  };
+
+  const removeInventoryItem = async (itemId: string) => {
+    if (!token || !siteId) return;
+    await deleteInventoryItem(token, itemId).catch(() => {});
+    loadSiteExtras(siteId);
   };
 
   const openCreateForm = () => {
@@ -798,6 +835,94 @@ export const SiteFormPage: React.FC = () => {
                         ))}
                       </ul>
                     )}
+                  </div>
+                )}
+
+                {isEdit && siteId && (
+                  <div className="form-field">
+                    <span>Inventaire</span>
+                    <div className="table-wrapper" style={{ marginTop: '0.5rem' }}>
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>Article</th>
+                            <th>Code-barres</th>
+                            <th>Quantité</th>
+                            <th>Seuil</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {inventory.map((item) => {
+                            const low = item.quantity <= item.minThreshold;
+                            return (
+                              <tr key={item.id}>
+                                <td>{item.name}</td>
+                                <td>{item.barcode || '—'}</td>
+                                <td style={low ? { color: '#dc2626', fontWeight: 600 } : undefined}>
+                                  {item.quantity} {item.unit}
+                                </td>
+                                <td>{item.minThreshold}</td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                    <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, -1)}>
+                                      -1
+                                    </Button>
+                                    <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, 1)}>
+                                      +1
+                                    </Button>
+                                    <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeInventoryItem(item.id)}>
+                                      Retirer
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {inventory.length === 0 && (
+                            <tr>
+                              <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                                Aucun article enregistré.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="form-row" style={{ marginTop: '0.5rem' }}>
+                      <Input
+                        label="Article"
+                        placeholder="Sacs poubelle"
+                        value={newInventoryItem.name}
+                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, name: event.target.value }))}
+                      />
+                      <Input
+                        label="Code-barres"
+                        value={newInventoryItem.barcode}
+                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, barcode: event.target.value }))}
+                      />
+                      <Input
+                        label="Unité"
+                        placeholder="unité"
+                        value={newInventoryItem.unit}
+                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, unit: event.target.value }))}
+                      />
+                      <Input
+                        label="Quantité"
+                        type="number"
+                        value={newInventoryItem.quantity}
+                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, quantity: event.target.value }))}
+                      />
+                      <Input
+                        label="Seuil min."
+                        type="number"
+                        value={newInventoryItem.minThreshold}
+                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, minThreshold: event.target.value }))}
+                      />
+                      <Button type="button" onClick={submitInventoryItem}>
+                        Ajouter
+                      </Button>
+                    </div>
                   </div>
                 )}
 

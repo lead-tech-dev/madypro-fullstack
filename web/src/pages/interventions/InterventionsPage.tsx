@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
-import { Intervention, InterventionStatus, InterventionType } from '../../types/intervention';
+import { AssignmentSuggestion, DurationEstimate, Intervention, InterventionStatus, InterventionType } from '../../types/intervention';
 import {
   listInterventions,
   createIntervention,
   updateIntervention,
   duplicateIntervention,
   cancelIntervention,
+  getAssignmentSuggestions,
+  estimateDuration,
+  setClientSignature,
   InterventionFilters,
   CreateInterventionPayload,
 } from '../../services/api/interventions.api';
@@ -109,6 +112,10 @@ export const InterventionsPage: React.FC = () => {
   const [photoDraft, setPhotoDraft] = useState<string[]>([]);
   const [savingObservation, setSavingObservation] = useState(false);
   const [viewAttendances, setViewAttendances] = useState<Attendance[]>([]);
+  const [suggestions, setSuggestions] = useState<AssignmentSuggestion | null>(null);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [durationEstimate, setDurationEstimate] = useState<DurationEstimate | null>(null);
+  const [signatureUploading, setSignatureUploading] = useState(false);
   const needsReviewCount = useMemo(
     () => interventions.filter((i) => i.status === 'NEEDS_REVIEW').length,
     [interventions],
@@ -137,6 +144,7 @@ export const InterventionsPage: React.FC = () => {
   const openCreateForm = () => {
     setObservationOnly(false);
     setEditingId(null);
+    setSuggestions(null);
     setForm({
       ...createFormDefaults,
       date: formatDate(new Date()),
@@ -257,6 +265,54 @@ export const InterventionsPage: React.FC = () => {
     setPhotoDraft(viewing.photos ?? []);
   }, [token, viewing]);
 
+  useEffect(() => {
+    if (!token || !formVisible || !form.siteId) {
+      setDurationEstimate(null);
+      return;
+    }
+    const apiType = form.type === 'PONCTUAL' ? 'PUNCTUAL' : form.type;
+    estimateDuration(token, form.siteId, apiType)
+      .then(setDurationEstimate)
+      .catch(() => setDurationEstimate(null));
+  }, [token, formVisible, form.siteId, form.type]);
+
+  const fetchSuggestions = async () => {
+    if (!token || !editingId) return;
+    setSuggestionsLoading(true);
+    try {
+      const result = await getAssignmentSuggestions(token, editingId);
+      setSuggestions(result);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible de charger les suggestions', 'error');
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  const addSuggestedAgent = (agentId: string) => {
+    setForm((prev) => (prev.agentIds.includes(agentId) ? prev : { ...prev, agentIds: [...prev.agentIds, agentId] }));
+  };
+
+  const handleSignatureUpload = async (file: File) => {
+    if (!token || !viewing) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setSignatureUploading(true);
+      try {
+        await setClientSignature(token, viewing.id, dataUrl);
+        setViewing((prev) => (prev ? { ...prev, clientSignature: dataUrl } : prev));
+        setInterventions((prev) => prev.map((i) => (i.id === viewing.id ? { ...i, clientSignature: dataUrl } : i)));
+        notify('Signature enregistrée');
+      } catch (err) {
+        notify(err instanceof Error ? err.message : 'Envoi impossible', 'error');
+      } finally {
+        setSignatureUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const siteOptions = useMemo(() => [{ value: 'all', label: 'Tous les sites' }].concat(sites.map((site) => ({ value: site.id, label: site.name }))), [sites]);
   const agentOptions = useMemo(() => [{ value: 'all', label: 'Tous les agents' }].concat(users.map((user) => ({ value: user.id, label: user.name }))), [users]);
   const hasStarted = (intervention: Intervention) => {
@@ -330,6 +386,7 @@ export const InterventionsPage: React.FC = () => {
     }
     setObservationOnly(obsOnly);
     setEditingId(intervention.id);
+    setSuggestions(null);
     setForm({
       type: intervention.type,
       siteId: intervention.siteId,
@@ -612,6 +669,11 @@ export const InterventionsPage: React.FC = () => {
                   disabled={observationOnly}
                 />
               </div>
+              {durationEstimate?.estimatedMinutes != null && (
+                <small className="form-helper">
+                  Durée moyenne historique sur ce site : {durationEstimate.estimatedMinutes} min (sur {durationEstimate.sampleSize} interventions)
+                </small>
+              )}
               <label className="form-field">
                 <span>Agents</span>
                 <select
@@ -628,6 +690,29 @@ export const InterventionsPage: React.FC = () => {
                   ))}
                 </select>
               </label>
+              {editingId && !observationOnly && (
+                <div className="form-field">
+                  <Button type="button" variant="ghost" onClick={fetchSuggestions} disabled={suggestionsLoading}>
+                    {suggestionsLoading ? 'Recherche...' : 'Suggérer un agent'}
+                  </Button>
+                  {suggestions && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
+                      {suggestions.candidates.length === 0 && <small className="form-helper">Aucun candidat disponible.</small>}
+                      {suggestions.candidates.map((candidate) => (
+                        <div key={candidate.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>
+                            {candidate.name}
+                            {candidate.distanceMeters != null ? ` · ${(candidate.distanceMeters / 1000).toFixed(1)} km` : ''}
+                          </span>
+                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => addSuggestedAgent(candidate.id)}>
+                            Ajouter
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {form.type === 'PONCTUAL' && (
                 <label className="form-field" htmlFor="truckLabels">
                   <span>Camions</span>
@@ -1023,6 +1108,27 @@ export const InterventionsPage: React.FC = () => {
                     <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
                     {photoDraft.length > 0 && <ImageSlider images={photoDraft} />}
                   </div>
+                  {viewing.status === 'COMPLETED' && (
+                    <div style={{ display: 'grid', gap: '0.35rem' }}>
+                      <p className="card__meta">Signature client</p>
+                      {viewing.clientSignature && (
+                        <img
+                          src={viewing.clientSignature}
+                          alt="Signature client"
+                          style={{ maxWidth: '240px', border: '1px solid #eef1f4', borderRadius: '8px' }}
+                        />
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={signatureUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleSignatureUpload(file);
+                        }}
+                      />
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                     <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
                       Fermer

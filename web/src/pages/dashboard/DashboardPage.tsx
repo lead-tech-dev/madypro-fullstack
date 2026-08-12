@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import { getDashboardSummary } from '../../services/api/reports.api';
+import { listLowStockInventory } from '../../services/api/inventory.api';
 import { DashboardSummary } from '../../types/dashboard';
+import { InventoryItem } from '../../types/inventory';
 import { env } from '../../config/env';
 
 type FilterState = {
@@ -25,6 +27,12 @@ export const DashboardPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [lowStock, setLowStock] = useState<InventoryItem[]>([]);
+
+  useEffect(() => {
+    if (!token) return;
+    listLowStockInventory(token).then(setLowStock).catch(() => setLowStock([]));
+  }, [token, refreshTick]);
 
   useEffect(() => {
     if (!token) return;
@@ -167,6 +175,22 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {error && <p className="form-error">{error}</p>}
+
+      {lowStock.length > 0 && (
+        <section className="panel" style={{ borderColor: '#f59e0b' }}>
+          <h3>Réapprovisionnement nécessaire</h3>
+          <ul className="list-line">
+            {lowStock.map((item) => (
+              <li key={item.id}>
+                <span>{item.site?.name ?? '—'}</span>
+                <span style={{ color: '#b45309' }}>
+                  {item.name} : {item.quantity} / {item.minThreshold} {item.unit}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="dashboard-panels">
         <section className="panel">

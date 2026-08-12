@@ -8,6 +8,7 @@ import { SupervisorPresencePage } from '../pages/supervision/SupervisorPresenceP
 import { SupervisorPlanningPage } from '../pages/supervision/SupervisorPlanningPage';
 import { SupervisorInterventionsPage } from '../pages/supervision/SupervisorInterventionsPage';
 import { SupervisorAbsencesPage } from '../pages/supervision/SupervisorAbsencesPage';
+import { LiveMapPage } from '../pages/supervision/LiveMapPage';
 
 export const SupervisionRoutes = () => (
   <Route element={<ProtectedRoute allowedRoles={['SUPERVISOR', 'ADMIN']} />}>
@@ -16,6 +17,7 @@ export const SupervisionRoutes = () => (
       <Route path="/supervision/dashboard" element={<SupervisorDashboardPage />} />
       <Route path="/supervision/sites" element={<SupervisorSitesPage />} />
       <Route path="/supervision/presence" element={<SupervisorPresencePage />} />
+      <Route path="/supervision/carte" element={<LiveMapPage />} />
       <Route path="/supervision/planning" element={<SupervisorPlanningPage />} />
       <Route path="/supervision/interventions" element={<SupervisorInterventionsPage />} />
       <Route path="/supervision/absences" element={<SupervisorAbsencesPage />} />
