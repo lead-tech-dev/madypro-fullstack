@@ -54,6 +54,7 @@ const ADMIN_MENU: NavItem[] = [
 const SUPERVISOR_MENU: NavItem[] = [
   { type: 'link', to: '/supervision/dashboard', label: 'Tableau de bord' },
   { type: 'link', to: '/supervision/sites', label: 'Mes sites' },
+  { type: 'link', to: '/supervision/equipe', label: 'Mon équipe' },
   { type: 'link', to: '/supervision/presence', label: 'Présence & carte temps réel' },
   { type: 'link', to: '/supervision/planning', label: 'Planning équipes' },
   { type: 'link', to: '/supervision/interventions', label: 'Interventions' },
