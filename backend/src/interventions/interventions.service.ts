@@ -821,7 +821,7 @@ export class InterventionsService implements OnModuleInit {
     }
   }
 
-  async update(id: string, dto: UpdateInterventionDto, actorId = 'system') {
+  async update(id: string, dto: UpdateInterventionDto, actorId = 'system', viewerRole?: string) {
     await this.findRecord(id);
     const data: Prisma.InterventionUpdateInput = {};
     // Pré-calcul pour synchroniser attendances après mise à jour
@@ -849,6 +849,9 @@ export class InterventionsService implements OnModuleInit {
     if (dto.endTime !== undefined) data.endTime = dto.endTime;
     if (dto.status) {
       if (dto.status === 'COMPLETED') {
+        if (viewerRole !== 'SUPERVISOR') {
+          throw new ForbiddenException('Seul le superviseur peut valider une intervention');
+        }
         this.assertAllAgentsCompletedAttendance(original.assignments, (original as any).attendances ?? []);
       }
       data.status = dto.status;
@@ -980,8 +983,8 @@ export class InterventionsService implements OnModuleInit {
     if (viewer.role === 'AGENT' && status === 'COMPLETED') {
       throw new BadRequestException('Un agent ne peut pas terminer l’intervention globale. Seul son pointage est clôturé.');
     }
-    if (status === 'COMPLETED' && !['SUPERVISOR', 'ADMIN'].includes(viewer.role)) {
-      throw new ForbiddenException('Seuls le superviseur ou un admin peuvent valider une intervention');
+    if (status === 'COMPLETED' && viewer.role !== 'SUPERVISOR') {
+      throw new ForbiddenException('Seul le superviseur peut valider une intervention');
     }
     if (status === 'COMPLETED' && viewer.role === 'AGENT') {
       const endDateTime = new Date(`${record.date.toISOString().slice(0, 10)}T${record.endTime || '23:59'}:00.000Z`);
@@ -991,7 +994,7 @@ export class InterventionsService implements OnModuleInit {
         throw new BadRequestException("L'intervention ne peut pas être terminée avant la fin planifiée + 30 minutes");
       }
     }
-    if (status === 'COMPLETED' && ['SUPERVISOR', 'ADMIN'].includes(viewer.role)) {
+    if (status === 'COMPLETED') {
       this.assertAllAgentsCompletedAttendance(record.assignments, (record as any).attendances ?? []);
     }
 

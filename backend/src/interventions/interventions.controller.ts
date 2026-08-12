@@ -91,7 +91,8 @@ export class InterventionsController {
   @Roles('ADMIN', 'SUPERVISOR')
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateInterventionDto, @Req() req: Request) {
-    return this.service.update(id, dto, (req.user as any)?.sub);
+    const user = req.user as any;
+    return this.service.update(id, dto, user?.sub, user?.role);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

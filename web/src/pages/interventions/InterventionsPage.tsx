@@ -1102,25 +1102,12 @@ export const InterventionsPage: React.FC = () => {
               </div>
 
               {viewing.status === 'NEEDS_REVIEW' && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem' }}>
+                  <small style={{ color: 'var(--color-muted)' }}>
+                    Seul le superviseur peut valider cette intervention.
+                  </small>
                   <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
                     Fermer
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={async () => {
-                      if (!token || !viewing) return;
-                      try {
-                        const updated = await updateIntervention(token, viewing.id, { status: 'COMPLETED' });
-                        setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-                        setViewing(updated);
-                        notify('Intervention validée');
-                      } catch (err) {
-                        notify(err instanceof Error ? err.message : 'Validation impossible', 'error');
-                      }
-                    }}
-                  >
-                    Valider
                   </Button>
                 </div>
               )}
