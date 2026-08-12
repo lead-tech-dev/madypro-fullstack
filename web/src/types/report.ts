@@ -41,3 +41,29 @@ export type PayrollBreakdownRow = {
   sundayHours: number;
   holidayHours: number;
 };
+
+export type PeriodComparison = {
+  current: { period: { startDate: string; endDate: string }; kpis: ReportsPerformance['kpis']; totals: { totalMinutes: number } };
+  previous: { period: { startDate: string; endDate: string }; kpis: ReportsPerformance['kpis']; totals: { totalMinutes: number } };
+  deltas: {
+    punctualityRate: number | null;
+    absenteeismRate: number | null;
+    realizationRate: number | null;
+    realizedMinutes: number | null;
+  };
+};
+
+export type BillingReportRow = {
+  siteId: string;
+  siteName: string;
+  billableHours: number;
+  internalHours: number;
+};
+
+export type SiteBenchmarkRow = {
+  siteId: string;
+  siteName: string;
+  interventionsTotal: number;
+  completionRate: number | null;
+  anomalyCount: number;
+};

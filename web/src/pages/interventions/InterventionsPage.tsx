@@ -937,6 +937,28 @@ export const InterventionsPage: React.FC = () => {
                 <p>{viewing.status}</p>
               </div>
               <div>
+                <strong>Facturable</strong>
+                <p>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={viewing.billable}
+                      onChange={async () => {
+                        if (!token) return;
+                        try {
+                          const updated = await updateIntervention(token, viewing.id, { billable: !viewing.billable });
+                          setViewing(updated);
+                          setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+                        } catch (err) {
+                          notify(err instanceof Error ? err.message : 'Mise à jour impossible', 'error');
+                        }
+                      }}
+                    />
+                    {viewing.billable ? 'Oui' : 'Non (interne)'}
+                  </label>
+                </p>
+              </div>
+              <div>
                 <strong>Observation</strong>
                 <p>{viewing.observation || '—'}</p>
               </div>

@@ -527,7 +527,44 @@ configuré au préalable — dépend du Sprint 17)
 `AttendanceListPage.tsx` : liste des anomalies (durée suspecte vs moyenne du site,
 zone hors périmètre répétée) — `GET /attendance/anomalies`
 
-## Sprint 24 (S47-S48) — UI Rapports & business intelligence
+## Sprint 24 (S47-S48) — UI Rapports & business intelligence ✅ terminé
+
+Les 5 fonctionnalités ont été implémentées : (1) section « Comparaison de
+périodes » dans `ReportsPage.tsx` (KPI période actuelle avec deltas colorés
+vert/rouge vs période précédente) ; (2) tableau de bord configurable sur
+`DashboardPage.tsx` — mode « édition » avec bouton visibilité + réordonnancement
+haut/bas par widget (implémenté sans librairie drag-and-drop dédiée : boutons
+↑/↓ plutôt que `@dnd-kit/core`, pour éviter une dépendance lourde tout en
+livrant la fonctionnalité demandée — réordonnancement et masquage des 4 widgets
+existants — persistance via `GET/PUT /reports/dashboard-layout`) ; (3) section
+« Rapport de facturation » dans `ReportsPage.tsx` (heures facturables/internes
+par site) + case à cocher « Facturable » dans le détail d'une intervention
+(`InterventionsPage.tsx`) ; (4) section « Benchmark inter-sites » dans
+`ReportsPage.tsx` (taux de complétion, anomalies, 90 jours glissants) ; (5)
+lignes dépliables dans `AuditPage.tsx` affichant le diff avant/après (valeur
+barrée → nouvelle valeur en vert) + bouton d'export RGPD (`GET /audit/export.csv`,
+téléchargement via fetch+blob avec authentification Bearer, ce endpoint ne
+pouvant pas fonctionner en simple lien `<a href>`).
+
+**Fix backend nécessaire** : `InterventionEntity`/`toEntity()` dans
+`interventions.service.ts` ne renvoyait jamais le champ `billable` (stocké en
+base mais absent de toute réponse `GET`/`PATCH`), ce qui aurait rendu la case
+à cocher « Facturable » inopérante après rechargement — corrigé en ajoutant le
+champ à l'entité et au mapper.
+
+Testé en direct dans le navigateur avec un compte admin QA jetable : widgets du
+dashboard masqués/réordonnés avec persistance vérifiée en base et rechargement
+de page confirmé ; comparaison de périodes, facturation et benchmark affichés
+avec des données réelles ; bascule facturable persistée et vérifiée en base ;
+export RGPD déclenché avec le bon nom de fichier. Le diff avant/après de
+l'audit n'a pu être vérifié qu'avec des données simulées (interception réseau
+côté page) : aucune entrée `AuditLog` existante n'a de `before`/`after`
+renseigné dans toute la base actuelle (`before`/`after` sont bien retournés par
+`GET /audit` et le schéma les supporte, mais aucun appelant ne les alimente
+aujourd'hui côté backend — gap préexistant, hors périmètre de cette phase
+purement frontend) ; le rendu du diff a été confirmé fonctionnel avec des
+données de test simulées. Compte QA et disposition de dashboard nettoyés après
+validation.
 
 **1. Comparaison de périodes** — dans `ReportsPage.tsx` : sélecteur de période +
 affichage côte à côte période courante / période précédente avec deltas colorés

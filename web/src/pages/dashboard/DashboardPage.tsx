@@ -1,10 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
-import { getDashboardSummary } from '../../services/api/reports.api';
+import { getDashboardSummary, getDashboardLayout, setDashboardLayout, DashboardWidgetConfig } from '../../services/api/reports.api';
 import { listLowStockInventory } from '../../services/api/inventory.api';
 import { DashboardSummary } from '../../types/dashboard';
 import { InventoryItem } from '../../types/inventory';
+import { Button } from '../../components/ui/Button';
 import { env } from '../../config/env';
+
+const WIDGET_LABELS: Record<string, string> = {
+  metrics: 'Indicateurs',
+  lowStock: 'Réapprovisionnement',
+  alerts: 'Alertes',
+  planning: 'Planning du jour',
+};
+
+const DEFAULT_LAYOUT: DashboardWidgetConfig[] = [
+  { id: 'metrics', visible: true, order: 0 },
+  { id: 'lowStock', visible: true, order: 1 },
+  { id: 'alerts', visible: true, order: 2 },
+  { id: 'planning', visible: true, order: 3 },
+];
 
 type FilterState = {
   date: string;
@@ -28,11 +43,41 @@ export const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
   const [lowStock, setLowStock] = useState<InventoryItem[]>([]);
+  const [layout, setLayout] = useState<DashboardWidgetConfig[]>(DEFAULT_LAYOUT);
+  const [editMode, setEditMode] = useState(false);
 
   useEffect(() => {
     if (!token) return;
     listLowStockInventory(token).then(setLowStock).catch(() => setLowStock([]));
   }, [token, refreshTick]);
+
+  useEffect(() => {
+    if (!token) return;
+    getDashboardLayout(token)
+      .then((saved) => setLayout(saved && saved.length ? saved : DEFAULT_LAYOUT))
+      .catch(() => setLayout(DEFAULT_LAYOUT));
+  }, [token]);
+
+  const persistLayout = (next: DashboardWidgetConfig[]) => {
+    setLayout(next);
+    if (token) setDashboardLayout(token, next).catch(() => {});
+  };
+
+  const toggleWidgetVisible = (id: string) => {
+    persistLayout(layout.map((w) => (w.id === id ? { ...w, visible: !w.visible } : w)));
+  };
+
+  const moveWidget = (id: string, direction: -1 | 1) => {
+    const sorted = [...layout].sort((a, b) => a.order - b.order);
+    const index = sorted.findIndex((w) => w.id === id);
+    const swapIndex = index + direction;
+    if (index < 0 || swapIndex < 0 || swapIndex >= sorted.length) return;
+    [sorted[index], sorted[swapIndex]] = [sorted[swapIndex], sorted[index]];
+    persistLayout(sorted.map((w, i) => ({ ...w, order: i })));
+  };
+
+  const orderedLayout = useMemo(() => [...layout].sort((a, b) => a.order - b.order), [layout]);
+  const isWidgetVisible = (id: string) => editMode || layout.find((w) => w.id === id)?.visible !== false;
 
   useEffect(() => {
     if (!token) return;
@@ -165,88 +210,144 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="page-grid">
-        {metrics.map((metric) => (
-          <article key={metric.title} className="card">
-            <span className="card__meta">{metric.title}</span>
-            <p className="card__value">{metric.value}</p>
-          </article>
-        ))}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '0.5rem 0' }}>
+        <Button type="button" variant="ghost" onClick={() => setEditMode((v) => !v)}>
+          {editMode ? 'Terminer la configuration' : 'Configurer le tableau de bord'}
+        </Button>
       </div>
 
       {error && <p className="form-error">{error}</p>}
 
-      {lowStock.length > 0 && (
-        <section className="panel" style={{ borderColor: '#f59e0b' }}>
-          <h3>Réapprovisionnement nécessaire</h3>
-          <ul className="list-line">
-            {lowStock.map((item) => (
-              <li key={item.id}>
-                <span>{item.site?.name ?? '—'}</span>
-                <span style={{ color: '#b45309' }}>
-                  {item.name} : {item.quantity} / {item.minThreshold} {item.unit}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <div className="dashboard-panels">
-        <section className="panel">
-          <h3>Alertes</h3>
-          <ul className="list-line">
-            {summary.alerts.map((alert) => (
-              <li key={alert.id}>
-                <span>{alert.type}</span>
-                <span>{alert.description}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="panel">
-          <h3>Planning du jour</h3>
-          <div className="table-wrapper">
-            <table className="table" aria-label="planning synthétique">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Site</th>
-                  <th>Superviseur</th>
-                  <th>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRecords.map((record) => (
-                  <tr key={record.id}>
-                    <td>{record.agent}</td>
-                    <td>{record.site}</td>
-                    <td>{record.supervisor}</td>
-                    <td>
-                      <span
-                        className={`status-chip ${
-                          record.status === 'ON_TIME'
-                            ? 'status-chip--success'
-                            : record.status === 'LATE'
-                            ? 'status-chip--warning'
-                            : 'status-chip--info'
-                        }`}
-                      >
-                        {record.status === 'ON_TIME'
-                          ? `Présent ${record.checkIn}`
-                          : record.status === 'LATE'
-                          ? `Retard ${record.checkIn}`
-                          : 'Absent'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {orderedLayout.map((widget) => {
+        if (!isWidgetVisible(widget.id)) return null;
+        const editControls = editMode && (
+          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <span className="pill">{WIDGET_LABELS[widget.id] ?? widget.id}</span>
+            <Button type="button" variant="ghost" className="btn--compact" onClick={() => moveWidget(widget.id, -1)}>
+              ↑
+            </Button>
+            <Button type="button" variant="ghost" className="btn--compact" onClick={() => moveWidget(widget.id, 1)}>
+              ↓
+            </Button>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <input type="checkbox" checked={widget.visible} onChange={() => toggleWidgetVisible(widget.id)} />
+              Visible
+            </label>
           </div>
-        </section>
-      </div>
+        );
+
+        if (widget.id === 'metrics') {
+          return (
+            <div key={widget.id}>
+              {editControls}
+              <div className="page-grid">
+                {metrics.map((metric) => (
+                  <article key={metric.title} className="card">
+                    <span className="card__meta">{metric.title}</span>
+                    <p className="card__value">{metric.value}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        if (widget.id === 'lowStock') {
+          if (!editMode && lowStock.length === 0) return null;
+          return (
+            <div key={widget.id}>
+              {editControls}
+              <section className="panel" style={{ borderColor: '#f59e0b' }}>
+                <h3>Réapprovisionnement nécessaire</h3>
+                {lowStock.length === 0 ? (
+                  <p className="card__meta">Aucune alerte de stock.</p>
+                ) : (
+                  <ul className="list-line">
+                    {lowStock.map((item) => (
+                      <li key={item.id}>
+                        <span>{item.site?.name ?? '—'}</span>
+                        <span style={{ color: '#b45309' }}>
+                          {item.name} : {item.quantity} / {item.minThreshold} {item.unit}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+          );
+        }
+
+        if (widget.id === 'alerts') {
+          return (
+            <div key={widget.id}>
+              {editControls}
+              <section className="panel">
+                <h3>Alertes</h3>
+                <ul className="list-line">
+                  {summary.alerts.map((alert) => (
+                    <li key={alert.id}>
+                      <span>{alert.type}</span>
+                      <span>{alert.description}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          );
+        }
+
+        if (widget.id === 'planning') {
+          return (
+            <div key={widget.id}>
+              {editControls}
+              <section className="panel">
+                <h3>Planning du jour</h3>
+                <div className="table-wrapper">
+                  <table className="table" aria-label="planning synthétique">
+                    <thead>
+                      <tr>
+                        <th>Agent</th>
+                        <th>Site</th>
+                        <th>Superviseur</th>
+                        <th>Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRecords.map((record) => (
+                        <tr key={record.id}>
+                          <td>{record.agent}</td>
+                          <td>{record.site}</td>
+                          <td>{record.supervisor}</td>
+                          <td>
+                            <span
+                              className={`status-chip ${
+                                record.status === 'ON_TIME'
+                                  ? 'status-chip--success'
+                                  : record.status === 'LATE'
+                                  ? 'status-chip--warning'
+                                  : 'status-chip--info'
+                              }`}
+                            >
+                              {record.status === 'ON_TIME'
+                                ? `Présent ${record.checkIn}`
+                                : record.status === 'LATE'
+                                ? `Retard ${record.checkIn}`
+                                : 'Absent'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          );
+        }
+
+        return null;
+      })}
     </div>
   );
 };

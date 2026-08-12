@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import { AuditLog, AuditAction } from '../../types/audit';
-import { listAuditLogs, AuditPage as AuditPageType } from '../../services/api/audit.api';
+import { listAuditLogs, exportAuditCsv, AuditPage as AuditPageType } from '../../services/api/audit.api';
 import { Input } from '../../components/ui/Input';
+import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
 
 const ACTION_OPTIONS: { value: AuditAction | 'all'; label: string }[] = [
@@ -48,6 +49,30 @@ export const AuditPage: React.FC = () => {
     startDate: formatDate(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)),
     endDate: formatDate(today),
   });
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportCsv = async () => {
+    if (!token) return;
+    setExporting(true);
+    try {
+      const csv = await exportAuditCsv(token, filters);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `audit-export-${filters.startDate}-${filters.endDate}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Impossible de générer l'export";
+      notify(message, 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const fetchLogs = () => {
     if (!token) return;
@@ -71,6 +96,9 @@ export const AuditPage: React.FC = () => {
         <span className="pill">Audit</span>
         <h2>Historique des actions sensibles</h2>
         <p>Suivez qui a modifié quoi dans l’écosystème Madypro Clean.</p>
+        <Button type="button" variant="ghost" onClick={handleExportCsv} disabled={exporting}>
+          {exporting ? 'Export...' : 'Export RGPD (CSV)'}
+        </Button>
       </div>
 
       <div className="filter-grid" role="search">
@@ -165,18 +193,53 @@ export const AuditPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {pageData.items.map((log) => (
-                  <tr key={log.id}>
-                    <td>{formatDateTime(log.createdAt)}</td>
-                    <td>{log.actorId}</td>
-                    <td>{log.action}</td>
-                    <td>
-                      {log.entityType}
-                      {log.entityId ? ` · ${log.entityId}` : ''}
-                    </td>
-                    <td>{log.details ?? '—'}</td>
-                  </tr>
-                ))}
+                {pageData.items.map((log) => {
+                  const hasDiff = Boolean(log.before || log.after);
+                  const isExpanded = expandedId === log.id;
+                  const diffKeys = hasDiff
+                    ? Array.from(new Set([...Object.keys(log.before ?? {}), ...Object.keys(log.after ?? {})]))
+                    : [];
+                  return (
+                    <React.Fragment key={log.id}>
+                      <tr
+                        onClick={() => hasDiff && setExpandedId(isExpanded ? null : log.id)}
+                        style={hasDiff ? { cursor: 'pointer' } : undefined}
+                      >
+                        <td>{formatDateTime(log.createdAt)}</td>
+                        <td>{log.actorId}</td>
+                        <td>{log.action}</td>
+                        <td>
+                          {log.entityType}
+                          {log.entityId ? ` · ${log.entityId}` : ''}
+                        </td>
+                        <td>
+                          {log.details ?? '—'}
+                          {hasDiff && (isExpanded ? ' ▲' : ' ▼')}
+                        </td>
+                      </tr>
+                      {isExpanded && hasDiff && (
+                        <tr>
+                          <td colSpan={5}>
+                            <div className="detail-grid">
+                              {diffKeys.map((key) => (
+                                <div className="detail-grid__item" key={key}>
+                                  <span>{key}</span>
+                                  <strong>
+                                    <span style={{ textDecoration: 'line-through', color: 'var(--color-muted)' }}>
+                                      {JSON.stringify((log.before as any)?.[key] ?? '—')}
+                                    </span>
+                                    {' → '}
+                                    <span style={{ color: '#16a34a' }}>{JSON.stringify((log.after as any)?.[key] ?? '—')}</span>
+                                  </strong>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -26,5 +26,7 @@ export type AuditLog = {
   entityType: string;
   entityId?: string;
   details?: string;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
   createdAt: string;
 };

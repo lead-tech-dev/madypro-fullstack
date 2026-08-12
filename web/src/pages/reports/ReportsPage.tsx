@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getPayrollBreakdown, getPayrollCsv, getPerformanceReport, pushPayrollBreakdown, sendReportByEmail } from '../../services/api/reports.api';
-import { PayrollBreakdownRow, ReportsPerformance } from '../../types/report';
+import {
+  getBillingReport,
+  getPayrollBreakdown,
+  getPayrollCsv,
+  getPeriodComparison,
+  getPerformanceReport,
+  getSiteBenchmark,
+  pushPayrollBreakdown,
+  sendReportByEmail,
+} from '../../services/api/reports.api';
+import { BillingReportRow, PayrollBreakdownRow, PeriodComparison, ReportsPerformance, SiteBenchmarkRow } from '../../types/report';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
 
@@ -35,6 +44,9 @@ export const ReportsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [payrollBreakdown, setPayrollBreakdown] = useState<PayrollBreakdownRow[]>([]);
   const [pushingPayroll, setPushingPayroll] = useState(false);
+  const [comparison, setComparison] = useState<PeriodComparison | null>(null);
+  const [billing, setBilling] = useState<BillingReportRow[]>([]);
+  const [benchmark, setBenchmark] = useState<SiteBenchmarkRow[]>([]);
 
   const fetchPerformance = () => {
     if (!token) return;
@@ -62,6 +74,23 @@ export const ReportsPage: React.FC = () => {
       .then(setPayrollBreakdown)
       .catch(() => setPayrollBreakdown([]));
   }, [token, filters.startDate, filters.endDate]);
+
+  useEffect(() => {
+    if (!token) return;
+    getPeriodComparison(token, filters)
+      .then(setComparison)
+      .catch(() => setComparison(null));
+    getBillingReport(token, filters)
+      .then(setBilling)
+      .catch(() => setBilling([]));
+  }, [token, filters.startDate, filters.endDate]);
+
+  useEffect(() => {
+    if (!token) return;
+    getSiteBenchmark(token)
+      .then(setBenchmark)
+      .catch(() => setBenchmark([]));
+  }, [token]);
 
   const handlePushPayroll = async () => {
     if (!token) return;
@@ -194,6 +223,40 @@ export const ReportsPage: React.FC = () => {
 
       {data && !loading && (
         <>
+          {comparison && (
+            <section className="panel">
+              <h3>Comparaison de périodes</h3>
+              <p>
+                Période actuelle : {comparison.current.period.startDate} → {comparison.current.period.endDate} · Période
+                précédente : {comparison.previous.period.startDate} → {comparison.previous.period.endDate}
+              </p>
+              <div className="page-grid">
+                {(
+                  [
+                    { key: 'punctualityRate', label: 'Ponctualité' },
+                    { key: 'absenteeismRate', label: 'Absentéisme' },
+                    { key: 'realizationRate', label: 'Taux de réalisation' },
+                  ] as const
+                ).map(({ key, label }) => {
+                  const currentValue = comparison.current.kpis[key];
+                  const delta = comparison.deltas[key];
+                  const positive = delta != null && delta >= 0;
+                  return (
+                    <article key={key} className="card">
+                      <span className="card__meta">{label}</span>
+                      <p className="card__value">{currentValue == null ? '—' : `${currentValue}%`}</p>
+                      {delta != null && (
+                        <span style={{ color: positive ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
+                          {positive ? '▲' : '▼'} {Math.abs(delta)}%
+                        </span>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           <section className="panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               <div>
@@ -273,6 +336,62 @@ export const ReportsPage: React.FC = () => {
               </table>
             </div>
           </section>
+
+          {billing.length > 0 && (
+            <section className="panel">
+              <h3>Rapport de facturation</h3>
+              <p>Heures facturables et internes par site.</p>
+              <div className="table-wrapper">
+                <table className="table" aria-label="rapport de facturation">
+                  <thead>
+                    <tr>
+                      <th>Site</th>
+                      <th>Heures facturables</th>
+                      <th>Heures internes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {billing.map((row) => (
+                      <tr key={row.siteId}>
+                        <td>{row.siteName}</td>
+                        <td>{row.billableHours} h</td>
+                        <td>{row.internalHours} h</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {benchmark.length > 0 && (
+            <section className="panel">
+              <h3>Benchmark inter-sites (90 derniers jours)</h3>
+              <p>Sites classés par taux de complétion.</p>
+              <div className="table-wrapper">
+                <table className="table" aria-label="benchmark inter-sites">
+                  <thead>
+                    <tr>
+                      <th>Site</th>
+                      <th>Interventions</th>
+                      <th>Taux de complétion</th>
+                      <th>Anomalies</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {benchmark.map((row) => (
+                      <tr key={row.siteId}>
+                        <td>{row.siteName}</td>
+                        <td>{row.interventionsTotal}</td>
+                        <td>{row.completionRate == null ? '—' : `${row.completionRate}%`}</td>
+                        <td>{row.anomalyCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           {payrollBreakdown.length > 0 && (
             <section className="panel">

@@ -15,6 +15,7 @@ export class InterventionEntity {
   observation?: string;
   photos: string[] = [];
   status: InterventionStatus = 'PLANNED';
+  billable: boolean = true;
   createdAt!: Date;
   updatedAt!: Date;
   generatedFromRuleId?: string;

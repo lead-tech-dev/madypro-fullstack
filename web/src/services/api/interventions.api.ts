@@ -34,6 +34,7 @@ export type CreateInterventionPayload = {
   truckLabels?: string[];
   observation?: string;
   photos?: string[];
+  billable?: boolean;
 };
 
 export type UpdateInterventionPayload = Partial<CreateInterventionPayload> & {

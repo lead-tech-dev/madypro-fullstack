@@ -17,6 +17,7 @@ export type Intervention = {
   observation?: string;
   photos?: string[];
   clientSignature?: string;
+  billable: boolean;
   status: InterventionStatus;
 };
 

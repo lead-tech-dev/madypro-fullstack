@@ -561,6 +561,7 @@ export class InterventionsService implements OnModuleInit {
       observation: record.observation ?? undefined,
       photos: Array.isArray((record as any).photos) ? (record as any).photos : [],
       status,
+      billable: (record as any).billable ?? true,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       generatedFromRuleId: record.generatedFromRuleId ?? undefined,
