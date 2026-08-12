@@ -247,7 +247,7 @@ export default function AgentHomeScreen() {
             <Text style={styles.heroSite}>{priority.intervention.siteName}</Text>
             <Text style={styles.heroTime}>
               {priority.intervention.startTime} – {priority.intervention.endTime}
-              {priority.since ? ` · débutée à ${priority.since}` : ''}
+              {priority.since ? ` · débutée à ${formatTime(new Date(priority.since))}` : ''}
             </Text>
             <Button title="Voir l'intervention" onPress={() => goToIntervention(priority.intervention)} />
           </Card>

@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 /**
  * Ouvre l'appareil photo et retourne l'image capturée en data URI base64,

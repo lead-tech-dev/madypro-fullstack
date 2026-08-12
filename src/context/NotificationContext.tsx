@@ -109,6 +109,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
         shouldPlaySound: false,
         shouldSetBadge: false,
       }),

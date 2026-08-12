@@ -24,23 +24,39 @@ const buildUrl = (path: string) => {
   return `${base}${normalized}`;
 };
 
+const REQUEST_TIMEOUT_MS = 20000;
+
 export async function apiFetch<T>({ path, token, options = {} }: FetchArgs): Promise<T> {
-  const response = await fetch(buildUrl(path), {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path), {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers ?? {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Le serveur ne répond pas. Vérifiez votre connexion et réessayez.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     let message = response.statusText;
+    const raw = await response.text();
     try {
-      const data = await response.json();
+      const data = JSON.parse(raw);
       message = Array.isArray(data.message) ? data.message.join(', ') : data.message || message;
     } catch {
-      message = await response.text();
+      if (raw) message = raw;
     }
     throw new Error(message || 'API error');
   }

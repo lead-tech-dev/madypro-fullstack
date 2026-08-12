@@ -193,6 +193,7 @@ const styles = StyleSheet.create({
   illustration: {
     width: '100%',
     aspectRatio: 1.4,
+    maxHeight: 220,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',

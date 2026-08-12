@@ -55,8 +55,8 @@ function AgentTabNavigator() {
     <AgentTabs.Navigator
       screenOptions={{
         headerShown: false,
-        sceneContainerStyle: { paddingBottom: 96 },
       }}
+      sceneContainerStyle={{ paddingBottom: 96 }}
       tabBar={(props) => <AgentTabBar {...props} iconMap={agentTabMeta} />}
     >
       <AgentTabs.Screen name="AgentHome" component={AgentHomeScreen} options={{ title: agentTabMeta.AgentHome.label }} />
@@ -100,7 +100,7 @@ function AgentNavigator() {
 }
 
 export function AppNavigator() {
-  const { user } = useAuthContext();
+  const { user, isReady: isAuthReady } = useAuthContext();
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -114,7 +114,7 @@ export function AppNavigator() {
     setHasCompletedOnboarding(true);
   }, []);
 
-  const ready = hasCompletedOnboarding !== null;
+  const ready = hasCompletedOnboarding !== null && isAuthReady;
   const showOnboarding = hasCompletedOnboarding === false;
   const showAuth = hasCompletedOnboarding === true && !user;
 

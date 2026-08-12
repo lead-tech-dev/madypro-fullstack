@@ -24,7 +24,7 @@ import { checkIn, checkOut, heartbeat, markArrival } from '@/services/api/attend
 import { AnomalyType } from '@/types/anomaly';
 import { createAnomaly } from '@/services/api/anomalies.api';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useSyncContext } from '@/context/SyncContext';
 import { useAuthContext } from '@/context/AuthContext';
 import { getSite } from '@/services/api/sites.api';
@@ -110,6 +110,8 @@ export default function InterventionDetailScreen() {
         const data = await getInterventionById(token, id);
         if (!cancelled) {
           setIntervention(data);
+          const mine = data?.agents?.find((a) => a.id === user?.id);
+          setArrivalRecorded(Boolean(mine?.arrivalTime));
           if (data?.status !== 'IN_PROGRESS') {
             AsyncStorage.removeItem(START_CACHE_KEY(id)).catch(() => {});
           }
@@ -163,7 +165,7 @@ export default function InterventionDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [id, token]);
+  }, [id, token, user?.id]);
 
   const goBack = React.useCallback(() => {
     navigation.goBack();

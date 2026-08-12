@@ -55,11 +55,11 @@ export async function fetchInterventions(token: string, filters: InterventionFil
     token,
   });
 
-  const list = (() => {
+  const list: ApiIntervention[] = (() => {
     if (Array.isArray(response)) return response;
-    if (response && Array.isArray((response as any).data)) return (response as any).data;
-    if (response && Array.isArray((response as any).items)) return (response as any).items;
-    if (response && Array.isArray((response as any).results)) return (response as any).results;
+    if (response && Array.isArray((response as any).data)) return (response as any).data as ApiIntervention[];
+    if (response && Array.isArray((response as any).items)) return (response as any).items as ApiIntervention[];
+    if (response && Array.isArray((response as any).results)) return (response as any).results as ApiIntervention[];
     return [];
   })();
 

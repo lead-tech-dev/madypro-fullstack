@@ -31,6 +31,7 @@ export default function HistoryScreen() {
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]['value']>('ALL');
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]['value']>('ALL');
   const [hours, setHours] = useState({ week: 0, month: 0 });
+  const [attendanceHoursByIntervention, setAttendanceHoursByIntervention] = useState<Record<string, number>>({});
   const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
   const [siteFilter, setSiteFilter] = useState<string>('ALL');
   const [siteOptions, setSiteOptions] = useState<string[]>([]);
@@ -43,6 +44,7 @@ export default function HistoryScreen() {
       if (!token || !user) {
         setInterventions([]);
         setHours({ week: 0, month: 0 });
+        setAttendanceHoursByIntervention({});
         setError(null);
         setLoading(false);
         setRefreshing(false);
@@ -55,14 +57,33 @@ export default function HistoryScreen() {
       if (showLoader) setLoading(true);
       setError(null);
       try {
-        const [history, weekHours, monthHours] = await Promise.all([
+        const [history, weekHours, monthHours, attendanceRes] = await Promise.all([
           fetchInterventions(token, { startDate: startISO, endDate: endISO, agentId: user.id }),
           computeHoursForRange(token, user.id, 'week', now),
           computeHoursForRange(token, user.id, 'month', now),
+          listAttendance(token, {
+            agentId: user.id,
+            startDate: startISO,
+            endDate: endISO,
+            status: 'COMPLETED' as any,
+          } as any),
         ]);
         setInterventions(history);
         setSiteOptions(['ALL', ...Array.from(new Set(history.map((i) => i.siteName).filter(Boolean)))]);
         setHours({ week: weekHours, month: monthHours });
+        const attendanceItems: any[] = Array.isArray(attendanceRes)
+          ? attendanceRes
+          : (attendanceRes as any).items ?? (attendanceRes as any).data ?? [];
+        const hoursByIntervention: Record<string, number> = {};
+        attendanceItems.forEach((att) => {
+          if (att.status !== 'COMPLETED' || !att.interventionId) return;
+          const startTime = parseAttendanceTime(att.date, att.checkInTime);
+          const endTime = parseAttendanceTime(att.date, att.checkOutTime);
+          if (startTime == null || endTime == null) return;
+          const workedHours = Math.max(0, (endTime - startTime) / (1000 * 60 * 60));
+          hoursByIntervention[att.interventionId] = (hoursByIntervention[att.interventionId] ?? 0) + workedHours;
+        });
+        setAttendanceHoursByIntervention(hoursByIntervention);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Impossible de charger les interventions');
         setInterventions([]);
@@ -92,6 +113,11 @@ export default function HistoryScreen() {
 
   const filteredHours = useMemo(() => {
     return filtered.reduce((total, intervention) => {
+      // Priorité aux heures réellement pointées (attendance) ; à défaut, on retombe sur les horaires prévus.
+      const attendanceHours = attendanceHoursByIntervention[intervention.id];
+      if (attendanceHours != null) {
+        return total + attendanceHours;
+      }
       const startDate = getDateFromActual(
         intervention.actualStartAt,
         intervention.date,
@@ -106,7 +132,7 @@ export default function HistoryScreen() {
       const hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
       return total + hours;
     }, 0);
-  }, [filtered]);
+  }, [filtered, attendanceHoursByIntervention]);
 
   const stats = { ...hours, filtered: filteredHours };
 
@@ -240,7 +266,7 @@ export default function HistoryScreen() {
                 <HistoryCard
                   intervention={intervention}
                   onPress={() =>
-                    navigation.navigate('AgentIntervention' as never, { id: intervention.id } as never)
+                    (navigation as any).navigate('AgentIntervention', { id: intervention.id })
                   }
                 />
               </Animated.View>

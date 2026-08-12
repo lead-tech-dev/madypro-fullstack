@@ -6,7 +6,6 @@
     "android": {
       "package": "com.maximan81.mjplanningmobile",
       "googleServicesFile": "./google-services.json",
-      "useNextNotificationsApi": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -27,7 +26,10 @@
         {
           "cameraPermission": "MadyPro Clean utilise l'appareil photo pour scanner les codes-barres de l'inventaire."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-asset",
+      "expo-font"
     ]
   }
 }

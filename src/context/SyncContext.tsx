@@ -115,34 +115,46 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [token, user],
   );
 
+  const isFlushingRef = React.useRef(false);
+
   const flush = useCallback(async () => {
-    if (!isOnline || pendingEvents.length === 0) {
+    if (!isOnline || pendingEvents.length === 0 || isFlushingRef.current) {
       return;
     }
-    for (const event of pendingEvents) {
-      setPendingEvents((prev) =>
-        prev.map((e) => (e.id === event.id ? { ...e, status: 'sending', error: null } : e)),
-      );
-      try {
-        await uploadEvent(event);
-        setPendingEvents((prev) => prev.filter((item) => item.id !== event.id));
-        setLastError(null);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Synchronisation impossible';
-        setLastError(message);
+    isFlushingRef.current = true;
+    try {
+      for (const event of pendingEvents) {
         setPendingEvents((prev) =>
-          prev.map((e) => (e.id === event.id ? { ...e, status: 'failed', error: message } : e)),
+          prev.map((e) => (e.id === event.id ? { ...e, status: 'sending', error: null } : e)),
         );
-        break; // stop après le premier échec pour éviter le spam
+        try {
+          await uploadEvent(event);
+          setPendingEvents((prev) => prev.filter((item) => item.id !== event.id));
+          setLastError(null);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Synchronisation impossible';
+          setLastError(message);
+          setPendingEvents((prev) =>
+            prev.map((e) => (e.id === event.id ? { ...e, status: 'failed', error: message } : e)),
+          );
+          break; // stop après le premier échec pour éviter le spam
+        }
       }
+    } finally {
+      isFlushingRef.current = false;
     }
   }, [isOnline, pendingEvents, uploadEvent]);
 
+  const flushRef = React.useRef(flush);
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
+
   useEffect(() => {
     if (isOnline) {
-      flush();
+      flushRef.current();
     }
-  }, [isOnline, flush]);
+  }, [isOnline]);
 
   const queueEvent = useCallback(
     async (input: QueueInput) => {

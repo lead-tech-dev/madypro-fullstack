@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthUser } from '../types/auth';
+import { AUTH_STORAGE_KEY } from '../config/storage';
 
 interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
+  isReady: boolean;
   login: (user: AuthUser, token: string) => void;
   logout: () => void;
 }
@@ -14,10 +16,25 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(AUTH_STORAGE_KEY)
+      .then((raw) => {
+        if (raw) {
+          const parsed = JSON.parse(raw) as { user: AuthUser; token: string };
+          setUser(parsed.user);
+          setToken(parsed.token);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsReady(true));
+  }, []);
 
   const login = (nextUser: AuthUser, nextToken: string) => {
     setUser(nextUser);
     setToken(nextToken);
+    AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: nextUser, token: nextToken })).catch(() => {});
   };
 
   const logout = () => {
@@ -27,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     AsyncStorage.getAllKeys()
       .then((keys) => {
         const keysToRemove = keys.filter(
-          (key) => key === 'syncQueue' || key.startsWith('intervention:start:'),
+          (key) => key === 'syncQueue' || key === AUTH_STORAGE_KEY || key.startsWith('intervention:start:'),
         );
         if (keysToRemove.length) {
           AsyncStorage.multiRemove(keysToRemove).catch(() => {});
@@ -37,7 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, token, isReady, login, logout }}>{children}</AuthContext.Provider>
   );
 };
 
