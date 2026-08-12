@@ -207,7 +207,7 @@ export const AuditPage: React.FC = () => {
                       >
                         <td>{formatDateTime(log.createdAt)}</td>
                         <td>{log.actorId}</td>
-                        <td>{log.action}</td>
+                        <td>{ACTION_OPTIONS.find((option) => option.value === log.action)?.label ?? log.action}</td>
                         <td>
                           {log.entityType}
                           {log.entityId ? ` · ${log.entityId}` : ''}

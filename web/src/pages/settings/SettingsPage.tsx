@@ -10,6 +10,12 @@ import {
   updateAbsenceType,
 } from '../../services/api/settings.api';
 
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: 'Admin',
+  SUPERVISOR: 'Superviseur',
+  AGENT: 'Agent',
+};
+
 export const SettingsPage: React.FC = () => {
   const { token, notify } = useAuthContext();
   const [data, setData] = useState<SettingsSummary | null>(null);
@@ -233,7 +239,7 @@ export const SettingsPage: React.FC = () => {
           <div className="detail-grid">
             {data.roles.map((role) => (
               <div key={role.role} className="detail-grid__item">
-                <span>{role.role}</span>
+                <span>{ROLE_LABELS[role.role?.toUpperCase()] ?? role.role}</span>
                 <strong>{role.description}</strong>
                 <ul className="list-line" style={{ border: 'none', paddingTop: '0.5rem' }}>
                   {role.permissions.map((permission) => (

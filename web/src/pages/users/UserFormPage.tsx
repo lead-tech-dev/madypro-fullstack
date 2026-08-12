@@ -336,7 +336,9 @@ export const UserFormPage: React.FC = () => {
               <tbody>
                 {documents.map((doc) => (
                   <tr key={doc.id}>
-                    <td>{doc.type}</td>
+                    <td>
+                      {{ CONTRACT: 'Contrat', BADGE: 'Badge', LICENSE: 'Permis', OTHER: 'Autre' }[doc.type] ?? doc.type}
+                    </td>
                     <td>{doc.label}</td>
                     <td>
                       <Button type="button" variant="ghost" onClick={() => removeDocument(doc.id)}>

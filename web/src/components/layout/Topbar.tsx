@@ -5,6 +5,12 @@ type TopbarProps = {
   onMenuToggle?: () => void;
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: 'Admin',
+  SUPERVISOR: 'Superviseur',
+  AGENT: 'Agent',
+};
+
 export const Topbar: React.FC<TopbarProps> = ({ onMenuToggle }) => {
   const { user } = useAuthContext();
 
@@ -27,7 +33,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuToggle }) => {
       <div className="topbar__actions">
         <div className="topbar__profile">
           <span>{user?.name}</span>
-          <small>{user?.role}</small>
+          <small>{user?.role ? ROLE_LABELS[user.role.toUpperCase()] ?? user.role : ''}</small>
         </div>
       </div>
     </header>

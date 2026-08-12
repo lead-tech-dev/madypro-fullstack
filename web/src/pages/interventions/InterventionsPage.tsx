@@ -934,7 +934,16 @@ export const InterventionsPage: React.FC = () => {
               </div>
               <div>
                 <strong>Statut</strong>
-                <p>{viewing.status}</p>
+                <p>
+                  {{
+                    PLANNED: 'Planifiée',
+                    IN_PROGRESS: 'En cours',
+                    COMPLETED: 'Terminée',
+                    NEEDS_REVIEW: 'À valider',
+                    CANCELLED: 'Annulée',
+                    NO_SHOW: 'Non effectuée',
+                  }[viewing.status] || viewing.status}
+                </p>
               </div>
               <div>
                 <strong>Facturable</strong>

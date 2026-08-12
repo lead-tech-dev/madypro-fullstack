@@ -583,7 +583,7 @@ export const AttendanceListPage: React.FC = () => {
                           : 'status-chip--info'
                       }`}
                     >
-                      {entry.status}
+                      {{ PENDING: 'En attente', COMPLETED: 'Terminé', CANCELLED: 'Annulé' }[entry.status] ?? entry.status}
                     </span>
                   </td>
                   <td>

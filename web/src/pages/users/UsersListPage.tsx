@@ -14,6 +14,12 @@ import { Select } from '../../components/ui/Select';
 import { listAttendance } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
 
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: 'Admin',
+  SUPERVISOR: 'Superviseur',
+  AGENT: 'Agent',
+};
+
 export const UsersListPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
@@ -323,7 +329,7 @@ export const UsersListPage: React.FC = () => {
         {Array.isArray(users) &&
           users.map((employee) => (
             <article key={employee.id} className="card">
-              <span className="card__meta">{employee.role}</span>
+              <span className="card__meta">{ROLE_LABELS[employee.role?.toUpperCase()] ?? employee.role}</span>
               <h3>{employee.firstName} {employee.lastName}</h3>
             <p>
               <span

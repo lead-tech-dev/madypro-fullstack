@@ -13,6 +13,19 @@ import { Absence, AbsenceStatus } from '../../types/absence';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
 
+const TYPE_LABELS: Record<Absence['type'], string> = {
+  SICK: 'Arrêt maladie',
+  PAID_LEAVE: 'Congés payés',
+  UNPAID: 'Sans solde',
+  OTHER: 'Autre',
+};
+
+const STATUS_LABELS: Record<AbsenceStatus, string> = {
+  PENDING: 'En attente',
+  APPROVED: 'Approuvé',
+  REJECTED: 'Rejeté',
+};
+
 export const AbsenceDetailPage: React.FC = () => {
   const { id } = useParams();
   const { token, notify } = useAuthContext();
@@ -111,11 +124,11 @@ export const AbsenceDetailPage: React.FC = () => {
       <section className="panel detail-grid">
         <div className="detail-grid__item">
           <span>Type</span>
-          <strong>{absence.type}</strong>
+          <strong>{TYPE_LABELS[absence.type] ?? absence.type}</strong>
         </div>
         <div className="detail-grid__item">
           <span>Statut</span>
-          <strong>{absence.status}</strong>
+          <strong>{STATUS_LABELS[absence.status] ?? absence.status}</strong>
           {absence.validatedBy && <small>Validé par {absence.validatedBy}</small>}
         </div>
         <div className="detail-grid__item">

@@ -455,7 +455,9 @@ export const AbsencesListPage: React.FC = () => {
                     </td>
                     <td>{absence.reason}</td>
                     <td>
-                      <span className={`status-chip ${statusClass(absence.status)}`}>{absence.status}</span>
+                      <span className={`status-chip ${statusClass(absence.status)}`}>
+                        {STATUS_OPTIONS.find((option) => option.value === absence.status)?.label ?? absence.status}
+                      </span>
                     </td>
                     <td>
                       <div className="table-actions">

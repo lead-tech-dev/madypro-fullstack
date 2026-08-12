@@ -8,6 +8,13 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
 
+const TYPE_LABELS: Record<Absence['type'], string> = {
+  SICK: 'Arrêt maladie',
+  PAID_LEAVE: 'Congés payés',
+  UNPAID: 'Sans solde',
+  OTHER: 'Autre',
+};
+
 export const SupervisorAbsencesPage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
   const [absences, setAbsences] = useState<Absence[]>([]);
@@ -121,7 +128,7 @@ export const SupervisorAbsencesPage: React.FC = () => {
                     <td>
                       {formatDateTime(abs.from)} → {formatDateTime(abs.to)}
                     </td>
-                    <td>{abs.type}</td>
+                    <td>{TYPE_LABELS[abs.type] ?? abs.type}</td>
                     <td>{abs.reason}</td>
                     <td>
                       <span
