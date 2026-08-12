@@ -18,6 +18,9 @@ import { AuditPage } from '../pages/audit/AuditPage';
 import { LoginHistoryPage } from '../pages/audit/LoginHistoryPage';
 import { SecuritySettingsPage } from '../pages/settings/SecuritySettingsPage';
 import { WebhooksPage } from '../pages/settings/WebhooksPage';
+import { ApiKeysPage } from '../pages/settings/ApiKeysPage';
+import { QuotesPage } from '../pages/billing/QuotesPage';
+import { FormsPage } from '../pages/forms/FormsPage';
 import { ShiftSwapsPage } from '../pages/team/ShiftSwapsPage';
 import { TeamFeedPage } from '../pages/team/TeamFeedPage';
 import { BadgesPage } from '../pages/team/BadgesPage';
@@ -51,6 +54,9 @@ export const AdminRoutes = () => (
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/settings/security" element={<SecuritySettingsPage />} />
       <Route path="/settings/webhooks" element={<WebhooksPage />} />
+      <Route path="/settings/api-keys" element={<ApiKeysPage />} />
+      <Route path="/devis" element={<QuotesPage />} />
+      <Route path="/formulaires" element={<FormsPage />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/audit" element={<AuditPage />} />
       <Route path="/audit/login-history" element={<LoginHistoryPage />} />

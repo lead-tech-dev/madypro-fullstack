@@ -29,6 +29,8 @@ const ADMIN_MENU: NavItem[] = [
   { type: 'link', to: '/absences', label: 'Absences' },
   { type: 'link', to: '/notifications', label: 'Notifications' },
   { type: 'link', to: '/reports', label: 'Rapports' },
+  { type: 'link', to: '/devis', label: 'Devis & facturation' },
+  { type: 'link', to: '/formulaires', label: 'Formulaires' },
   {
     type: 'group',
     label: 'Paramètres',
@@ -36,6 +38,7 @@ const ADMIN_MENU: NavItem[] = [
       { to: '/settings', label: 'Général' },
       { to: '/settings/security', label: 'Sécurité' },
       { to: '/settings/webhooks', label: 'Webhooks' },
+      { to: '/settings/api-keys', label: 'Clés API' },
     ],
   },
   {

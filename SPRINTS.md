@@ -591,7 +591,36 @@ affichant `before`/`after` en diff visuel (valeur précédente barrée, nouvelle
 - Export RGPD : bouton lien direct vers `GET /audit/export.csv` (déjà un simple
   téléchargement, pas de composant particulier)
 
-## Sprint 25 (S49-S50) — UI Plateforme & portail client
+## Sprint 25 (S49-S50) — UI Plateforme & portail client ✅ terminé
+
+Dernier sprint de la Phase 2. Les 4 fonctionnalités ont été implémentées : (1)
+`ApiKeysPage.tsx` (`/settings/api-keys`) — création de clé API (affichée une
+seule fois), révocation, date de dernière utilisation, + lien direct vers la
+documentation Swagger (`/api/docs`) ; (2) jetons de portail client sur la même
+page (choix du site → génération d'un lien `.../public-api/portal/:token` à
+copier, révocation) plutôt qu'une section dans `SiteFormPage.tsx`, pour éviter
+d'alourdir davantage ce formulaire déjà riche (5 sections ajoutées depuis le
+Sprint 21) ; (3) `QuotesPage.tsx` (`/devis`) — liste filtrable par site/statut,
+création (site, libellé, montant, échéance), progression de statut brouillon →
+envoyé → payé, annulation, suppression ; (4) `FormsPage.tsx` (`/formulaires`) —
+constructeur de champs (clé/libellé/type/obligatoire), archivage (soft-delete
+côté backend), et consultation des soumissions par formulaire. Nouveaux
+fichiers : `types/platform.ts`, `services/api/platform.api.ts`,
+`types/quote.ts`, `services/api/quotes.api.ts`, `types/form.ts`,
+`services/api/forms.api.ts`. Aucun changement backend nécessaire. Testé en
+direct dans le navigateur avec un compte admin QA jetable : création/révocation
+de clé API (préfixe `mpc_` vérifié en base), génération/révocation de jeton de
+portail (persistance vérifiée), création de devis et progression complète de
+statut brouillon → envoyé → payé (chaque transition vérifiée en base), création
+de formulaire avec champ personnalisé (persistance vérifiée), consultation
+d'une soumission réelle créée via l'API, et archivage (disparition de la liste
+conforme au filtre `active` du backend) — tous confirmés fonctionnels de bout
+en bout, aucune erreur console. Données de test nettoyées après validation.
+
+Avec ce sprint, la Phase 2 (Sprints 17-25, rattrapage de l'UI web back-office
+pour les Sprints 7-16) est terminée : toutes les fonctionnalités backend
+construites en Phase 1 disposent désormais d'une interface web fonctionnelle
+et testée en conditions réelles.
 
 **1. Clés API** — `web/src/pages/settings/ApiKeysPage.tsx`, route `/settings/api-keys` :
 création (la clé n'est affichée qu'une seule fois, à la génération), révocation, date
