@@ -287,9 +287,14 @@ export default function AgentHomeScreen() {
             })}
           </View>
 
-          <Text style={styles.sectionTitle}>
-            {scope === 'today' ? 'Planning du jour' : 'Planning à venir'}
-          </Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {scope === 'today' ? 'Planning du jour' : 'Planning à venir'}
+            </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('AgentPlanning')}>
+              <Text style={styles.inlineLink}>Voir tout →</Text>
+            </TouchableOpacity>
+          </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           {isLoading ? (
@@ -377,10 +382,20 @@ const styles = StyleSheet.create({
   block: {
     gap: theme.spacing.md,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
   sectionTitle: {
     fontSize: 18,
     fontFamily: theme.fonts.bodySemiBold,
-    marginBottom: theme.spacing.md,
+  },
+  inlineLink: {
+    color: theme.colors.primary,
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 13,
   },
   stack: {
     gap: theme.spacing.md,

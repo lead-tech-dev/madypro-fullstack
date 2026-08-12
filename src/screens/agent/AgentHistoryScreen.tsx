@@ -160,6 +160,10 @@ export default function HistoryScreen() {
           gap: theme.spacing.lg,
         }}
       >
+        <Pressable onPress={() => (navigation as any).navigate('AgentPlanning')}>
+          <Text style={styles.planningLink}>Voir mon planning (liste ou calendrier) →</Text>
+        </Pressable>
+
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Semaine courante</Text>
@@ -444,6 +448,11 @@ function parseAttendanceTime(date: string, time?: string) {
 }
 
 const styles = StyleSheet.create({
+  planningLink: {
+    color: theme.colors.primary,
+    fontFamily: theme.fonts.bodySemiBold,
+    textAlign: 'right',
+  },
   summaryCard: {
     flexDirection: 'row',
     flexWrap: 'wrap',
