@@ -285,7 +285,28 @@ export const SupervisorPlanningPage: React.FC = () => {
                       <td>
                         {intervention.startTime} – {intervention.endTime}
                       </td>
-                      <td>{intervention.agents.map((a) => a.name).join(', ') || '—'}</td>
+                      <td>
+                        {intervention.agents.length ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            {intervention.agents.map((a) => {
+                              const tone = a.attendanceStatus === 'COMPLETED' ? 'success' : a.checkInTime ? 'warning' : 'muted';
+                              const label = a.attendanceStatus === 'COMPLETED' ? 'Terminé' : a.checkInTime ? 'En cours' : 'En attente';
+                              return (
+                                <span
+                                  key={a.id}
+                                  title={label}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+                                >
+                                  <span className={`agent-dot agent-dot--${tone}`} />
+                                  {a.name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td>
                         <span
                           className={`status-chip ${

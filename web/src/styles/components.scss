@@ -158,6 +158,26 @@
   color: #0b4b71;
 }
 
+.agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #b7bec7;
+}
+
+.agent-dot--success {
+  background: #2f9e5c;
+}
+
+.agent-dot--warning {
+  background: #d98a1a;
+}
+
+.agent-dot--muted {
+  background: #b7bec7;
+}
+
 .status-pulse {
   animation: statusPulse 1.6s ease-in-out infinite;
 }
