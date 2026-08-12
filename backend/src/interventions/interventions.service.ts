@@ -796,6 +796,31 @@ export class InterventionsService implements OnModuleInit {
     return view;
   }
 
+  /**
+   * Refuse la clôture (COMPLETED) tant qu'un agent assigné n'a pas terminé son pointage.
+   * Source de vérité unique, réutilisée par toutes les voies d'écriture du statut
+   * (PATCH générique, PATCH /status) pour éviter que l'une contourne la règle que l'autre applique.
+   */
+  private assertAllAgentsCompletedAttendance(
+    assignments: { userId: string }[],
+    attendances: { userId: string; arrivalTime?: Date | null; checkInTime?: Date | null; checkOutTime?: Date | null; status?: string }[],
+  ) {
+    const assignedIds = assignments.map((a) => a.userId);
+    const attForAssigned = attendances.filter((a) => assignedIds.includes(a.userId));
+    const missingStart = attForAssigned.filter((a) => !a.arrivalTime && !a.checkInTime);
+    const missingEnd = attForAssigned.filter((a) => !a.checkOutTime);
+    const pending = attForAssigned.filter((a) => a.status !== 'COMPLETED');
+    if (missingStart.length || missingEnd.length || pending.length) {
+      const names = (list: { userId: string }[]) =>
+        list.map((a) => this.usersService.findOne(a.userId)?.name ?? a.userId).join(', ');
+      const parts: string[] = [];
+      if (missingStart.length) parts.push(`Heures manquantes (début) : ${names(missingStart)}`);
+      if (missingEnd.length) parts.push(`Heures manquantes (fin) : ${names(missingEnd)}`);
+      if (pending.length) parts.push(`Agents encore en cours : ${names(pending)}`);
+      throw new BadRequestException(`Validation impossible : ${parts.join(' | ') || 'données incomplètes'}`);
+    }
+  }
+
   async update(id: string, dto: UpdateInterventionDto, actorId = 'system') {
     await this.findRecord(id);
     const data: Prisma.InterventionUpdateInput = {};
@@ -822,7 +847,12 @@ export class InterventionsService implements OnModuleInit {
     if (dto.date) data.date = this.toDateOnly(dto.date);
     if (dto.startTime !== undefined) data.startTime = dto.startTime;
     if (dto.endTime !== undefined) data.endTime = dto.endTime;
-    if (dto.status) data.status = dto.status;
+    if (dto.status) {
+      if (dto.status === 'COMPLETED') {
+        this.assertAllAgentsCompletedAttendance(original.assignments, (original as any).attendances ?? []);
+      }
+      data.status = dto.status;
+    }
     if (dto.type) {
       const normalizedType = this.normalizeTypeInput(dto.type);
       if (normalizedType) {
@@ -962,26 +992,7 @@ export class InterventionsService implements OnModuleInit {
       }
     }
     if (status === 'COMPLETED' && ['SUPERVISOR', 'ADMIN'].includes(viewer.role)) {
-      const assignedIds = record.assignments.map((a) => a.userId);
-      const attForAssigned = (record as any).attendances?.filter((a: any) =>
-        assignedIds.includes(a.userId),
-      ) as any[];
-      const missingStart = attForAssigned.filter((a) => !a.arrivalTime && !a.checkInTime);
-      const missingEnd = attForAssigned.filter((a) => !a.checkOutTime);
-      const pending = attForAssigned.filter((a) => a.status !== 'COMPLETED');
-      if (missingStart.length || missingEnd.length || pending.length) {
-        const names = (list: any[]) =>
-          list
-            .map((a) => this.usersService.findOne(a.userId)?.name ?? a.userId)
-            .join(', ');
-        const parts: string[] = [];
-        if (missingStart.length) parts.push(`Heures manquantes (début) : ${names(missingStart)}`);
-        if (missingEnd.length) parts.push(`Heures manquantes (fin) : ${names(missingEnd)}`);
-        if (pending.length) parts.push(`Agents encore en cours : ${names(pending)}`);
-        throw new BadRequestException(
-          `Validation impossible : ${parts.join(' | ') || 'données incomplètes'}`,
-        );
-      }
+      this.assertAllAgentsCompletedAttendance(record.assignments, (record as any).attendances ?? []);
     }
 
     const updated = await this.prisma.intervention.update({
