@@ -34,7 +34,9 @@ const buildUrl = (path: string) => {
   return `${base}${normalized}`;
 };
 
-const REQUEST_TIMEOUT_MS = 20000;
+// Assez généreux pour l'envoi d'une photo (checkIn/checkOut) sur une connexion mobile faible,
+// sans pour autant laisser l'utilisateur indéfiniment sans retour en cas de coupure réelle.
+const REQUEST_TIMEOUT_MS = 40000;
 
 export async function apiFetch<T>({ path, token, options = {} }: FetchArgs): Promise<T> {
   const controller = new AbortController();
