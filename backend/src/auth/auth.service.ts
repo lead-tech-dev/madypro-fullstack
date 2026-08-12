@@ -149,15 +149,19 @@ export class AuthService {
       throw new NotFoundException('Utilisateur introuvable');
     }
     const { password } = await this.usersService.resetPassword(user.id);
-    await this.mailer.send(
-      user.email,
-      'Réinitialisation de mot de passe',
-      `<p>Bonjour ${user.firstName ?? ''} ${user.lastName ?? ''},</p>
-      <p>Votre mot de passe a été réinitialisé. Mot de passe provisoire :</p>
-      <p><strong>${password}</strong></p>
-      <p>Pensez à le changer après connexion.</p>`,
-    );
-    return { message: 'Email envoyé' };
+    try {
+      await this.mailer.send(
+        user.email,
+        'Réinitialisation de mot de passe',
+        `<p>Bonjour ${user.firstName ?? ''} ${user.lastName ?? ''},</p>
+        <p>Votre mot de passe a été réinitialisé. Mot de passe provisoire :</p>
+        <p><strong>${password}</strong></p>
+        <p>Pensez à le changer après connexion.</p>`,
+      );
+    } catch (error) {
+      // Le mot de passe est déjà réinitialisé ; un échec d'envoi d'email ne doit pas bloquer la demande.
+    }
+    return { message: 'Mot de passe réinitialisé', password };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
