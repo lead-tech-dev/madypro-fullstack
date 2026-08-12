@@ -1,5 +1,4 @@
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 
 /**
  * Ouvre l'appareil photo et retourne l'image capturée en data URI base64,
@@ -12,17 +11,10 @@ export async function capturePhotoBase64(): Promise<string | null> {
   }
   const result = await ImagePicker.launchCameraAsync({
     quality: 0.5,
-    allowsEditing: true,
+    base64: true,
   });
-  if (result.canceled || !result.assets?.length) {
+  if (result.canceled || !result.assets?.length || !result.assets[0].base64) {
     return null;
   }
-  try {
-    const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    return `data:image/jpeg;base64,${base64}`;
-  } catch {
-    return null;
-  }
+  return `data:image/jpeg;base64,${result.assets[0].base64}`;
 }

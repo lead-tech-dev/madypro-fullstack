@@ -27,6 +27,14 @@
           "cameraPermission": "MadyPro Clean utilise l'appareil photo pour scanner les codes-barres de l'inventaire."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MadyPro Clean utilise vos photos pour joindre un justificatif.",
+          "cameraPermission": "MadyPro Clean utilise l'appareil photo pour prendre une photo de présence ou de justificatif.",
+          "microphonePermission": false
+        }
+      ],
       "@react-native-community/datetimepicker",
       "expo-asset",
       "expo-font"
