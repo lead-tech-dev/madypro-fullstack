@@ -1,17 +1,38 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
-import { listInterventions, updateIntervention } from '../../services/api/interventions.api';
+import {
+  listInterventions,
+  updateIntervention,
+  createIntervention,
+  cancelIntervention,
+  CreateInterventionPayload,
+} from '../../services/api/interventions.api';
 import { listSites } from '../../services/api/sites.api';
+import { listUsers } from '../../services/api/users.api';
 import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
 import { Intervention } from '../../types/intervention';
 import { isApprovalRequest } from '../../types/approval';
 import { Site } from '../../types/site';
+import { User } from '../../types/user';
 import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { ImageSlider } from '../../components/ui/ImageSlider';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { compressImageFile } from '../../utils/image';
 import { formatDateTime } from '../../utils/datetime';
+
+const PONCTUAL_SUBTYPES = [
+  'Privat',
+  'Hivernage terrasse',
+  'Enlèvement de la terrasse',
+  'Enlèvement console',
+  'Nettoyage cuisine',
+  'Débarras',
+  'Remise de la terrasse',
+  'Nettoyage de fin de chantier',
+  'Manutention',
+];
 
 const formatHour = (value?: string | null) => {
   if (!value) return '—';
@@ -34,6 +55,16 @@ const todayLocal = () => {
 
 const today = todayLocal();
 
+const EMPTY_CREATE_FORM: CreateInterventionPayload = {
+  type: 'REGULAR',
+  siteId: '',
+  date: today,
+  startTime: '08:00',
+  endTime: '10:00',
+  subType: '',
+  agentIds: [],
+};
+
 export const SupervisorInterventionsPage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
   const [interventions, setInterventions] = useState<Intervention[]>([]);
@@ -44,6 +75,12 @@ export const SupervisorInterventionsPage: React.FC = () => {
   const [photoDraft, setPhotoDraft] = useState<string[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [attendanceEdits, setAttendanceEdits] = useState<Record<string, { checkInTime?: string; checkOutTime?: string }>>({});
+  const [agents, setAgents] = useState<User[]>([]);
+  const [createFormVisible, setCreateFormVisible] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateInterventionPayload>(EMPTY_CREATE_FORM);
+  const [creating, setCreating] = useState(false);
+  const [agentSelection, setAgentSelection] = useState<string[]>([]);
+  const [savingAgents, setSavingAgents] = useState(false);
   const [filters, setFilters] = useState<{ siteId: string; date: string; status: string }>({
     siteId: 'all',
     date: today,
@@ -136,6 +173,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
     if (viewing) {
       setObservationDraft(viewing.observation ?? '');
       setPhotoDraft(viewing.photos ?? []);
+      setAgentSelection(viewing.agentIds ?? []);
       fetchAttendanceForViewing(viewing);
     }
   }, [viewing]);
@@ -143,6 +181,13 @@ export const SupervisorInterventionsPage: React.FC = () => {
   useEffect(() => {
     setAttendanceEdits({});
   }, [viewing?.id]);
+
+  useEffect(() => {
+    if (!token) return;
+    listUsers(token, { role: 'AGENT', status: 'active', pageSize: 500 })
+      .then((res) => setAgents(res.items))
+      .catch(() => setAgents([]));
+  }, [token]);
 
   const fetchAttendanceForViewing = useCallback(
     (current: Intervention) => {
@@ -188,7 +233,135 @@ export const SupervisorInterventionsPage: React.FC = () => {
         <span className="pill">Supervision</span>
         <h2>Interventions</h2>
         <p>Gestion des interventions (planifiées, en cours, terminées) sur vos sites.</p>
+        <Button
+          type="button"
+          onClick={() => {
+            setCreateForm({ ...EMPTY_CREATE_FORM, siteId: sites[0]?.id ?? '' });
+            setCreateFormVisible(true);
+          }}
+        >
+          Nouvelle intervention
+        </Button>
       </div>
+
+      {createFormVisible && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+              <div>
+                <p className="card__meta">Intervention</p>
+                <h3 style={{ margin: 0 }}>Nouvelle intervention</h3>
+              </div>
+              <Button type="button" variant="ghost" onClick={() => setCreateFormVisible(false)}>
+                Fermer
+              </Button>
+            </div>
+            <form
+              className="form-card"
+              style={{ boxShadow: 'none', padding: '0.75rem', marginTop: '1rem', display: 'grid', gap: '1rem' }}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!token) return;
+                if (!createForm.siteId || !createForm.date) {
+                  notify('Site et date requis', 'error');
+                  return;
+                }
+                if (createForm.type === 'REGULAR' && !createForm.agentIds.length) {
+                  notify('Sélectionnez au moins un agent', 'error');
+                  return;
+                }
+                setCreating(true);
+                try {
+                  const result = await createIntervention(token, createForm);
+                  if (isApprovalRequest(result)) {
+                    notify('Demande de création envoyée pour validation admin');
+                  } else {
+                    notify('Intervention créée');
+                    setInterventions((prev) => [result, ...prev]);
+                  }
+                  setCreateFormVisible(false);
+                  setCreateForm(EMPTY_CREATE_FORM);
+                } catch (err) {
+                  notify(err instanceof Error ? err.message : 'Création impossible', 'error');
+                } finally {
+                  setCreating(false);
+                }
+              }}
+            >
+              <Select
+                label="Site"
+                value={createForm.siteId}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, siteId: e.target.value }))}
+                options={sites.map((site) => ({ value: site.id, label: site.name }))}
+              />
+              <Select
+                label="Type"
+                value={createForm.type}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, type: e.target.value as 'REGULAR' | 'PONCTUAL' }))}
+                options={[
+                  { value: 'REGULAR', label: 'Régulière' },
+                  { value: 'PONCTUAL', label: 'Ponctuelle' },
+                ]}
+              />
+              {createForm.type === 'PONCTUAL' && (
+                <Select
+                  label="Sous-type"
+                  value={createForm.subType ?? PONCTUAL_SUBTYPES[0]}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, subType: e.target.value }))}
+                  options={PONCTUAL_SUBTYPES.map((sub) => ({ value: sub, label: sub }))}
+                />
+              )}
+              <div className="form-row">
+                <Input
+                  type="date"
+                  label="Date"
+                  value={createForm.date}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, date: e.target.value }))}
+                />
+                <Input
+                  type="time"
+                  label="Début"
+                  value={createForm.startTime}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, startTime: e.target.value }))}
+                />
+                <Input
+                  type="time"
+                  label="Fin"
+                  value={createForm.endTime}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, endTime: e.target.value }))}
+                />
+              </div>
+              <label className="form-field">
+                <span>Agents</span>
+                <select
+                  multiple
+                  value={createForm.agentIds}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      agentIds: Array.from(e.target.selectedOptions).map((o) => o.value),
+                    }))
+                  }
+                >
+                  {agents.map((a) => (
+                    <option value={a.id} key={a.id}>
+                      {a.firstName} {a.lastName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="form-actions">
+                <Button type="submit" disabled={creating}>
+                  {creating ? 'Enregistrement...' : 'Enregistrer'}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setCreateFormVisible(false)}>
+                  Annuler
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="filter-grid" style={{ marginBottom: '1rem' }}>
         <label className="filter-field filter-card">
@@ -348,6 +521,33 @@ export const SupervisorInterventionsPage: React.FC = () => {
                         >
                           Terminer
                         </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="btn--compact"
+                          disabled={intervention.status === 'COMPLETED' || intervention.status === 'CANCELLED'}
+                          onClick={async () => {
+                            if (!token) return;
+                            const observation = window.prompt('Motif de l’annulation ?');
+                            if (!observation) {
+                              notify('Motif obligatoire', 'error');
+                              return;
+                            }
+                            try {
+                              const result = await cancelIntervention(token, intervention.id, observation);
+                              if (isApprovalRequest(result)) {
+                                notify('Demande d’annulation envoyée pour validation admin');
+                                return;
+                              }
+                              setInterventions((prev) => prev.map((i) => (i.id === intervention.id ? result : i)));
+                              notify('Intervention annulée');
+                            } catch (err) {
+                              notify(err instanceof Error ? err.message : 'Annulation impossible', 'error');
+                            }
+                          }}
+                        >
+                          Annuler
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -460,6 +660,56 @@ export const SupervisorInterventionsPage: React.FC = () => {
                 <p>{viewing.observation || '—'}</p>
               </div>
             </div>
+
+            {viewing.status !== 'COMPLETED' && viewing.status !== 'CANCELLED' && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <h4>Agents assignés</h4>
+                <div className="chips">
+                  {agents.map((agent) => (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      className={`chip ${agentSelection.includes(agent.id) ? 'chip--selected' : ''}`}
+                      onClick={() =>
+                        setAgentSelection((prev) =>
+                          prev.includes(agent.id) ? prev.filter((id) => id !== agent.id) : [...prev, agent.id],
+                        )
+                      }
+                    >
+                      {agent.firstName} {agent.lastName}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="btn--compact"
+                    disabled={savingAgents}
+                    onClick={async () => {
+                      if (!token || !viewing) return;
+                      setSavingAgents(true);
+                      try {
+                        const result = await updateIntervention(token, viewing.id, { agentIds: agentSelection });
+                        if (isApprovalRequest(result)) {
+                          notify('Demande de changement d’agents envoyée pour validation admin');
+                        } else {
+                          setViewing(result);
+                          setInterventions((prev) => prev.map((i) => (i.id === result.id ? result : i)));
+                          notify('Agents mis à jour');
+                        }
+                      } catch (err) {
+                        notify(err instanceof Error ? err.message : 'Mise à jour impossible', 'error');
+                      } finally {
+                        setSavingAgents(false);
+                      }
+                    }}
+                  >
+                    {savingAgents ? 'Enregistrement...' : 'Mettre à jour les agents'}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div style={{ marginTop: '1.5rem' }}>
               <h4>Agents & pointages</h4>
