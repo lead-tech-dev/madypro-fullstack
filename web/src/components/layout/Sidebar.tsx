@@ -24,7 +24,7 @@ const ADMIN_MENU: NavItem[] = [
   },
   { type: 'link', to: '/interventions', label: 'Interventions' },
   { type: 'link', to: '/planning', label: 'Planning' },
-  { type: 'link', to: '/supervision/carte', label: 'Carte temps réel' },
+  { type: 'link', to: '/supervision/carte', label: 'Présence & carte temps réel' },
   { type: 'link', to: '/attendance', label: 'Pointages' },
   { type: 'link', to: '/absences', label: 'Absences' },
   { type: 'link', to: '/notifications', label: 'Notifications' },
@@ -54,8 +54,7 @@ const ADMIN_MENU: NavItem[] = [
 const SUPERVISOR_MENU: NavItem[] = [
   { type: 'link', to: '/supervision/dashboard', label: 'Tableau de bord' },
   { type: 'link', to: '/supervision/sites', label: 'Mes sites' },
-  { type: 'link', to: '/supervision/presence', label: 'Présence temps réel' },
-  { type: 'link', to: '/supervision/carte', label: 'Carte temps réel' },
+  { type: 'link', to: '/supervision/presence', label: 'Présence & carte temps réel' },
   { type: 'link', to: '/supervision/planning', label: 'Planning équipes' },
   { type: 'link', to: '/supervision/interventions', label: 'Interventions' },
   { type: 'link', to: '/supervision/absences', label: 'Absences' },

@@ -1,13 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { useAuthContext } from '../../context/AuthContext';
-import { listAttendance } from '../../services/api/attendance.api';
+import { listAttendance, getLiveMap } from '../../services/api/attendance.api';
 import { listSites } from '../../services/api/sites.api';
 import { listInterventions } from '../../services/api/interventions.api';
-import { Attendance } from '../../types/attendance';
+import { Attendance, LiveMapEntry } from '../../types/attendance';
 import { Site } from '../../types/site';
 import { Intervention } from '../../types/intervention';
 import { Input } from '../../components/ui/Input';
+import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
+import { env } from '../../config/env';
+
+type View = 'liste' | 'carte';
 
 const todayLocal = () => {
   const d = new Date();
@@ -16,11 +23,10 @@ const todayLocal = () => {
 };
 const today = todayLocal();
 
-export const SupervisorPresencePage: React.FC = () => {
+const PresenceListView: React.FC = () => {
   const { token, user, notify } = useAuthContext();
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
-  const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [filters, setFilters] = useState<{ siteId: string; date: string; search: string }>({
     siteId: 'all',
     date: today,
@@ -39,8 +45,21 @@ export const SupervisorPresencePage: React.FC = () => {
       ])
         .then(([attendanceRes, sitesRes, interventionsRes]) => {
           const interventionsList = interventionsRes.items;
-          setInterventions(interventionsList);
-          setAttendance(attendanceRes.items.map((att) => mergePlannedFromIntervention(att, interventionsList)));
+          const mergePlannedFromIntervention = (att: Attendance) => {
+            const match = interventionsList.find(
+              (intervention) =>
+                intervention.siteId === att.site.id &&
+                intervention.date === filters.date &&
+                intervention.agents?.some((a) => a.id === att.agent.id),
+            );
+            if (!match) return att;
+            return {
+              ...att,
+              plannedStart: att.plannedStart ?? match.startTime,
+              plannedEnd: att.plannedEnd ?? match.endTime,
+            };
+          };
+          setAttendance(attendanceRes.items.map(mergePlannedFromIntervention));
           setSites(sitesRes.items);
         })
         .catch((err) => {
@@ -72,29 +91,8 @@ export const SupervisorPresencePage: React.FC = () => {
     });
   }, [attendance, filters.search, filters.siteId, supervisedSiteIds]);
 
-  const mergePlannedFromIntervention = (att: Attendance, ints: Intervention[]) => {
-    const match = ints.find(
-      (intervention) =>
-        intervention.siteId === att.site.id &&
-        intervention.date === filters.date &&
-        intervention.agents?.some((a) => a.id === att.agent.id),
-    );
-    if (!match) return att;
-    return {
-      ...att,
-      plannedStart: att.plannedStart ?? match.startTime,
-      plannedEnd: att.plannedEnd ?? match.endTime,
-    };
-  };
-
   return (
-    <div className="page">
-      <div className="page-header">
-        <span className="pill">Supervision</span>
-        <h2>Présence temps réel</h2>
-        <p>Suivi des agents par site : présent, absent, en retard, avec actions de justification/correction.</p>
-      </div>
-
+    <>
       <div className="filter-grid" style={{ marginBottom: '1rem' }}>
         <label className="filter-field filter-card">
           Site
@@ -178,6 +176,136 @@ export const SupervisorPresencePage: React.FC = () => {
           </div>
         )}
       </div>
+    </>
+  );
+};
+
+const LiveMapView: React.FC = () => {
+  const { token, notify } = useAuthContext();
+  const mapContainer = useRef<HTMLDivElement | null>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const markers = useRef<mapboxgl.Marker[]>([]);
+  const [entries, setEntries] = useState<LiveMapEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!mapContainer.current || map.current) return;
+    mapboxgl.accessToken = env.mapboxToken;
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [2.3522, 48.8566],
+      zoom: 10,
+    });
+    return () => {
+      map.current?.remove();
+      map.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchLiveMap = () => {
+      if (!token) return;
+      setLoading(true);
+      getLiveMap(token)
+        .then(setEntries)
+        .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger la carte', 'error'))
+        .finally(() => setLoading(false));
+    };
+    fetchLiveMap();
+    const id = setInterval(fetchLiveMap, 30000);
+    return () => clearInterval(id);
+  }, [token, notify]);
+
+  useEffect(() => {
+    if (!map.current) return;
+    markers.current.forEach((marker) => marker.remove());
+    markers.current = [];
+    const withCoords = entries.filter((e) => e.latitude != null && e.longitude != null);
+    withCoords.forEach((entry) => {
+      const el = document.createElement('div');
+      el.style.width = '14px';
+      el.style.height = '14px';
+      el.style.borderRadius = '50%';
+      el.style.background = '#2764ff';
+      el.style.border = '2px solid #fff';
+      el.style.boxShadow = '0 0 0 2px rgba(39,100,255,0.35)';
+      const popup = new mapboxgl.Popup({ offset: 16 }).setHTML(
+        `<strong>${entry.agentName}</strong><br/>${entry.siteName}<br/><small>${new Date(entry.lastSeenAt).toLocaleTimeString('fr-FR')}</small>`,
+      );
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat([entry.longitude as number, entry.latitude as number])
+        .setPopup(popup)
+        .addTo(map.current as mapboxgl.Map);
+      markers.current.push(marker);
+    });
+    if (withCoords.length > 0) {
+      const bounds = new mapboxgl.LngLatBounds();
+      withCoords.forEach((entry) => bounds.extend([entry.longitude as number, entry.latitude as number]));
+      map.current.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 500 });
+    }
+  }, [entries]);
+
+  return (
+    <>
+      <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+        <div ref={mapContainer} style={{ width: '100%', height: '520px' }} />
+      </div>
+      <div className="panel" style={{ marginTop: '1rem' }}>
+        <h3>Agents en mission {loading ? '…' : `(${entries.length})`}</h3>
+        <ul className="list-line">
+          {entries.map((entry) => (
+            <li key={entry.userId}>
+              <span>{entry.agentName}</span>
+              <span>{entry.siteName}</span>
+              <span className="card__meta">{new Date(entry.lastSeenAt).toLocaleTimeString('fr-FR')}</span>
+            </li>
+          ))}
+          {entries.length === 0 && !loading && (
+            <li>
+              <span>Aucun agent en mission actuellement.</span>
+            </li>
+          )}
+        </ul>
+      </div>
+    </>
+  );
+};
+
+export const RealtimeSupervisionPage: React.FC = () => {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const defaultView: View = location.pathname === '/supervision/carte' ? 'carte' : 'liste';
+  const view: View = searchParams.get('view') === 'carte' || searchParams.get('view') === 'liste'
+    ? (searchParams.get('view') as View)
+    : defaultView;
+
+  const setView = (next: View) => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      params.set('view', next);
+      return params;
+    });
+  };
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <span className="pill">Supervision</span>
+        <h2>Présence &amp; carte temps réel</h2>
+        <p>Suivi des agents en temps réel : liste des pointages ou position sur la carte.</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+        <Button type="button" variant={view === 'liste' ? 'primary' : 'ghost'} onClick={() => setView('liste')}>
+          Liste
+        </Button>
+        <Button type="button" variant={view === 'carte' ? 'primary' : 'ghost'} onClick={() => setView('carte')}>
+          Carte
+        </Button>
+      </div>
+
+      {view === 'liste' ? <PresenceListView /> : <LiveMapView />}
     </div>
   );
 };
