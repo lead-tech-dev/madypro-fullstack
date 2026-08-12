@@ -26,6 +26,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { haversineDistanceMeters } from '../common/utils/geo';
+import { checkAttendanceCompleteness } from './attendance-completeness.util';
 
 export type InterventionFilters = {
   startDate?: string;
@@ -465,9 +466,9 @@ export class InterventionsService implements OnModuleInit {
   }
 
   /**
-   * Clôture les interventions dont l'heure de fin planifiée + marge est dépassée.
-   * Si tous les agents affectés ont pointé (status COMPLETED + checkOut), on passe à COMPLETED,
-   * sinon on passe à NEEDS_REVIEW.
+   * Fait passer en attente de validation les interventions dont l'heure de fin planifiée
+   * + marge est dépassée. Ne clôture jamais automatiquement (COMPLETED) : la validation
+   * finale revient toujours au superviseur, que les pointages soient complets ou non.
    */
   private async autoCloseExpired() {
     const now = new Date();
@@ -487,47 +488,39 @@ export class InterventionsService implements OnModuleInit {
       );
       if (now.getTime() <= end.getTime() + this.AUTO_CLOSE_GRACE_MS) continue;
 
+      // Ne clôture jamais automatiquement : même quand tous les agents ont fini, l'intervention
+      // passe en attente de validation superviseur (jamais directement à COMPLETED).
       const assignedUserIds = intervention.assignments.map((a) => a.userId);
-      if (assignedUserIds.length === 0) {
-        await this.prisma.intervention.update({
-          where: { id: intervention.id },
-          data: { status: 'COMPLETED' },
-        });
-        continue;
-      }
       const attForAgents = intervention.attendances.filter((att: any) =>
         assignedUserIds.includes(att.userId),
       );
-      const completedUsers = new Set(
-        attForAgents
-          .filter((att) => att.status === 'COMPLETED' && att.checkOutTime != null)
-          .map((att) => att.userId),
-      );
-      const allDone = assignedUserIds.every((uid) => completedUsers.has(uid));
-      const targetStatus = allDone ? 'COMPLETED' : this.AUTO_CLOSE_INCOMPLETE_STATUS;
+      const { complete } = checkAttendanceCompleteness(assignedUserIds, attForAgents as any);
 
       await this.prisma.intervention.update({
         where: { id: intervention.id },
-        data: { status: targetStatus as any },
+        data: { status: this.AUTO_CLOSE_INCOMPLETE_STATUS as any },
       });
 
-      if (!allDone && this.AUTO_CLOSE_INCOMPLETE_STATUS === 'NEEDS_REVIEW') {
+      if (this.AUTO_CLOSE_INCOMPLETE_STATUS === 'NEEDS_REVIEW') {
         // Alerte les agents et superviseurs que l'intervention est à valider
         try {
+          const message = complete
+            ? `${intervention.label ?? intervention.siteId} est prête à être validée.`
+            : `${intervention.label ?? intervention.siteId} : le créneau est dépassé et des pointages sont incomplets. Merci de vérifier avant validation.`;
           await Promise.all([
             ...assignedUserIds.map((agentId) =>
               this.notifications.send({
                 audience: 'AGENT',
                 targetId: agentId,
                 title: 'Intervention à valider',
-                message: `L'intervention ${intervention.label ?? intervention.siteId} est à valider (fin dépassée).`,
+                message,
               }),
             ),
             this.notifications.send({
               audience: 'SITE_AGENTS',
               targetId: intervention.siteId,
               title: 'Intervention à valider',
-              message: `Le créneau est dépassé pour ${intervention.label ?? intervention.siteId}. Merci de vérifier les pointages.`,
+              message,
             }),
           ]);
         } catch (err) {
@@ -806,17 +799,13 @@ export class InterventionsService implements OnModuleInit {
     attendances: { userId: string; arrivalTime?: Date | null; checkInTime?: Date | null; checkOutTime?: Date | null; status?: string }[],
   ) {
     const assignedIds = assignments.map((a) => a.userId);
-    const attForAssigned = attendances.filter((a) => assignedIds.includes(a.userId));
-    const missingStart = attForAssigned.filter((a) => !a.arrivalTime && !a.checkInTime);
-    const missingEnd = attForAssigned.filter((a) => !a.checkOutTime);
-    const pending = attForAssigned.filter((a) => a.status !== 'COMPLETED');
-    if (missingStart.length || missingEnd.length || pending.length) {
-      const names = (list: { userId: string }[]) =>
-        list.map((a) => this.usersService.findOne(a.userId)?.name ?? a.userId).join(', ');
+    const result = checkAttendanceCompleteness(assignedIds, attendances);
+    if (!result.complete) {
+      const names = (ids: string[]) => ids.map((id) => this.usersService.findOne(id)?.name ?? id).join(', ');
       const parts: string[] = [];
-      if (missingStart.length) parts.push(`Heures manquantes (début) : ${names(missingStart)}`);
-      if (missingEnd.length) parts.push(`Heures manquantes (fin) : ${names(missingEnd)}`);
-      if (pending.length) parts.push(`Agents encore en cours : ${names(pending)}`);
+      if (result.missingStart.length) parts.push(`Heures manquantes (début) : ${names(result.missingStart)}`);
+      if (result.missingEnd.length) parts.push(`Heures manquantes (fin) : ${names(result.missingEnd)}`);
+      if (result.pending.length) parts.push(`Agents encore en cours : ${names(result.pending)}`);
       throw new BadRequestException(`Validation impossible : ${parts.join(' | ') || 'données incomplètes'}`);
     }
   }

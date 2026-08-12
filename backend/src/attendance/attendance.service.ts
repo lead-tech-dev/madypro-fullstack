@@ -15,6 +15,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { HeartbeatDto } from './dto/heartbeat.dto';
 import { SettingsService } from '../settings/settings.service';
+import { checkAttendanceCompleteness } from '../interventions/attendance-completeness.util';
 
 type AttendanceFilters = {
   startDate?: string;
@@ -888,31 +889,20 @@ export class AttendanceService implements OnModuleInit {
     if (!intervention) return;
 
     if (status === 'COMPLETED') {
+      // Le check-out d'un agent ne clôture jamais l'intervention tout seul : même quand c'est le
+      // dernier agent assigné à terminer, elle passe en attente de validation par le superviseur
+      // (jamais directement à COMPLETED — seul PATCH /interventions/:id le fait, réservé au superviseur).
       const assignedUserIds = intervention.assignments.map((a) => a.userId);
-      if (assignedUserIds.length === 0) {
-        await this.prisma.intervention.update({
-          where: { id: intervention.id },
-          data: { status: 'COMPLETED' },
-        });
-        return;
-      }
-      // Récupère les attendances de l'intervention pour les agents affectés
       const attForAgents = await this.prisma.attendance.findMany({
         where: {
           interventionId: intervention.id,
           userId: { in: assignedUserIds },
         },
       });
-      // Un agent est considéré terminé s'il a une ligne avec checkOutTime et status COMPLETED
-      const completedUserIds = new Set(
-        attForAgents
-          .filter((att) => att.status === 'COMPLETED' && att.checkOutTime != null)
-          .map((att) => att.userId),
-      );
-      const allDone = assignedUserIds.every((uid) => completedUserIds.has(uid));
+      const { complete } = checkAttendanceCompleteness(assignedUserIds, attForAgents as any);
       await this.prisma.intervention.update({
         where: { id: intervention.id },
-        data: { status: allDone ? 'COMPLETED' : 'IN_PROGRESS' },
+        data: { status: complete ? 'NEEDS_REVIEW' : 'IN_PROGRESS' },
       });
       return;
     }
