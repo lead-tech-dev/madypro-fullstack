@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useAuthContext } from '../../context/AuthContext';
@@ -144,7 +144,9 @@ const PresenceListView: React.FC = () => {
                     isPresent && att.plannedStart && att.checkInTime && att.checkInTime > att.plannedStart;
                   return (
                     <tr key={att.id}>
-                      <td>{att.agent.name}</td>
+                      <td>
+                        <Link to={`/supervision/agents/${att.agent.id}`}>{att.agent.name}</Link>
+                      </td>
                       <td>{att.site.name}</td>
                       <td>{att.checkInTime ? formatDateTime(att.checkInTime) : '—'}</td>
                       <td>
@@ -256,7 +258,9 @@ const LiveMapView: React.FC = () => {
         <ul className="list-line">
           {entries.map((entry) => (
             <li key={entry.userId}>
-              <span>{entry.agentName}</span>
+              <span>
+                <Link to={`/supervision/agents/${entry.userId}`}>{entry.agentName}</Link>
+              </span>
               <span>{entry.siteName}</span>
               <span className="card__meta">{new Date(entry.lastSeenAt).toLocaleTimeString('fr-FR')}</span>
             </li>

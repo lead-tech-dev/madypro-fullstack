@@ -343,6 +343,9 @@ export const UsersListPage: React.FC = () => {
             <p>Tél : {employee.phone}</p>
             <p>Email : {employee.email}</p>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <Link to={`/supervision/agents/${employee.id}`} className="btn btn--ghost">
+                Fiche complète
+              </Link>
               <Link to={`/users/${employee.id}/edit`} className="btn btn--ghost">
                 Modifier
               </Link>

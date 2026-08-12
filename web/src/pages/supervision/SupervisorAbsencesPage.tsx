@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuthContext } from '../../context/AuthContext';
 import { listAbsences, updateAbsenceStatus } from '../../services/api/absences.api';
 import { listSites } from '../../services/api/sites.api';
@@ -123,7 +124,13 @@ export const SupervisorAbsencesPage: React.FC = () => {
               <tbody>
                 {filtered.map((abs) => (
                   <tr key={abs.id}>
-                    <td>{abs.agent?.name}</td>
+                    <td>
+                      {abs.agent?.id ? (
+                        <Link to={`/supervision/agents/${abs.agent.id}`}>{abs.agent.name}</Link>
+                      ) : (
+                        abs.agent?.name
+                      )}
+                    </td>
                     <td>{abs.site?.name ?? '—'}</td>
                     <td>
                       {formatDateTime(abs.from)} → {formatDateTime(abs.to)}

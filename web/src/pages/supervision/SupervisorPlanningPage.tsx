@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuthContext } from '../../context/AuthContext';
 import { listInterventions, updateIntervention, getRouteOptimization } from '../../services/api/interventions.api';
 import { listSites } from '../../services/api/sites.api';
@@ -298,7 +299,7 @@ export const SupervisorPlanningPage: React.FC = () => {
                                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
                                 >
                                   <span className={`agent-dot agent-dot--${tone}`} />
-                                  {a.name}
+                                  <Link to={`/supervision/agents/${a.id}`}>{a.name}</Link>
                                 </span>
                               );
                             })}
