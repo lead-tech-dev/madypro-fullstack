@@ -32,3 +32,12 @@ export type ReportsPerformance = {
     realizationRate: number | null;
   };
 };
+
+export type PayrollBreakdownRow = {
+  agentName: string;
+  agentEmail: string;
+  normalHours: number;
+  nightHours: number;
+  sundayHours: number;
+  holidayHours: number;
+};

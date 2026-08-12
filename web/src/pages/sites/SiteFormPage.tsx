@@ -22,10 +22,11 @@ import {
   setSitePlanImage,
   getSiteIncidents,
   getSiteQualityScore,
+  getSiteQrCode,
 } from '../../services/api/sites.api';
 import { listInventory, createInventoryItem, adjustInventoryItem, deleteInventoryItem } from '../../services/api/inventory.api';
 import { SiteChecklistItem } from '../../types/site';
-import { SiteContract, SiteZone, SiteIncident, SiteQualityScore } from '../../types/siteAdvanced';
+import { SiteContract, SiteZone, SiteIncident, SiteQualityScore, SiteQrCode } from '../../types/siteAdvanced';
 import { InventoryItem } from '../../types/inventory';
 import { listUsers } from '../../services/api/users.api';
 import { env } from '../../config/env';
@@ -109,6 +110,7 @@ export const SiteFormPage: React.FC = () => {
   const [qualityScore, setQualityScore] = useState<SiteQualityScore | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [newInventoryItem, setNewInventoryItem] = useState({ name: '', barcode: '', unit: '', quantity: '0', minThreshold: '0' });
+  const [qrCode, setQrCode] = useState<SiteQrCode | null>(null);
 
   const loadSiteExtras = (currentSiteId: string) => {
     if (!token) return;
@@ -117,6 +119,7 @@ export const SiteFormPage: React.FC = () => {
     getSiteIncidents(token, currentSiteId).then(setIncidents).catch(() => {});
     getSiteQualityScore(token, currentSiteId).then(setQualityScore).catch(() => {});
     listInventory(token, currentSiteId).then(setInventory).catch(() => {});
+    getSiteQrCode(token, currentSiteId).then(setQrCode).catch(() => {});
   };
 
   useEffect(() => {
@@ -439,6 +442,24 @@ export const SiteFormPage: React.FC = () => {
     if (!token || !siteId) return;
     await deleteInventoryItem(token, itemId).catch(() => {});
     loadSiteExtras(siteId);
+  };
+
+  const printQrCode = () => {
+    if (!qrCode) return;
+    const win = window.open('', '_blank', 'width=420,height=520');
+    if (!win) return;
+    win.document.write(`
+      <html>
+        <head><title>QR code — ${form.name}</title></head>
+        <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;">
+          <h3>${form.name}</h3>
+          <img src="${qrCode.qrCodeDataUrl}" alt="QR code de pointage" style="width:280px;height:280px;" />
+        </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
   };
 
   const openCreateForm = () => {
@@ -921,6 +942,18 @@ export const SiteFormPage: React.FC = () => {
                       />
                       <Button type="button" onClick={submitInventoryItem}>
                         Ajouter
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {isEdit && siteId && qrCode && (
+                  <div className="form-field">
+                    <span>QR code de pointage</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+                      <img src={qrCode.qrCodeDataUrl} alt="QR code de pointage" style={{ width: '140px', height: '140px' }} />
+                      <Button type="button" variant="ghost" onClick={printQrCode}>
+                        Imprimer
                       </Button>
                     </div>
                   </div>

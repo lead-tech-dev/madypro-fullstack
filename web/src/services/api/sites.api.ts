@@ -1,5 +1,5 @@
 import { Site, SiteChecklistItem } from '../../types/site';
-import { SiteContract, SiteZone, SiteIncident, SiteQualityScore } from '../../types/siteAdvanced';
+import { SiteContract, SiteZone, SiteIncident, SiteQualityScore, SiteQrCode } from '../../types/siteAdvanced';
 import { apiFetch } from './client';
 
 export type SitePayload = {
@@ -167,4 +167,8 @@ export async function getSiteIncidents(token: string, siteId: string) {
 }
 export async function getSiteQualityScore(token: string, siteId: string) {
   return apiFetch<SiteQualityScore>({ path: `sites/${siteId}/quality-score`, token });
+}
+
+export async function getSiteQrCode(token: string, siteId: string) {
+  return apiFetch<SiteQrCode>({ path: `sites/${siteId}/qr-code`, token });
 }

@@ -37,3 +37,9 @@ export type SiteQualityScore = {
   noShowCount: number;
   anomalyCount: number;
 };
+
+export type SiteQrCode = {
+  siteId: string;
+  code: string;
+  qrCodeDataUrl: string;
+};

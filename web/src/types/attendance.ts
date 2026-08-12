@@ -33,6 +33,24 @@ export type Attendance = {
   };
 };
 
+export type AttendanceAnomaly =
+  | {
+      type: 'SUSPICIOUS_DURATION';
+      attendanceId: string;
+      userId: string;
+      agentName: string;
+      siteName: string;
+      date: string;
+      durationMinutes: number;
+      siteAverageMinutes: number;
+    }
+  | {
+      type: 'REPEATED_OUTSIDE_ZONE';
+      userId: string;
+      agentName: string;
+      occurrences: number;
+    };
+
 export type LiveMapEntry = {
   userId: string;
   agentName: string;

@@ -4,11 +4,12 @@ import {
   createManualAttendance,
   updateAttendance,
   cancelAttendance,
+  getAttendanceAnomalies,
   AttendanceFilters,
   ManualAttendancePayload,
   UpdateAttendancePayload,
 } from '../../services/api/attendance.api';
-import { Attendance, AttendanceStatus } from '../../types/attendance';
+import { Attendance, AttendanceAnomaly, AttendanceStatus } from '../../types/attendance';
 import { Table } from '../../components/ui/Table';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
@@ -83,6 +84,14 @@ export const AttendanceListPage: React.FC = () => {
     { checkInTime: '', checkOutTime: '', note: '' }
   );
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [anomalies, setAnomalies] = useState<AttendanceAnomaly[]>([]);
+
+  useEffect(() => {
+    if (!token) return;
+    getAttendanceAnomalies(token)
+      .then(setAnomalies)
+      .catch(() => setAnomalies([]));
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -600,6 +609,47 @@ export const AttendanceListPage: React.FC = () => {
           </div>
         )}
       </section>
+
+      {anomalies.length > 0 && (
+        <section className="panel">
+          <h3>Anomalies de pointage (30 derniers jours)</h3>
+          <div className="table-wrapper">
+            <table className="table" aria-label="anomalies de pointage">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Agent</th>
+                  <th>Détail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {anomalies.map((anomaly, index) =>
+                  anomaly.type === 'SUSPICIOUS_DURATION' ? (
+                    <tr key={`duration-${anomaly.attendanceId}`}>
+                      <td>
+                        <span className="status-chip status-chip--warning">Durée suspecte</span>
+                      </td>
+                      <td>{anomaly.agentName}</td>
+                      <td>
+                        {anomaly.siteName} · {anomaly.date.slice(0, 10)} · {anomaly.durationMinutes} min
+                        (moyenne site : {anomaly.siteAverageMinutes} min)
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={`zone-${anomaly.userId}-${index}`}>
+                      <td>
+                        <span className="status-chip status-chip--warning">Hors zone répété</span>
+                      </td>
+                      <td>{anomaly.agentName}</td>
+                      <td>{anomaly.occurrences} occurrences sur 30 jours</td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {!loading && groupedByAgent.length > 0 && (
         <section className="panel">

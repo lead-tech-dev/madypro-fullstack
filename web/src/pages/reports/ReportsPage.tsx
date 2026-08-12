@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getPayrollCsv, getPerformanceReport, sendReportByEmail } from '../../services/api/reports.api';
-import { ReportsPerformance } from '../../types/report';
+import { getPayrollBreakdown, getPayrollCsv, getPerformanceReport, pushPayrollBreakdown, sendReportByEmail } from '../../services/api/reports.api';
+import { PayrollBreakdownRow, ReportsPerformance } from '../../types/report';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
 
@@ -33,6 +33,8 @@ export const ReportsPage: React.FC = () => {
   const [data, setData] = useState<ReportsPerformance | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [payrollBreakdown, setPayrollBreakdown] = useState<PayrollBreakdownRow[]>([]);
+  const [pushingPayroll, setPushingPayroll] = useState(false);
 
   const fetchPerformance = () => {
     if (!token) return;
@@ -53,6 +55,27 @@ export const ReportsPage: React.FC = () => {
   useEffect(() => {
     fetchPerformance();
   }, [token, filters.startDate, filters.endDate]);
+
+  useEffect(() => {
+    if (!token) return;
+    getPayrollBreakdown(token, filters)
+      .then(setPayrollBreakdown)
+      .catch(() => setPayrollBreakdown([]));
+  }, [token, filters.startDate, filters.endDate]);
+
+  const handlePushPayroll = async () => {
+    if (!token) return;
+    setPushingPayroll(true);
+    try {
+      const result = await pushPayrollBreakdown(token, filters);
+      notify(`Envoyé au prestataire de paie (${result.agentCount} agent(s))`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Échec de l'envoi au prestataire de paie";
+      notify(message, 'error');
+    } finally {
+      setPushingPayroll(false);
+    }
+  };
 
   const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -145,8 +168,7 @@ export const ReportsPage: React.FC = () => {
           <div className="filter-grid" style={{ marginBottom: 0 }}>
             <label className="filter-field filter-card">
               Du
--             <input type="date" name="startDate" value={filters.startDate} onChange={handleFilterChange} />
-+             <input type="date" name="startDate" value={filters.startDate} onChange={handleFilterChange} />
+              <input type="date" name="startDate" value={filters.startDate} onChange={handleFilterChange} />
             </label>
             <label className="filter-field filter-card">
               Au
@@ -251,6 +273,47 @@ export const ReportsPage: React.FC = () => {
               </table>
             </div>
           </section>
+
+          {payrollBreakdown.length > 0 && (
+            <section className="panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <div>
+                  <h3>Paie détaillée</h3>
+                  <p>Heures normales, nuit, dimanche et jours fériés par agent.</p>
+                </div>
+                <Button type="button" onClick={handlePushPayroll} disabled={pushingPayroll}>
+                  {pushingPayroll ? 'Envoi...' : 'Envoyer au prestataire de paie'}
+                </Button>
+              </div>
+              <p style={{ color: 'var(--color-muted)', marginTop: '0.5rem' }}>
+                Nécessite un webhook « payroll.export » configuré (voir Paramètres → Webhooks).
+              </p>
+              <div className="table-wrapper">
+                <table className="table" aria-label="paie détaillée">
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Normal</th>
+                      <th>Nuit</th>
+                      <th>Dimanche</th>
+                      <th>Férié</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payrollBreakdown.map((row) => (
+                      <tr key={row.agentEmail}>
+                        <td>{row.agentName}</td>
+                        <td>{row.normalHours} h</td>
+                        <td>{row.nightHours} h</td>
+                        <td>{row.sundayHours} h</td>
+                        <td>{row.holidayHours} h</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </>
       )}
     </div>

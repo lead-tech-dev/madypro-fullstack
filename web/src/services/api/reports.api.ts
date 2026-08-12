@@ -1,4 +1,4 @@
-import { ReportsPerformance } from '../../types/report';
+import { PayrollBreakdownRow, ReportsPerformance } from '../../types/report';
 import { DashboardSummary } from '../../types/dashboard';
 import { apiFetch, API_BASE_URL } from './client';
 
@@ -46,4 +46,28 @@ export async function sendReportByEmail(
   const query = params.toString();
   const path = `reports/send-report${query ? `?${query}` : ''}`;
   return apiFetch<SendReportResult>({ path, token, options: { method: 'POST' } });
+}
+
+export async function getPayrollBreakdown(
+  token: string,
+  filters: { startDate?: string; endDate?: string } = {},
+): Promise<PayrollBreakdownRow[]> {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  const query = params.toString();
+  const path = `reports/payroll-breakdown${query ? `?${query}` : ''}`;
+  return apiFetch<PayrollBreakdownRow[]>({ path, token });
+}
+
+export async function pushPayrollBreakdown(
+  token: string,
+  filters: { startDate?: string; endDate?: string } = {},
+): Promise<{ dispatched: boolean; agentCount: number }> {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  const query = params.toString();
+  const path = `reports/payroll-breakdown/push${query ? `?${query}` : ''}`;
+  return apiFetch<{ dispatched: boolean; agentCount: number }>({ path, token, options: { method: 'POST' } });
 }

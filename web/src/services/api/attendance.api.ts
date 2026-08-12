@@ -1,4 +1,4 @@
-import { Attendance, AttendanceStatus, LiveMapEntry } from '../../types/attendance';
+import { Attendance, AttendanceAnomaly, AttendanceStatus, LiveMapEntry } from '../../types/attendance';
 import { apiFetch } from './client';
 
 export type AttendanceFilters = {
@@ -90,4 +90,8 @@ export async function cancelAttendance(token: string, id: string, reason?: strin
 
 export async function getLiveMap(token: string) {
   return apiFetch<LiveMapEntry[]>({ path: 'attendance/live-map', token });
+}
+
+export async function getAttendanceAnomalies(token: string) {
+  return apiFetch<AttendanceAnomaly[]>({ path: 'attendance/anomalies', token });
 }

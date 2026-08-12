@@ -488,7 +488,30 @@ affichage de la signature (image) si `clientSignature` est renseigné ; à la cr
 d'une intervention, afficher à titre indicatif la durée moyenne historique du site —
 `GET /interventions/estimate-duration?siteId=&type=`
 
-## Sprint 23 (S45-S46) — UI Pointage avancé & paie
+## Sprint 23 (S45-S46) — UI Pointage avancé & paie ✅ terminé
+
+Les 3 fonctionnalités ont été implémentées : (1) section « QR code de pointage »
+ajoutée dans `SiteFormPage.tsx` (image du QR + bouton « Imprimer » ouvrant une
+fenêtre dédiée avec `window.print()`) ; (2) section « Paie détaillée » ajoutée
+dans `ReportsPage.tsx` (tableau normal/nuit/dimanche/férié par agent + bouton
+« Envoyer au prestataire de paie », affichée uniquement si la période contient
+des données) ; (3) section « Anomalies de pointage » ajoutée dans
+`AttendanceListPage.tsx` (durée suspecte vs moyenne du site, zone hors périmètre
+répétée), fenêtre glissante de 30 jours fixée côté backend. Au passage, correction
+d'un bug préexistant dans `ReportsPage.tsx` : un `<input>` de date dupliqué avec
+des marqueurs de diff résiduels (`-`/`+`) laissés par une édition antérieure,
+qui aurait affiché un second champ « Du » redondant. Nouveaux types/fonctions :
+`SiteQrCode` (`siteAdvanced.ts`), `getSiteQrCode` (`sites.api.ts`),
+`PayrollBreakdownRow` (`report.ts`), `getPayrollBreakdown`/`pushPayrollBreakdown`
+(`reports.api.ts`), `AttendanceAnomaly` (`attendance.ts`), `getAttendanceAnomalies`
+(`attendance.api.ts`). Aucun changement backend nécessaire. Testé en direct dans
+le navigateur avec un compte admin QA jetable : QR code affiché et `qrSecret`
+persisté en base (génération paresseuse confirmée), section paie détaillée
+affichée avec de vraies données historiques et envoi au prestataire confirmé
+(200 OK), section anomalies vérifiée avec des données simulées via interception
+réseau côté page (aucune anomalie réelle sur les 30 derniers jours actuellement)
+— rendu correct des deux types d'anomalies confirmé, aucune erreur console.
+Compte QA nettoyé après validation.
 
 **1. QR code de pointage** — onglet dans la fiche site : affichage du QR (image déjà
 en base64) avec bouton « Imprimer » (impression ciblée sur cette zone) —
