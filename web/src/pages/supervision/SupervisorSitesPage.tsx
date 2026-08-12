@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../../context/AuthContext';
 import { listSites } from '../../services/api/sites.api';
 import { Site } from '../../types/site';
@@ -56,14 +56,19 @@ export const SupervisorSitesPage: React.FC = () => {
                     <td>{site.address}</td>
                     <td>{site.supervisors?.map((s) => s.name).join(', ') || '—'}</td>
                     <td>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="btn--compact"
-                        onClick={() => navigate('/supervision/presence')}
-                      >
-                        Présence
-                      </Button>
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <Link to={`/supervision/sites/${site.id}`} className="btn btn--ghost btn--compact">
+                          Fiche complète
+                        </Link>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="btn--compact"
+                          onClick={() => navigate('/supervision/presence')}
+                        >
+                          Présence
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}

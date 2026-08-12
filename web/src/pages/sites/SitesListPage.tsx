@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { deleteSite, listSites, createSite, updateSite } from '../../services/api/sites.api';
 import { Site } from '../../types/site';
 import { Button } from '../../components/ui/Button';
@@ -222,6 +223,9 @@ export const SitesListPage: React.FC = () => {
                     </span>
                   </div>
                   <div className="table-actions">
+                    <Link to={`/supervision/sites/${site.id}`} className="btn btn--ghost btn--compact">
+                      Fiche complète
+                    </Link>
                     <Button
                       type="button"
                       variant="ghost"
