@@ -445,6 +445,11 @@ export class AttendanceService implements OnModuleInit {
     }
     if (dto.status) {
       data.status = dto.status;
+    } else if (dto.checkOutTime && current.status === 'PENDING') {
+      // Une correction manuelle d'horaire (admin/superviseur) qui renseigne l'heure de fin
+      // équivaut à un check-out : sans ça le statut reste PENDING malgré des horaires complets,
+      // ce qui bloque à tort la validation de l'intervention (agent vu comme "encore en cours").
+      data.status = 'COMPLETED';
     }
     if (dto.interventionId) {
       data.intervention = { connect: { id: dto.interventionId } };
