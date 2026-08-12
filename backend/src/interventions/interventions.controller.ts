@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post, Query, Req, UseGuards, forwardRef } from '@nestjs/common';
 import { Request } from 'express';
 import { InterventionsService, InterventionFilters } from './interventions.service';
 import { CreateInterventionDto } from './dto/create-intervention.dto';
@@ -10,10 +10,15 @@ import { SetSignatureDto } from './dto/set-signature.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { ApprovalsService, ApprovalActionType } from '../approvals/approvals.service';
 
 @Controller('interventions')
 export class InterventionsController {
-  constructor(private readonly service: InterventionsService) {}
+  constructor(
+    private readonly service: InterventionsService,
+    @Inject(forwardRef(() => ApprovalsService))
+    private readonly approvals: ApprovalsService,
+  ) {}
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
@@ -84,14 +89,57 @@ export class InterventionsController {
   @Roles('ADMIN', 'SUPERVISOR')
   @Post()
   create(@Body() dto: CreateInterventionDto, @Req() req: Request) {
-    return this.service.create(dto, (req.user as any)?.sub);
+    const user = req.user as any;
+    if (user.role === 'SUPERVISOR') {
+      return this.approvals.createRequest({
+        actionType: 'CREATE_INTERVENTION',
+        entityType: 'Intervention',
+        entityId: null,
+        payload: dto as unknown as Record<string, unknown>,
+        requestedById: user.sub,
+        summary: `${dto.date} ${dto.startTime}–${dto.endTime}`,
+      });
+    }
+    return this.service.create(dto, user.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateInterventionDto, @Req() req: Request) {
+  async update(@Param('id') id: string, @Body() dto: UpdateInterventionDto, @Req() req: Request) {
     const user = req.user as any;
+    const touchesSchedule = dto.date !== undefined || dto.startTime !== undefined || dto.endTime !== undefined;
+    const touchesAgents = dto.agentIds !== undefined;
+
+    if (user.role === 'SUPERVISOR' && !dto.status && (touchesSchedule || touchesAgents)) {
+      const original = await this.service.findOne(id, { id: user.sub, role: user.role });
+      let actionType: ApprovalActionType = 'UPDATE_INTERVENTION_SCHEDULE';
+      if (touchesAgents && !touchesSchedule) {
+        const before = new Set(original.agentIds);
+        const after = new Set(dto.agentIds ?? []);
+        const added = [...after].filter((x) => !before.has(x)).length;
+        const removed = [...before].filter((x) => !after.has(x)).length;
+        actionType = added >= removed ? 'ASSIGN_AGENT' : 'UNASSIGN_AGENT';
+      }
+      const summary = touchesSchedule
+        ? `${dto.date ?? original.date} ${dto.startTime ?? original.startTime}–${dto.endTime ?? original.endTime}`
+        : `${(dto.agentIds ?? []).length} agent(s) assigné(s)`;
+      return this.approvals.createRequest({
+        actionType,
+        entityType: 'Intervention',
+        entityId: id,
+        payload: dto as unknown as Record<string, unknown>,
+        previousState: {
+          date: original.date,
+          startTime: original.startTime,
+          endTime: original.endTime,
+          agentIds: original.agentIds,
+        },
+        requestedById: user.sub,
+        summary,
+      });
+    }
+
     return this.service.update(id, dto, user?.sub, user?.role);
   }
 
@@ -113,8 +161,21 @@ export class InterventionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Post(':id/cancel')
-  cancel(@Param('id') id: string, @Body('observation') observation: string, @Req() req: Request) {
-    return this.service.cancel(id, observation, (req.user as any)?.sub);
+  async cancel(@Param('id') id: string, @Body('observation') observation: string, @Req() req: Request) {
+    const user = req.user as any;
+    if (user.role === 'SUPERVISOR') {
+      const original = await this.service.findOne(id, { id: user.sub, role: user.role });
+      return this.approvals.createRequest({
+        actionType: 'CANCEL_INTERVENTION',
+        entityType: 'Intervention',
+        entityId: id,
+        payload: { observation },
+        previousState: { status: original.status },
+        requestedById: user.sub,
+        summary: observation,
+      });
+    }
+    return this.service.cancel(id, observation, user.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

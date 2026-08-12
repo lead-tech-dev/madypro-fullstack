@@ -31,6 +31,7 @@ import { PlatformModule } from './platform/platform.module';
 import { PublicApiModule } from './public-api/public-api.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { FormsModule } from './forms/forms.module';
+import { ApprovalsModule } from './approvals/approvals.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { FormsModule } from './forms/forms.module';
     NotificationsModule,
     AuditModule,
     InterventionsModule,
+    ApprovalsModule,
     RealtimeModule,
     AnomaliesModule,
     WebhooksModule,
