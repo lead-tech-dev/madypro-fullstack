@@ -434,27 +434,21 @@ export default function InterventionDetailScreen() {
       );
       AsyncStorage.removeItem(START_CACHE_KEY(target.id)).catch(() => {});
       // Un agent ne peut pas clôturer l'intervention globale (le backend refuse cette demande) :
-      // on récupère plutôt le vrai statut, qui ne passe à COMPLETED que si tous les agents ont fini.
+      // même quand c'est le dernier agent à terminer, l'intervention passe en attente de validation
+      // par le superviseur, jamais directement "Terminée" — on récupère le vrai statut pour l'affichage.
       try {
         const refreshed = await getInterventionById(token, target.id);
         if (refreshed) {
           setIntervention(refreshed);
-          if (refreshed.status === 'COMPLETED') {
-            Alert.alert(
-              'Mission terminée',
-              'Votre pointage est enregistré et tous les agents ont terminé : l’intervention est clôturée.',
-            );
-          } else {
-            const stillWorking = refreshed.agents.filter(
-              (a) => a.id !== user.id && a.attendanceStatus !== 'COMPLETED',
-            );
-            Alert.alert(
-              'Votre pointage est terminé',
-              stillWorking.length
-                ? `En attente de : ${stillWorking.map((a) => a.name).join(', ')}.`
-                : 'L’intervention sera clôturée une fois les pointages validés.',
-            );
-          }
+          const stillWorking = refreshed.agents.filter(
+            (a) => a.id !== user.id && a.attendanceStatus !== 'COMPLETED',
+          );
+          Alert.alert(
+            'Votre pointage est terminé',
+            stillWorking.length
+              ? `En attente de : ${stillWorking.map((a) => a.name).join(', ')}.`
+              : 'Tous les agents ont terminé : en attente de validation par le superviseur.',
+          );
         }
       } catch (err) {
         console.warn('Unable to refresh intervention after finish', err);
