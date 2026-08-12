@@ -27,6 +27,7 @@ import { BadgesPage } from '../pages/team/BadgesPage';
 import { OnboardingPage } from '../pages/team/OnboardingPage';
 import { AvailabilityPage } from '../pages/team/AvailabilityPage';
 import { ChatPage } from '../pages/team/ChatPage';
+import { ApprovalsPage } from '../pages/approvals/ApprovalsPage';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 
 export const AdminRoutes = () => (
@@ -46,6 +47,7 @@ export const AdminRoutes = () => (
       <Route path="/sites/new" element={<SiteFormPage />} />
       <Route path="/sites/:id/edit" element={<SiteFormPage />} />
       <Route path="/interventions" element={<InterventionsPage />} />
+      <Route path="/approvals" element={<ApprovalsPage />} />
       <Route path="/planning" element={<SupervisorPlanningPage />} />
       <Route path="/attendance" element={<AttendanceListPage />} />
       <Route path="/absences" element={<AbsencesListPage />} />

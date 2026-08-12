@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import { AssignmentSuggestion, DurationEstimate, Intervention, InterventionStatus, InterventionType } from '../../types/intervention';
+import { isApprovalRequest } from '../../types/approval';
 import {
   listInterventions,
   createIntervention,
@@ -358,11 +359,11 @@ export const InterventionsPage: React.FC = () => {
     try {
       if (editingId) {
         const payload = observationOnly ? { observation: form.observation } : form;
-        await updateIntervention(token, editingId, payload);
-        notify('Intervention mise à jour');
+        const result = await updateIntervention(token, editingId, payload);
+        notify(isApprovalRequest(result) ? 'Demande envoyée pour validation admin' : 'Intervention mise à jour');
       } else {
-        await createIntervention(token, form);
-        notify('Intervention créée');
+        const result = await createIntervention(token, form);
+        notify(isApprovalRequest(result) ? 'Demande envoyée pour validation admin' : 'Intervention créée');
       }
       setForm((prev) => ({ ...prev, label: '', truckLabels: [], agentIds: form.agentIds, observation: '' }));
       setEditingId(null);
@@ -429,8 +430,8 @@ export const InterventionsPage: React.FC = () => {
       return;
     }
     try {
-      await cancelIntervention(token, intervention.id, observation);
-      notify('Intervention annulée');
+      const result = await cancelIntervention(token, intervention.id, observation);
+      notify(isApprovalRequest(result) ? 'Demande d’annulation envoyée pour validation admin' : 'Intervention annulée');
       fetchInterventions();
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Annulation impossible', 'error');
@@ -956,6 +957,10 @@ export const InterventionsPage: React.FC = () => {
                         if (!token) return;
                         try {
                           const updated = await updateIntervention(token, viewing.id, { billable: !viewing.billable });
+                          if (isApprovalRequest(updated)) {
+                            notify('Demande envoyée pour validation admin');
+                            return;
+                          }
                           setViewing(updated);
                           setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
                         } catch (err) {
@@ -1161,6 +1166,10 @@ export const InterventionsPage: React.FC = () => {
                             observation: modalObservation,
                             photos: photoDraft,
                           });
+                          if (isApprovalRequest(updated)) {
+                            notify('Demande envoyée pour validation admin');
+                            return;
+                          }
                           setViewing(updated);
                           setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
                         } finally {

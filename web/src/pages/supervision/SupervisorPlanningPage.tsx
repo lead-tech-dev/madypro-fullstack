@@ -4,6 +4,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { listInterventions, updateIntervention, getRouteOptimization } from '../../services/api/interventions.api';
 import { listSites } from '../../services/api/sites.api';
 import { Intervention, RouteOptimizationResult } from '../../types/intervention';
+import { isApprovalRequest } from '../../types/approval';
 import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -139,6 +140,10 @@ export const SupervisorPlanningPage: React.FC = () => {
         startTime: nextStart,
         endTime: nextEnd,
       });
+      if (isApprovalRequest(updated)) {
+        notify('Demande de changement d’horaire envoyée pour validation admin');
+        return;
+      }
       setInterventions((prev) => prev.map((i) => (i.id === intervention.id ? { ...i, ...updated } : i)));
       notify('Horaires ajustés');
     } catch (err) {

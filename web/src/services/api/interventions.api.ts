@@ -7,6 +7,7 @@ import {
   InterventionType,
   RouteOptimizationResult,
 } from '../../types/intervention';
+import { ApprovalRequest, isApprovalRequest } from '../../types/approval';
 import { apiFetch } from './client';
 
 export type InterventionFilters = {
@@ -84,26 +85,40 @@ export async function listInterventions(token: string, filters: InterventionFilt
   return { ...data, items: mapped } as InterventionsPage;
 }
 
-export async function createIntervention(token: string, payload: CreateInterventionPayload) {
-  return apiFetch<Intervention>({
+/**
+ * Un superviseur reçoit une ApprovalRequest (PENDING) au lieu de l'intervention : son action
+ * n'est pas appliquée tant qu'un admin ne l'a pas validée. L'appelant doit vérifier
+ * isApprovalRequest() sur le résultat avant de traiter la réponse comme une Intervention.
+ */
+export async function createIntervention(
+  token: string,
+  payload: CreateInterventionPayload,
+): Promise<Intervention | ApprovalRequest> {
+  const item = await apiFetch<Intervention | ApprovalRequest>({
     path: 'interventions',
     token,
     options: {
       method: 'POST',
       body: JSON.stringify({ ...payload, type: mapTypeToApi(payload.type) }),
     },
-  }).then((item) => ({ ...item, type: mapTypeFromApi(item.type) }));
+  });
+  return isApprovalRequest(item) ? item : { ...item, type: mapTypeFromApi(item.type) };
 }
 
-export async function updateIntervention(token: string, id: string, payload: UpdateInterventionPayload) {
-  return apiFetch<Intervention>({
+export async function updateIntervention(
+  token: string,
+  id: string,
+  payload: UpdateInterventionPayload,
+): Promise<Intervention | ApprovalRequest> {
+  const item = await apiFetch<Intervention | ApprovalRequest>({
     path: `interventions/${id}`,
     token,
     options: {
       method: 'PATCH',
       body: JSON.stringify({ ...payload, type: mapTypeToApi(payload.type) }),
     },
-  }).then((item) => ({ ...item, type: mapTypeFromApi(item.type) }));
+  });
+  return isApprovalRequest(item) ? item : { ...item, type: mapTypeFromApi(item.type) };
 }
 
 export async function duplicateIntervention(token: string, id: string, date: string) {
@@ -117,15 +132,20 @@ export async function duplicateIntervention(token: string, id: string, date: str
   });
 }
 
-export async function cancelIntervention(token: string, id: string, observation: string) {
-  return apiFetch<Intervention>({
+export async function cancelIntervention(
+  token: string,
+  id: string,
+  observation: string,
+): Promise<Intervention | ApprovalRequest> {
+  const item = await apiFetch<Intervention | ApprovalRequest>({
     path: `interventions/${id}/cancel`,
     token,
     options: {
       method: 'POST',
       body: JSON.stringify({ observation }),
     },
-  }).then((item) => ({ ...item, type: mapTypeFromApi(item.type) }));
+  });
+  return isApprovalRequest(item) ? item : { ...item, type: mapTypeFromApi(item.type) };
 }
 
 export async function listRules(token: string) {

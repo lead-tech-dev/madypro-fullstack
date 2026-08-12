@@ -4,6 +4,7 @@ import { listInterventions, updateIntervention } from '../../services/api/interv
 import { listSites } from '../../services/api/sites.api';
 import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
 import { Intervention } from '../../types/intervention';
+import { isApprovalRequest } from '../../types/approval';
 import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -305,6 +306,10 @@ export const SupervisorInterventionsPage: React.FC = () => {
                             if (!token) return;
                             try {
                               const updated = await updateIntervention(token, intervention.id, { status: 'IN_PROGRESS' });
+                              if (isApprovalRequest(updated)) {
+                                notify('Demande envoyée pour validation admin');
+                                return;
+                              }
                               setInterventions((prev) => prev.map((i) => (i.id === intervention.id ? updated : i)));
                               notify('Marquée en cours');
                             } catch (err) {
@@ -329,6 +334,10 @@ export const SupervisorInterventionsPage: React.FC = () => {
                             if (!token) return;
                             try {
                               const updated = await updateIntervention(token, intervention.id, { status: 'COMPLETED' });
+                              if (isApprovalRequest(updated)) {
+                                notify('Demande envoyée pour validation admin');
+                                return;
+                              }
                               setInterventions((prev) => prev.map((i) => (i.id === intervention.id ? updated : i)));
                               notify('Marquée terminée');
                             } catch (err) {
@@ -622,6 +631,10 @@ export const SupervisorInterventionsPage: React.FC = () => {
                         observation: observationDraft,
                         photos: photoDraft,
                       });
+                      if (isApprovalRequest(updated)) {
+                        notify('Demande envoyée pour validation admin');
+                        return;
+                      }
                       setViewing(updated);
                       setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
                       notify('Observation mise à jour');
