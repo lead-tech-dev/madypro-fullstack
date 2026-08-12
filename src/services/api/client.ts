@@ -7,6 +7,16 @@ type FetchArgs = {
   options?: RequestInit;
 };
 
+/** Le serveur a répondu et a explicitement rejeté la requête (ex: règle métier, validation). */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 const normalizeBaseUrl = () => {
   if (!env.apiUrl) {
     throw new Error('Missing EXPO_PUBLIC_API_URL');
@@ -58,7 +68,7 @@ export async function apiFetch<T>({ path, token, options = {} }: FetchArgs): Pro
     } catch {
       if (raw) message = raw;
     }
-    throw new Error(message || 'API error');
+    throw new ApiError(message || 'API error', response.status);
   }
 
   if (response.status === 204) {

@@ -28,6 +28,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useSyncContext } from '@/context/SyncContext';
 import { useAuthContext } from '@/context/AuthContext';
 import { getSite } from '@/services/api/sites.api';
+import { ApiError } from '@/services/api/client';
 import { Site } from '@/types/site';
 import { AgentStackParamList } from '@/navigation/types';
 import { RunningTimer } from '@/components/intervention/RunningTimer';
@@ -307,6 +308,12 @@ export default function InterventionDetailScreen() {
             photo,
           });
         } catch (err: any) {
+          if (err instanceof ApiError) {
+            // Refus explicite du serveur (ex: hors créneau, trop loin) : on ne file pas en offline
+            // et on n'affiche pas la mission comme démarrée.
+            Alert.alert('Démarrage refusé', err.message);
+            return;
+          }
           Alert.alert('Démarrage hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.");
           // on file en offline
           queueEvent({
@@ -376,6 +383,11 @@ export default function InterventionDetailScreen() {
         try {
           await checkOut(token, { userId: user.id, interventionId: target.id, photo });
         } catch (err: any) {
+          if (err instanceof ApiError) {
+            // Refus explicite du serveur : on ne file pas en offline et on n'affiche pas la mission comme terminée.
+            Alert.alert('Fin de mission refusée', err.message);
+            return;
+          }
           Alert.alert('Fin hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.");
           const coords = await getCurrentCoordinates().catch(() => null);
           queueEvent({
@@ -400,14 +412,14 @@ export default function InterventionDetailScreen() {
           photo,
         });
       }
-      const displayTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      // Ne met à jour localement que le pointage de l'agent courant (fiable, on vient de l'envoyer) :
+      // le statut global de l'intervention dépend des AUTRES agents assignés et ne doit jamais être
+      // deviné côté client — sinon un agent qui termine voit "Terminée" alors qu'un collègue est
+      // toujours sur site. On va chercher la vraie valeur juste après.
       setIntervention((prev) =>
         prev
           ? {
               ...prev,
-              status: 'COMPLETED',
-              actualEndTime: prev.actualEndTime ?? displayTime,
-              actualEndAt: prev.actualEndAt ?? now.toISOString(),
               agents: prev.agents.map((a) =>
                 a.id === user.id
                   ? {
@@ -421,11 +433,31 @@ export default function InterventionDetailScreen() {
           : prev,
       );
       AsyncStorage.removeItem(START_CACHE_KEY(target.id)).catch(() => {});
-      // aligne le statut côté web (attente explicite pour éviter de rester "En cours")
+      // Un agent ne peut pas clôturer l'intervention globale (le backend refuse cette demande) :
+      // on récupère plutôt le vrai statut, qui ne passe à COMPLETED que si tous les agents ont fini.
       try {
-        await updateInterventionStatus(token, target.id, 'COMPLETED');
+        const refreshed = await getInterventionById(token, target.id);
+        if (refreshed) {
+          setIntervention(refreshed);
+          if (refreshed.status === 'COMPLETED') {
+            Alert.alert(
+              'Mission terminée',
+              'Votre pointage est enregistré et tous les agents ont terminé : l’intervention est clôturée.',
+            );
+          } else {
+            const stillWorking = refreshed.agents.filter(
+              (a) => a.id !== user.id && a.attendanceStatus !== 'COMPLETED',
+            );
+            Alert.alert(
+              'Votre pointage est terminé',
+              stillWorking.length
+                ? `En attente de : ${stillWorking.map((a) => a.name).join(', ')}.`
+                : 'L’intervention sera clôturée une fois les pointages validés.',
+            );
+          }
+        }
       } catch (err) {
-        console.warn('Unable to sync intervention status', err);
+        console.warn('Unable to refresh intervention after finish', err);
       }
       setArrivalRecorded(false);
       setStartPersisted(null);
@@ -518,10 +550,15 @@ export default function InterventionDetailScreen() {
       }
       setArrivalRecorded(true);
     } catch (error: any) {
-      if (!isOnline) {
+      if (error instanceof ApiError) {
+        // Le serveur a répondu et a explicitement refusé la demande (créneau dépassé, trop loin du site,
+        // intervention non assignée...) : ce n'est pas un problème réseau, il ne faut ni mettre en file
+        // d'attente hors ligne, ni faire croire que la présence a été enregistrée.
+        Alert.alert("Présence refusée", error.message);
+      } else if (!isOnline) {
         Alert.alert("Impossible d’enregistrer la présence", error?.message ?? 'Erreur inconnue');
       } else {
-        // fallback offline
+        // Échec réseau (pas de réponse du serveur) : on met en file pour synchronisation ultérieure.
         const coords = await getCurrentCoordinates().catch(() => null);
         if (coords) {
           queueEvent({
