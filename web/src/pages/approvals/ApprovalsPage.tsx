@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import { listApprovalRequests, approveRequest, rejectRequest } from '../../services/api/approvals.api';
 import { listUsers } from '../../services/api/users.api';
-import { ApprovalActionType, ApprovalRequest } from '../../types/approval';
+import { listSites } from '../../services/api/sites.api';
+import { ApprovalActionType, ApprovalRequest, RecurringBatchPayload } from '../../types/approval';
 import { Button } from '../../components/ui/Button';
 
 const ACTION_LABELS: Record<ApprovalActionType, string> = {
@@ -11,6 +12,7 @@ const ACTION_LABELS: Record<ApprovalActionType, string> = {
   ASSIGN_AGENT: 'Ajout d’agent',
   UNASSIGN_AGENT: 'Retrait d’agent',
   CANCEL_INTERVENTION: 'Annulation d’intervention',
+  CREATE_RECURRING_BATCH: 'Génération récurrente',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -24,9 +26,11 @@ export const ApprovalsPage: React.FC = () => {
   const { token, notify } = useAuthContext();
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [agentNames, setAgentNames] = useState<Record<string, string>>({});
+  const [siteNames, setSiteNames] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = () => {
     if (!token) return;
@@ -50,6 +54,15 @@ export const ApprovalsPage: React.FC = () => {
         setAgentNames(map);
       })
       .catch(() => setAgentNames({}));
+    listSites(token, { pageSize: 500 })
+      .then((res) => {
+        const map: Record<string, string> = {};
+        res.items.forEach((s) => {
+          map[s.id] = s.name;
+        });
+        setSiteNames(map);
+      })
+      .catch(() => setSiteNames({}));
   }, [token]);
 
   const pendingCount = useMemo(() => requests.filter((r) => r.status === 'PENDING').length, [requests]);
@@ -78,6 +91,12 @@ export const ApprovalsPage: React.FC = () => {
       }
       case 'CANCEL_INTERVENTION':
         return `Motif : ${payload.observation}`;
+      case 'CREATE_RECURRING_BATCH': {
+        const batch = payload as RecurringBatchPayload;
+        const siteLabel = siteNames[batch.siteId] ?? batch.siteId;
+        const agentLabels = (batch.agentIds ?? []).map((id) => agentNames[id] ?? id).join(', ') || 'aucun agent';
+        return `${batch.ruleLabel ?? 'Règle'} — ${siteLabel} — ${batch.occurrences?.length ?? 0} occurrence(s) — ${batch.startTime}–${batch.endTime} — ${agentLabels}`;
+      }
       default:
         return '';
     }
@@ -163,7 +182,33 @@ export const ApprovalsPage: React.FC = () => {
                 <tr key={req.id}>
                   <td>{req.requestedByName ?? req.requestedById}</td>
                   <td>{ACTION_LABELS[req.actionType] ?? req.actionType}</td>
-                  <td>{describe(req)}</td>
+                  <td>
+                    {describe(req)}
+                    {req.actionType === 'CREATE_RECURRING_BATCH' && (
+                      <div style={{ marginTop: '0.35rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedId(expandedId === req.id ? null : req.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            color: 'var(--color-primary, #0E8E7C)',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            textDecoration: 'underline',
+                          }}
+                        >
+                          {expandedId === req.id ? 'Masquer les dates' : 'Voir les dates'}
+                        </button>
+                        {expandedId === req.id && (
+                          <div className="card__meta" style={{ marginTop: '0.35rem', maxWidth: 320 }}>
+                            {((req.payload as RecurringBatchPayload).occurrences ?? []).map((o) => o.date).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <span
                       className={`status-chip ${

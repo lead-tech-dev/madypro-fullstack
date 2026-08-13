@@ -3,9 +3,20 @@ export type ApprovalActionType =
   | 'UPDATE_INTERVENTION_SCHEDULE'
   | 'ASSIGN_AGENT'
   | 'UNASSIGN_AGENT'
-  | 'CANCEL_INTERVENTION';
+  | 'CANCEL_INTERVENTION'
+  | 'CREATE_RECURRING_BATCH';
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+
+export type RecurringBatchPayload = {
+  ruleId: string;
+  ruleLabel?: string;
+  siteId: string;
+  startTime: string;
+  endTime: string;
+  agentIds: string[];
+  occurrences: { date: string }[];
+};
 
 export type ApprovalRequest = {
   id: string;
@@ -15,7 +26,7 @@ export type ApprovalRequest = {
   payload: Record<string, unknown>;
   previousState: Record<string, unknown> | null;
   status: ApprovalStatus;
-  requestedById: string;
+  requestedById: string | null;
   requestedByName?: string;
   reviewedById?: string | null;
   reviewedByName?: string;
