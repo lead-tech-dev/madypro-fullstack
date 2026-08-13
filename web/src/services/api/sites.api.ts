@@ -14,6 +14,7 @@ export type SitePayload = {
   accessCode?: string;
   contactName?: string;
   contactPhone?: string;
+  contactEmail?: string;
   photos?: string[];
   gpsDistanceMeters?: number;
   toleranceMinutes?: number;
@@ -62,6 +63,21 @@ export async function updateSite(token: string, id: string, payload: SitePayload
     options: {
       method: 'PATCH',
       body: JSON.stringify(payload),
+    },
+  });
+}
+
+export async function sendSitePlanning(
+  token: string,
+  id: string,
+  periodWeeks: number,
+): Promise<{ sent: boolean; count: number; to: string }> {
+  return apiFetch<{ sent: boolean; count: number; to: string }>({
+    path: `sites/${id}/send-planning`,
+    token,
+    options: {
+      method: 'POST',
+      body: JSON.stringify({ periodWeeks }),
     },
   });
 }

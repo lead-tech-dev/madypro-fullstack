@@ -23,6 +23,7 @@ import {
   getSiteIncidents,
   getSiteQualityScore,
   getSiteQrCode,
+  sendSitePlanning,
 } from '../../services/api/sites.api';
 import { listInventory, createInventoryItem, adjustInventoryItem, deleteInventoryItem } from '../../services/api/inventory.api';
 import { SiteChecklistItem } from '../../types/site';
@@ -59,6 +60,7 @@ type FormState = {
   accessCode: string;
   contactName: string;
   contactPhone: string;
+  contactEmail: string;
   gpsDistanceMeters: string;
   toleranceMinutes: string;
   minimumDurationMinutes: string;
@@ -75,6 +77,7 @@ const INITIAL_FORM: FormState = {
   accessCode: '',
   contactName: '',
   contactPhone: '',
+  contactEmail: '',
   gpsDistanceMeters: '',
   toleranceMinutes: '',
   minimumDurationMinutes: '',
@@ -111,6 +114,8 @@ export const SiteFormPage: React.FC = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [newInventoryItem, setNewInventoryItem] = useState({ name: '', barcode: '', unit: '', quantity: '0', minThreshold: '0' });
   const [qrCode, setQrCode] = useState<SiteQrCode | null>(null);
+  const [planningPeriodWeeks, setPlanningPeriodWeeks] = useState('4');
+  const [sendingPlanning, setSendingPlanning] = useState(false);
 
   const loadSiteExtras = (currentSiteId: string) => {
     if (!token) return;
@@ -159,6 +164,7 @@ export const SiteFormPage: React.FC = () => {
             accessCode: siteData.accessCode ?? '',
             contactName: siteData.contactName ?? '',
             contactPhone: siteData.contactPhone ?? '',
+            contactEmail: siteData.contactEmail ?? '',
             gpsDistanceMeters:
               typeof siteData.gpsDistanceMeters === 'number' ? String(siteData.gpsDistanceMeters) : '',
             toleranceMinutes:
@@ -295,6 +301,7 @@ export const SiteFormPage: React.FC = () => {
       accessCode: form.accessCode || undefined,
       contactName: form.contactName || undefined,
       contactPhone: form.contactPhone || undefined,
+      contactEmail: form.contactEmail || undefined,
       gpsDistanceMeters: form.gpsDistanceMeters ? Number(form.gpsDistanceMeters) : undefined,
       toleranceMinutes: form.toleranceMinutes ? Number(form.toleranceMinutes) : undefined,
       minimumDurationMinutes: form.minimumDurationMinutes ? Number(form.minimumDurationMinutes) : undefined,
@@ -442,6 +449,23 @@ export const SiteFormPage: React.FC = () => {
     if (!token || !siteId) return;
     await deleteInventoryItem(token, itemId).catch(() => {});
     loadSiteExtras(siteId);
+  };
+
+  const handleSendPlanning = async () => {
+    if (!token || !siteId) return;
+    if (!form.contactEmail) {
+      notify("Renseignez d'abord un email de contact pour ce site.", 'error');
+      return;
+    }
+    setSendingPlanning(true);
+    try {
+      const result = await sendSitePlanning(token, siteId, Number(planningPeriodWeeks) || 4);
+      notify(`Planning envoyé à ${result.to} (${result.count} intervention(s))`);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Impossible d'envoyer le planning.", 'error');
+    } finally {
+      setSendingPlanning(false);
+    }
   };
 
   const printQrCode = () => {
@@ -637,6 +661,15 @@ export const SiteFormPage: React.FC = () => {
                   value={form.contactPhone}
                   onChange={handleChange}
                 />
+                <Input
+                  id="contactEmail"
+                  name="contactEmail"
+                  label="Email du contact (pour l'envoi du planning)"
+                  type="email"
+                  placeholder="contact@client.fr"
+                  value={form.contactEmail}
+                  onChange={handleChange}
+                />
 
                 <div className="form-field">
                   <span>Règles de pointage — surcharge pour ce site (facultatif, sinon réglage global)</span>
@@ -690,6 +723,43 @@ export const SiteFormPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+
+                {isEdit && siteId && (
+                  <div className="form-field">
+                    <span>Envoyer le planning au client</span>
+                    <small className="form-helper">
+                      Envoie par email (avec pièce jointe .ics) les interventions déjà planifiées des prochaines
+                      semaines. Seules les interventions réelles sont envoyées, jamais une proposition en attente
+                      de validation.
+                    </small>
+                    <div className="form-row" style={{ marginTop: '0.5rem' }}>
+                      <Select
+                        id="planningPeriodWeeks"
+                        name="planningPeriodWeeks"
+                        label="Période"
+                        options={[
+                          { value: '2', label: '2 semaines' },
+                          { value: '4', label: '4 semaines' },
+                          { value: '8', label: '8 semaines' },
+                        ]}
+                        value={planningPeriodWeeks}
+                        onChange={(e) => setPlanningPeriodWeeks(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleSendPlanning}
+                        disabled={sendingPlanning || !form.contactEmail}
+                      >
+                        {sendingPlanning ? 'Envoi...' : 'Envoyer le planning'}
+                      </Button>
+                    </div>
+                    {!form.contactEmail && (
+                      <small className="form-helper">
+                        Ajoutez un email de contact ci-dessus pour activer l'envoi.
+                      </small>
+                    )}
+                  </div>
+                )}
 
                 {isEdit && siteId && (
                   <div className="form-field">

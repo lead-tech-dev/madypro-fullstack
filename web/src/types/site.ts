@@ -12,6 +12,7 @@ export type Site = {
   accessCode?: string;
   contactName?: string;
   contactPhone?: string;
+  contactEmail?: string;
   photos?: string[];
   gpsDistanceMeters?: number;
   toleranceMinutes?: number;
