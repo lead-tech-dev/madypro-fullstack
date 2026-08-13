@@ -63,7 +63,9 @@ export class ApprovalsController {
     const payload = request.payload as any;
     switch (request.actionType) {
       case 'CREATE_INTERVENTION':
-        return this.interventionsService.create(payload, reviewerId);
+        return Array.isArray(payload?.occurrences)
+          ? this.interventionsService.createOneshotBatch(payload.occurrences, reviewerId)
+          : this.interventionsService.create(payload, reviewerId);
       case 'UPDATE_INTERVENTION_SCHEDULE':
       case 'ASSIGN_AGENT':
       case 'UNASSIGN_AGENT':
@@ -72,10 +74,8 @@ export class ApprovalsController {
       case 'CANCEL_INTERVENTION':
         if (!request.entityId) throw new Error('Intervention manquante');
         return this.interventionsService.cancel(request.entityId, payload.observation, reviewerId);
-      case 'CREATE_RECURRING_BATCH':
-        return this.interventionsService.createBatch(payload, reviewerId);
-      case 'CREATE_TOUR_BATCH':
-        return this.interventionsService.createTourBatch(payload, reviewerId);
+      case 'CREATE_TEMPLATE_BATCH':
+        return this.interventionsService.createTemplateBatch(payload, reviewerId);
       default:
         throw new Error('Type d’action non pris en charge');
     }

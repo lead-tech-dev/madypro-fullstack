@@ -4,10 +4,8 @@ import { InterventionsService, InterventionFilters } from './interventions.servi
 import { CreateInterventionDto } from './dto/create-intervention.dto';
 import { UpdateInterventionDto } from './dto/update-intervention.dto';
 import { DuplicateInterventionDto } from './dto/duplicate-intervention.dto';
-import { CreateInterventionRuleDto } from './dto/create-rule.dto';
-import { UpdateInterventionRuleDto } from './dto/update-rule.dto';
-import { CreateTourRuleDto } from './dto/create-tour-rule.dto';
-import { UpdateTourRuleDto } from './dto/update-tour-rule.dto';
+import { CreateTemplateDto } from './dto/create-template.dto';
+import { UpdateTemplateDto } from './dto/update-template.dto';
 import { SetSignatureDto } from './dto/set-signature.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -105,6 +103,31 @@ export class InterventionsController {
     return this.service.create(dto, user.sub);
   }
 
+  /**
+   * Création ponctuelle multi-arrêts (un ou plusieurs sites, une seule fois) — utilisée par le
+   * formulaire unique de création quand plusieurs arrêts sont ajoutés en une soumission.
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Post('batch')
+  createOneshotBatch(@Body('occurrences') occurrences: any[], @Req() req: Request) {
+    if (!Array.isArray(occurrences) || !occurrences.length) {
+      throw new BadRequestException('Au moins un arrêt est requis.');
+    }
+    const user = req.user as any;
+    if (user.role === 'SUPERVISOR') {
+      return this.approvals.createRequest({
+        actionType: 'CREATE_INTERVENTION',
+        entityType: 'Intervention',
+        entityId: null,
+        payload: { occurrences },
+        requestedById: user.sub,
+        summary: `${occurrences.length} intervention(s)`,
+      });
+    }
+    return this.service.createOneshotBatch(occurrences, user.sub);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Patch(':id')
@@ -182,84 +205,56 @@ export class InterventionsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
-  @Get('rules/list')
-  listRules() {
-    return this.service.listRules();
+  @Get('templates/list')
+  listTemplates() {
+    return this.service.listTemplates();
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
-  @Post('rules')
-  createRule(@Body() dto: CreateInterventionRuleDto) {
-    return this.service.createRule(dto);
+  @Post('templates')
+  createTemplate(@Body() dto: CreateTemplateDto) {
+    return this.service.createTemplate(dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
-  @Patch('rules/:id')
-  updateRule(@Param('id') id: string, @Body() dto: UpdateInterventionRuleDto) {
-    return this.service.updateRule(id, dto);
+  @Patch('templates/:id')
+  updateTemplate(@Param('id') id: string, @Body() dto: UpdateTemplateDto) {
+    return this.service.updateTemplate(id, dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
-  @Patch('rules/:id/toggle')
-  toggleRule(@Param('id') id: string, @Body('active') active: boolean) {
-    return this.service.toggleRule(id, active);
+  @Patch('templates/:id/toggle')
+  toggleTemplate(@Param('id') id: string, @Body('active') active: boolean) {
+    return this.service.toggleTemplate(id, active);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
-  @Get('tours/list')
-  listTours() {
-    return this.service.listTourRules();
+  @Get('templates/:id/preview')
+  previewTemplate(@Param('id') id: string, @Query('startDate') startDate: string, @Query('endDate') endDate: string) {
+    return this.service.previewTemplateOccurrences(id, startDate, endDate);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
-  @Post('tours')
-  createTour(@Body() dto: CreateTourRuleDto) {
-    return this.service.createTourRule(dto);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'SUPERVISOR')
-  @Patch('tours/:id')
-  updateTour(@Param('id') id: string, @Body() dto: UpdateTourRuleDto) {
-    return this.service.updateTourRule(id, dto);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'SUPERVISOR')
-  @Patch('tours/:id/toggle')
-  toggleTour(@Param('id') id: string, @Body('active') active: boolean) {
-    return this.service.toggleTourRule(id, active);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'SUPERVISOR')
-  @Get('tours/:id/preview')
-  previewTour(@Param('id') id: string, @Query('startDate') startDate: string, @Query('endDate') endDate: string) {
-    return this.service.previewTourOccurrences(id, startDate, endDate);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'SUPERVISOR')
-  @Post('tours/:id/generate')
-  async generateTour(
+  @Post('templates/:id/generate')
+  async generateTemplate(
     @Param('id') id: string,
     @Body('startDate') startDate: string,
     @Body('endDate') endDate: string,
     @Req() req: Request,
   ) {
     const user = req.user as any;
-    const preview = await this.service.previewTourOccurrences(id, startDate, endDate);
+    const preview = await this.service.previewTemplateOccurrences(id, startDate, endDate);
     if (!preview.occurrences.length) {
       throw new BadRequestException('Aucune occurrence à générer sur cette période.');
     }
     const payload = {
-      tourRuleId: preview.tourRuleId,
-      tourRuleLabel: preview.tourRuleLabel,
+      templateId: preview.templateId,
+      templateLabel: preview.templateLabel,
       occurrences: preview.occurrences.map(({ date, siteId, startTime, endTime, agentIds }) => ({
         date,
         siteId,
@@ -270,15 +265,15 @@ export class InterventionsController {
     };
     if (user.role === 'SUPERVISOR') {
       return this.approvals.createRequest({
-        actionType: 'CREATE_TOUR_BATCH',
-        entityType: 'TourRule',
+        actionType: 'CREATE_TEMPLATE_BATCH',
+        entityType: 'InterventionTemplate',
         entityId: id,
         payload,
         requestedById: user.sub,
-        summary: `${preview.occurrences.length} occurrence(s) — ${preview.tourRuleLabel}`,
+        summary: `${preview.occurrences.length} occurrence(s) — ${preview.templateLabel}`,
       });
     }
-    return this.service.createTourBatch(payload, user.sub);
+    return this.service.createTemplateBatch(payload, user.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

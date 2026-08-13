@@ -12,15 +12,15 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import {
   InterventionEntity,
-  InterventionRuleEntity,
   InterventionStatus,
   InterventionType,
+  InterventionTemplateEntity,
 } from './entities/intervention.entity';
 import { CreateInterventionDto } from './dto/create-intervention.dto';
 import { UpdateInterventionDto } from './dto/update-intervention.dto';
 import { DuplicateInterventionDto } from './dto/duplicate-intervention.dto';
-import { CreateInterventionRuleDto } from './dto/create-rule.dto';
-import { UpdateInterventionRuleDto } from './dto/update-rule.dto';
+import { CreateTemplateDto } from './dto/create-template.dto';
+import { UpdateTemplateDto } from './dto/update-template.dto';
 import { SitesService } from '../sites/sites.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../database/prisma.service';
@@ -30,10 +30,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { haversineDistanceMeters } from '../common/utils/geo';
 import { checkAttendanceCompleteness } from './attendance-completeness.util';
-import { computeRuleOccurrences, computeTourOccurrences, findTourStopConflicts, TourStopLike } from './recurrence.util';
-import { CreateTourRuleDto } from './dto/create-tour-rule.dto';
-import { UpdateTourRuleDto } from './dto/update-tour-rule.dto';
-import { TourRuleEntity } from './entities/intervention.entity';
+import { computeTemplateOccurrences, findTemplateStopConflicts, TemplateStopLike } from './recurrence.util';
 import { ApprovalsService } from '../approvals/approvals.service';
 
 export type InterventionFilters = {
@@ -70,7 +67,7 @@ type PersistedInterventionType = 'REGULAR' | 'PUNCTUAL';
 @Injectable()
 export class InterventionsService implements OnModuleInit {
   private readonly logger = new Logger(InterventionsService.name);
-  private generatingRules = false;
+  private generatingTemplates = false;
   private AUTO_CLOSE_GRACE_MS = 30 * 60 * 1000; // 30 minutes de marge après l'heure de fin planifiée
   private AUTO_CLOSE_ENABLED = true;
   private AUTO_CLOSE_INCOMPLETE_STATUS: InterventionStatus = 'NEEDS_REVIEW';
@@ -117,9 +114,9 @@ export class InterventionsService implements OnModuleInit {
       this.DAILY_SUMMARY_HOUR = dailyHour;
     }
 
-    await this.generateFromRules();
+    await this.generateFromTemplates();
     setInterval(() => {
-      this.generateFromRules().catch((error) =>
+      this.generateFromTemplates().catch((error) =>
         this.logger.error('Erreur lors de la génération automatique des interventions', error.stack),
       );
     }, 1000 * 60 * 60 * 6);
@@ -568,8 +565,7 @@ export class InterventionsService implements OnModuleInit {
       billable: (record as any).billable ?? true,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
-      generatedFromRuleId: record.generatedFromRuleId ?? undefined,
-      generatedFromTourId: (record as any).generatedFromTourId ?? undefined,
+      generatedFromTemplateId: (record as any).generatedFromTemplateId ?? undefined,
       batchId: (record as any).batchId ?? undefined,
     };
   }
@@ -766,8 +762,7 @@ export class InterventionsService implements OnModuleInit {
         label: dto.label ?? null,
         observation: dto.observation ?? null,
         photos: dto.photos ?? [],
-        generatedFromRuleId: dto.generatedFromRuleId ?? null,
-        generatedFromTourId: dto.generatedFromTourId ?? null,
+        generatedFromTemplateId: dto.generatedFromTemplateId ?? null,
         batchId: dto.batchId ?? null,
         assignments: dto.agentIds?.length
           ? {
@@ -907,9 +902,9 @@ export class InterventionsService implements OnModuleInit {
     if (dto.label !== undefined) data.label = dto.label ?? null;
     if (dto.observation !== undefined) data.observation = dto.observation ?? null;
     if (dto.billable !== undefined) data.billable = dto.billable;
-    if (dto.generatedFromRuleId !== undefined) {
-      data.generatedFromRule = dto.generatedFromRuleId
-        ? { connect: { id: dto.generatedFromRuleId } }
+    if (dto.generatedFromTemplateId !== undefined) {
+      data.generatedFromTemplate = dto.generatedFromTemplateId
+        ? { connect: { id: dto.generatedFromTemplateId } }
         : { disconnect: true };
     }
     if (dto.agentIds) {
@@ -1061,56 +1056,6 @@ export class InterventionsService implements OnModuleInit {
     return view;
   }
 
-  /**
-   * Applique un lot d'occurrences généré par une règle de récurrence, une fois approuvé par un
-   * admin. Tout ou rien : chaque occurrence est d'abord revalidée (conflits d'affectation) avant
-   * qu'aucune ne soit créée, pour ne jamais laisser un lot à moitié appliqué.
-   */
-  async createBatch(
-    payload: {
-      siteId: string;
-      startTime: string;
-      endTime: string;
-      agentIds: string[];
-      ruleId: string;
-      ruleLabel?: string;
-      occurrences: { date: string }[];
-    },
-    actorId: string,
-  ) {
-    for (const occurrence of payload.occurrences) {
-      if (payload.agentIds.length) {
-        await this.checkAssignmentConflicts(payload.agentIds, occurrence.date, payload.startTime, payload.endTime);
-      }
-    }
-    const batchId = randomUUID();
-    const created: InterventionView[] = [];
-    for (const occurrence of payload.occurrences) {
-      const view = await this.create(
-        {
-          type: 'REGULAR',
-          siteId: payload.siteId,
-          date: occurrence.date,
-          startTime: payload.startTime,
-          endTime: payload.endTime,
-          label: payload.ruleLabel,
-          agentIds: payload.agentIds,
-          generatedFromRuleId: payload.ruleId,
-          batchId,
-        } as CreateInterventionDto,
-        actorId,
-        { silent: true },
-      );
-      created.push(view);
-    }
-    try {
-      await this.sendConsolidatedNotification(created);
-    } catch (err) {
-      this.logger.warn(`Notification de lot échouée: ${(err as Error).message}`);
-    }
-    return created;
-  }
-
   async duplicate(id: string, dto: DuplicateInterventionDto, actorId = 'system') {
     const record = await this.findRecord(id);
     const agentIds = record.assignments.map((a) => a.userId);
@@ -1183,195 +1128,34 @@ export class InterventionsService implements OnModuleInit {
     return view;
   }
 
-  private presentRule(rule: {
-    id: string;
-    siteId: string;
-    agentIds: string[];
-    label: string;
-    startTime: string;
-    endTime: string;
-    daysOfWeek: number[];
-    intervalWeeks: number;
-    startDate: Date;
-    endDate: Date | null;
-    active: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  }): InterventionRuleEntity {
-    return {
-      id: rule.id,
-      siteId: rule.siteId,
-      agentIds: rule.agentIds,
-      label: rule.label,
-      startTime: rule.startTime,
-      endTime: rule.endTime,
-      daysOfWeek: rule.daysOfWeek,
-      intervalWeeks: rule.intervalWeeks,
-      startDate: rule.startDate,
-      endDate: rule.endDate,
-      active: rule.active,
-      createdAt: rule.createdAt,
-      updatedAt: rule.updatedAt,
-    };
-  }
-
-  async listRules(): Promise<InterventionRuleEntity[]> {
-    const rules = await this.prisma.interventionRule.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-    return rules.map((rule) => this.presentRule(rule));
-  }
-
-  async createRule(dto: CreateInterventionRuleDto) {
-    const rule = await this.prisma.interventionRule.create({
-      data: {
-        siteId: dto.siteId,
-        label: dto.label,
-        startTime: dto.startTime,
-        endTime: dto.endTime,
-        daysOfWeek: dto.daysOfWeek,
-        intervalWeeks: dto.intervalWeeks ?? 1,
-        startDate: dto.startDate ? new Date(dto.startDate) : new Date(),
-        endDate: dto.endDate ? new Date(dto.endDate) : null,
-        agentIds: dto.agentIds,
-        active: dto.active ?? true,
-      },
-    });
-    return this.presentRule(rule);
-  }
-
-  async updateRule(id: string, dto: UpdateInterventionRuleDto) {
-    const data: Prisma.InterventionRuleUpdateInput = {};
-    if (dto.siteId) data.site = { connect: { id: dto.siteId } };
-    if (dto.label !== undefined) data.label = dto.label;
-    if (dto.startTime !== undefined) data.startTime = dto.startTime;
-    if (dto.endTime !== undefined) data.endTime = dto.endTime;
-    if (dto.daysOfWeek) data.daysOfWeek = dto.daysOfWeek;
-    if (dto.intervalWeeks !== undefined) data.intervalWeeks = dto.intervalWeeks;
-    if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
-    if (dto.endDate !== undefined) data.endDate = dto.endDate ? new Date(dto.endDate) : null;
-    if (dto.agentIds) data.agentIds = dto.agentIds;
-    if (dto.active !== undefined) data.active = dto.active;
-
-    const rule = await this.prisma.interventionRule.update({
-      where: { id },
-      data,
-    });
-    return this.presentRule(rule);
-  }
-
-  async toggleRule(id: string, active: boolean) {
-    const rule = await this.prisma.interventionRule.update({
-      where: { id },
-      data: { active },
-    });
-    return this.presentRule(rule);
-  }
-
-  /**
-   * Propose (sans jamais créer directement) les occurrences des 8 prochaines semaines pour
-   * chaque règle active. Une ApprovalRequest CREATE_RECURRING_BATCH par règle, à valider par un
-   * admin — la génération ne crée plus d'intervention en direct (voir plan multi-agents /
-   * validation admin).
-   */
-  private async generateFromRules() {
-    if (this.generatingRules) {
-      return;
-    }
-    this.generatingRules = true;
-    try {
-      const horizonStart = this.toDateOnly(new Date().toISOString().slice(0, 10));
-      const horizonEnd = new Date(horizonStart.getTime() + this.GENERATION_HORIZON_DAYS * 24 * 60 * 60 * 1000);
-      const rules = await this.prisma.interventionRule.findMany({ where: { active: true } });
-
-      for (const rule of rules) {
-        const occurrences = computeRuleOccurrences(
-          {
-            daysOfWeek: rule.daysOfWeek,
-            intervalWeeks: rule.intervalWeeks,
-            startDate: rule.startDate,
-            endDate: rule.endDate,
-          },
-          horizonStart,
-          horizonEnd,
-        );
-        if (!occurrences.length) continue;
-
-        const [existingInterventions, existingBatches] = await Promise.all([
-          this.prisma.intervention.findMany({
-            where: { generatedFromRuleId: rule.id, date: { gte: horizonStart, lte: horizonEnd } },
-            select: { date: true },
-          }),
-          this.prisma.approvalRequest.findMany({
-            where: {
-              entityType: 'InterventionRule',
-              entityId: rule.id,
-              actionType: 'CREATE_RECURRING_BATCH',
-              status: { in: ['PENDING', 'APPROVED'] },
-            },
-            select: { payload: true },
-          }),
-        ]);
-
-        const covered = new Set<string>(existingInterventions.map((i) => i.date.toISOString().slice(0, 10)));
-        existingBatches.forEach((batch) => {
-          const occ = (batch.payload as any)?.occurrences as { date: string }[] | undefined;
-          occ?.forEach((o) => covered.add(o.date));
-        });
-
-        const newDates = occurrences.filter((date) => !covered.has(date));
-        if (!newDates.length) continue;
-
-        await this.approvals.createRequest({
-          actionType: 'CREATE_RECURRING_BATCH',
-          entityType: 'InterventionRule',
-          entityId: rule.id,
-          payload: {
-            ruleId: rule.id,
-            ruleLabel: rule.label,
-            siteId: rule.siteId,
-            startTime: rule.startTime,
-            endTime: rule.endTime,
-            agentIds: rule.agentIds,
-            occurrences: newDates.map((date) => ({ date })),
-          },
-          requestedById: null,
-          summary: `${newDates.length} occurrence(s) — ${rule.label}`,
-        });
-      }
-    } catch (error) {
-      this.logger.error('Erreur lors de la génération programmée', error.stack);
-    } finally {
-      this.generatingRules = false;
-    }
-  }
-
-  private presentTourRule(rule: {
+  private presentTemplate(template: {
     id: string;
     label: string;
     intervalWeeks: number;
     startDate: Date;
     endDate: Date | null;
+    autoGenerate: boolean;
     active: boolean;
     createdAt: Date;
     updatedAt: Date;
-    stops: { id: string; dayOfWeek: number; siteId: string; startTime: string; endTime: string; agentIds: string[]; order: number }[];
-  }): TourRuleEntity {
+    stops: { id: string; daysOfWeek: number[]; siteId: string; startTime: string; endTime: string; agentIds: string[]; order: number }[];
+  }): InterventionTemplateEntity {
     return {
-      id: rule.id,
-      label: rule.label,
-      intervalWeeks: rule.intervalWeeks,
-      startDate: rule.startDate,
-      endDate: rule.endDate,
-      active: rule.active,
-      createdAt: rule.createdAt,
-      updatedAt: rule.updatedAt,
-      stops: rule.stops
+      id: template.id,
+      label: template.label,
+      intervalWeeks: template.intervalWeeks,
+      startDate: template.startDate,
+      endDate: template.endDate,
+      autoGenerate: template.autoGenerate,
+      active: template.active,
+      createdAt: template.createdAt,
+      updatedAt: template.updatedAt,
+      stops: template.stops
         .slice()
-        .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.order - b.order)
+        .sort((a, b) => a.order - b.order)
         .map((s) => ({
           id: s.id,
-          dayOfWeek: s.dayOfWeek,
+          daysOfWeek: s.daysOfWeek,
           siteId: s.siteId,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -1381,47 +1165,48 @@ export class InterventionsService implements OnModuleInit {
     };
   }
 
-  /** Un agent ne peut pas être sur deux arrêts du même jour avec des horaires qui se chevauchent. */
-  private assertNoTourStopConflicts(stops: TourStopLike[]) {
-    const conflicts = findTourStopConflicts(stops);
+  /** Un agent ne peut pas être sur deux arrêts dont les jours se recoupent avec des horaires qui se chevauchent. */
+  private assertNoTemplateStopConflicts(stops: TemplateStopLike[]) {
+    const conflicts = findTemplateStopConflicts(stops);
     if (conflicts.length) {
       const { a, b, agentId } = conflicts[0];
       const agent = this.usersService.findOne(agentId);
       throw new BadRequestException(
-        `Conflit dans le gabarit : ${agent?.name ?? agentId} est affecté à deux arrêts qui se chevauchent le même jour (${a.startTime}–${a.endTime} et ${b.startTime}–${b.endTime}).`,
+        `Conflit dans le gabarit : ${agent?.name ?? agentId} est affecté à deux arrêts qui se chevauchent (${a.startTime}–${a.endTime} et ${b.startTime}–${b.endTime}).`,
       );
     }
   }
 
-  async listTourRules(): Promise<TourRuleEntity[]> {
-    const rules = await this.prisma.tourRule.findMany({
+  async listTemplates(): Promise<InterventionTemplateEntity[]> {
+    const templates = await this.prisma.interventionTemplate.findMany({
       orderBy: { createdAt: 'desc' },
       include: { stops: true },
     });
-    return rules.map((rule) => this.presentTourRule(rule));
+    return templates.map((template) => this.presentTemplate(template));
   }
 
-  async createTourRule(dto: CreateTourRuleDto) {
-    this.assertNoTourStopConflicts(
+  async createTemplate(dto: CreateTemplateDto) {
+    this.assertNoTemplateStopConflicts(
       dto.stops.map((s, index) => ({
         id: `new-${index}`,
-        dayOfWeek: s.dayOfWeek,
+        daysOfWeek: s.daysOfWeek,
         siteId: s.siteId,
         startTime: s.startTime,
         endTime: s.endTime,
         agentIds: s.agentIds ?? [],
       })),
     );
-    const rule = await this.prisma.tourRule.create({
+    const template = await this.prisma.interventionTemplate.create({
       data: {
         label: dto.label,
         intervalWeeks: dto.intervalWeeks ?? 1,
         startDate: dto.startDate ? new Date(dto.startDate) : new Date(),
         endDate: dto.endDate ? new Date(dto.endDate) : null,
+        autoGenerate: dto.autoGenerate ?? false,
         active: dto.active ?? true,
         stops: {
           create: dto.stops.map((s, index) => ({
-            dayOfWeek: s.dayOfWeek,
+            daysOfWeek: s.daysOfWeek,
             siteId: s.siteId,
             startTime: s.startTime,
             endTime: s.endTime,
@@ -1432,19 +1217,19 @@ export class InterventionsService implements OnModuleInit {
       },
       include: { stops: true },
     });
-    return this.presentTourRule(rule);
+    return this.presentTemplate(template);
   }
 
-  async updateTourRule(id: string, dto: UpdateTourRuleDto) {
-    const existing = await this.prisma.tourRule.findUnique({ where: { id } });
+  async updateTemplate(id: string, dto: UpdateTemplateDto) {
+    const existing = await this.prisma.interventionTemplate.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException('Tournée introuvable');
+      throw new NotFoundException('Gabarit introuvable');
     }
     if (dto.stops) {
-      this.assertNoTourStopConflicts(
+      this.assertNoTemplateStopConflicts(
         dto.stops.map((s, index) => ({
           id: `new-${index}`,
-          dayOfWeek: s.dayOfWeek,
+          daysOfWeek: s.daysOfWeek,
           siteId: s.siteId,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -1453,25 +1238,26 @@ export class InterventionsService implements OnModuleInit {
       );
     }
 
-    const data: Prisma.TourRuleUpdateInput = {};
+    const data: Prisma.InterventionTemplateUpdateInput = {};
     if (dto.label !== undefined) data.label = dto.label;
     if (dto.intervalWeeks !== undefined) data.intervalWeeks = dto.intervalWeeks;
     if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
     if (dto.endDate !== undefined) data.endDate = dto.endDate ? new Date(dto.endDate) : null;
+    if (dto.autoGenerate !== undefined) data.autoGenerate = dto.autoGenerate;
     if (dto.active !== undefined) data.active = dto.active;
 
-    const rule = await this.prisma.$transaction(async (tx) => {
+    const template = await this.prisma.$transaction(async (tx) => {
       if (dto.stops) {
-        await tx.tourStop.deleteMany({ where: { tourRuleId: id } });
+        await tx.templateStop.deleteMany({ where: { templateId: id } });
       }
-      return tx.tourRule.update({
+      return tx.interventionTemplate.update({
         where: { id },
         data: {
           ...data,
           stops: dto.stops
             ? {
                 create: dto.stops.map((s, index) => ({
-                  dayOfWeek: s.dayOfWeek,
+                  daysOfWeek: s.daysOfWeek,
                   siteId: s.siteId,
                   startTime: s.startTime,
                   endTime: s.endTime,
@@ -1484,37 +1270,37 @@ export class InterventionsService implements OnModuleInit {
         include: { stops: true },
       });
     });
-    return this.presentTourRule(rule);
+    return this.presentTemplate(template);
   }
 
-  async toggleTourRule(id: string, active: boolean) {
-    const rule = await this.prisma.tourRule.update({
+  async toggleTemplate(id: string, active: boolean) {
+    const template = await this.prisma.interventionTemplate.update({
       where: { id },
       data: { active },
       include: { stops: true },
     });
-    return this.presentTourRule(rule);
+    return this.presentTemplate(template);
   }
 
-  /** Calcule (sans rien créer) les occurrences d'une tournée sur une période, pour aperçu admin. */
-  async previewTourOccurrences(tourRuleId: string, startDate: string, endDate: string) {
-    const rule = await this.prisma.tourRule.findUnique({
-      where: { id: tourRuleId },
+  /** Calcule (sans rien créer) les occurrences d'un gabarit sur une période, pour aperçu admin. */
+  async previewTemplateOccurrences(templateId: string, startDate: string, endDate: string) {
+    const template = await this.prisma.interventionTemplate.findUnique({
+      where: { id: templateId },
       include: { stops: true },
     });
-    if (!rule) {
-      throw new NotFoundException('Tournée introuvable');
+    if (!template) {
+      throw new NotFoundException('Gabarit introuvable');
     }
-    const stops: TourStopLike[] = rule.stops.map((s) => ({
+    const stops: TemplateStopLike[] = template.stops.map((s) => ({
       id: s.id,
-      dayOfWeek: s.dayOfWeek,
+      daysOfWeek: s.daysOfWeek,
       siteId: s.siteId,
       startTime: s.startTime,
       endTime: s.endTime,
       agentIds: s.agentIds,
     }));
-    const occurrences = computeTourOccurrences(
-      { intervalWeeks: rule.intervalWeeks, startDate: rule.startDate, endDate: rule.endDate },
+    const occurrences = computeTemplateOccurrences(
+      { intervalWeeks: template.intervalWeeks, startDate: template.startDate, endDate: template.endDate },
       stops,
       this.toDateOnly(startDate),
       this.toDateOnly(endDate),
@@ -1525,22 +1311,110 @@ export class InterventionsService implements OnModuleInit {
       : [];
     const siteNameById = new Map(sites.map((s) => [s.id, s.name]));
     return {
-      tourRuleId: rule.id,
-      tourRuleLabel: rule.label,
+      templateId: template.id,
+      templateLabel: template.label,
       occurrences: occurrences.map((o) => ({ ...o, siteName: siteNameById.get(o.siteId) ?? o.siteId })),
     };
   }
 
   /**
-   * Applique un lot de tournée (généré à la demande depuis la page Tournées, ou approuvé par un
-   * admin) : pré-valide les conflits d'affectation, crée toutes les interventions en mode
-   * silencieux (une par arrêt/date), taguées du même batchId, puis envoie une notification
-   * consolidée par agent concerné.
+   * Propose (sans jamais créer directement) les occurrences des 8 prochaines semaines pour
+   * chaque gabarit actif dont la génération automatique est activée — single ou multi-site. Une
+   * ApprovalRequest CREATE_TEMPLATE_BATCH par gabarit, à valider par un admin.
    */
-  async createTourBatch(
+  private async generateFromTemplates() {
+    if (this.generatingTemplates) {
+      return;
+    }
+    this.generatingTemplates = true;
+    try {
+      const horizonStart = this.toDateOnly(new Date().toISOString().slice(0, 10));
+      const horizonEnd = new Date(horizonStart.getTime() + this.GENERATION_HORIZON_DAYS * 24 * 60 * 60 * 1000);
+      const templates = await this.prisma.interventionTemplate.findMany({
+        where: { active: true, autoGenerate: true },
+        include: { stops: true },
+      });
+
+      for (const template of templates) {
+        const stops: TemplateStopLike[] = template.stops.map((s) => ({
+          id: s.id,
+          daysOfWeek: s.daysOfWeek,
+          siteId: s.siteId,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          agentIds: s.agentIds,
+        }));
+        const occurrences = computeTemplateOccurrences(
+          { intervalWeeks: template.intervalWeeks, startDate: template.startDate, endDate: template.endDate },
+          stops,
+          horizonStart,
+          horizonEnd,
+        );
+        if (!occurrences.length) continue;
+
+        const [existingInterventions, existingBatches] = await Promise.all([
+          this.prisma.intervention.findMany({
+            where: { generatedFromTemplateId: template.id, date: { gte: horizonStart, lte: horizonEnd } },
+            select: { date: true, siteId: true },
+          }),
+          this.prisma.approvalRequest.findMany({
+            where: {
+              entityType: 'InterventionTemplate',
+              entityId: template.id,
+              actionType: 'CREATE_TEMPLATE_BATCH',
+              status: { in: ['PENDING', 'APPROVED'] },
+            },
+            select: { payload: true },
+          }),
+        ]);
+
+        const covered = new Set<string>(
+          existingInterventions.map((i) => `${i.date.toISOString().slice(0, 10)}:${i.siteId}`),
+        );
+        existingBatches.forEach((batch) => {
+          const occ = (batch.payload as any)?.occurrences as { date: string; siteId: string }[] | undefined;
+          occ?.forEach((o) => covered.add(`${o.date}:${o.siteId}`));
+        });
+
+        const newOccurrences = occurrences.filter((o) => !covered.has(`${o.date}:${o.siteId}`));
+        if (!newOccurrences.length) continue;
+
+        await this.approvals.createRequest({
+          actionType: 'CREATE_TEMPLATE_BATCH',
+          entityType: 'InterventionTemplate',
+          entityId: template.id,
+          payload: {
+            templateId: template.id,
+            templateLabel: template.label,
+            occurrences: newOccurrences.map((o) => ({
+              date: o.date,
+              siteId: o.siteId,
+              startTime: o.startTime,
+              endTime: o.endTime,
+              agentIds: o.agentIds,
+            })),
+          },
+          requestedById: null,
+          summary: `${newOccurrences.length} occurrence(s) — ${template.label}`,
+        });
+      }
+    } catch (error) {
+      this.logger.error('Erreur lors de la génération programmée', error.stack);
+    } finally {
+      this.generatingTemplates = false;
+    }
+  }
+
+  /**
+   * Applique un lot d'occurrences (généré à la demande, ou approuvé par un admin) : pré-valide
+   * les conflits d'affectation, crée toutes les interventions en mode silencieux (une par
+   * arrêt/date), taguées du même batchId, puis envoie une notification consolidée par agent
+   * concerné.
+   */
+  async createTemplateBatch(
     payload: {
-      tourRuleId: string;
-      tourRuleLabel?: string;
+      templateId: string;
+      templateLabel?: string;
       occurrences: { date: string; siteId: string; startTime: string; endTime: string; agentIds: string[] }[];
     },
     actorId: string,
@@ -1560,9 +1434,9 @@ export class InterventionsService implements OnModuleInit {
           date: occurrence.date,
           startTime: occurrence.startTime,
           endTime: occurrence.endTime,
-          label: payload.tourRuleLabel,
+          label: payload.templateLabel,
           agentIds: occurrence.agentIds,
-          generatedFromTourId: payload.tourRuleId,
+          generatedFromTemplateId: payload.templateId,
           batchId,
         } as CreateInterventionDto,
         actorId,
@@ -1573,7 +1447,64 @@ export class InterventionsService implements OnModuleInit {
     try {
       await this.sendConsolidatedNotification(created);
     } catch (err) {
-      this.logger.warn(`Notification de tournée échouée: ${(err as Error).message}`);
+      this.logger.warn(`Notification de lot échouée: ${(err as Error).message}`);
+    }
+    return created;
+  }
+
+  /**
+   * Création ponctuelle (un ou plusieurs arrêts, une seule fois, sans gabarit persisté). Un seul
+   * arrêt se comporte exactement comme `create()` (notification individuelle normale) ; plusieurs
+   * arrêts déclenchent la même sémantique de lot que `createTemplateBatch` (batchId partagé,
+   * notification consolidée par agent).
+   */
+  async createOneshotBatch(
+    occurrences: { siteId: string; date: string; startTime: string; endTime: string; agentIds: string[]; label?: string }[],
+    actorId: string,
+  ) {
+    for (const occurrence of occurrences) {
+      if (occurrence.agentIds?.length) {
+        await this.checkAssignmentConflicts(occurrence.agentIds, occurrence.date, occurrence.startTime, occurrence.endTime);
+      }
+    }
+    if (occurrences.length === 1) {
+      const [occurrence] = occurrences;
+      return this.create(
+        {
+          type: 'REGULAR',
+          siteId: occurrence.siteId,
+          date: occurrence.date,
+          startTime: occurrence.startTime,
+          endTime: occurrence.endTime,
+          label: occurrence.label,
+          agentIds: occurrence.agentIds,
+        } as CreateInterventionDto,
+        actorId,
+      );
+    }
+    const batchId = randomUUID();
+    const created: InterventionView[] = [];
+    for (const occurrence of occurrences) {
+      const view = await this.create(
+        {
+          type: 'REGULAR',
+          siteId: occurrence.siteId,
+          date: occurrence.date,
+          startTime: occurrence.startTime,
+          endTime: occurrence.endTime,
+          label: occurrence.label,
+          agentIds: occurrence.agentIds,
+          batchId,
+        } as CreateInterventionDto,
+        actorId,
+        { silent: true },
+      );
+      created.push(view);
+    }
+    try {
+      await this.sendConsolidatedNotification(created);
+    } catch (err) {
+      this.logger.warn(`Notification de lot échouée: ${(err as Error).message}`);
     }
     return created;
   }

@@ -106,14 +106,21 @@ async function main() {
     },
   });
 
-  const atelierRule = await prisma.interventionRule.create({
+  const atelierRule = await prisma.interventionTemplate.create({
     data: {
-      siteId: siteAtelier.id,
       label: 'Nettoyage atelier – matin',
-      startTime: '06:00',
-      endTime: '09:00',
-      daysOfWeek: [1, 2, 3, 4, 5],
-      agentIds: [agentLucas.id],
+      autoGenerate: true,
+      stops: {
+        create: [
+          {
+            siteId: siteAtelier.id,
+            startTime: '06:00',
+            endTime: '09:00',
+            daysOfWeek: [1, 2, 3, 4, 5],
+            agentIds: [agentLucas.id],
+          },
+        ],
+      },
     },
   });
 
@@ -130,7 +137,7 @@ async function main() {
       label: 'Nettoyage du site – matin',
       status: InterventionStatus.PLANNED,
       observation: 'Prévoir contrôle qualité',
-      generatedFromRuleId: atelierRule.id,
+      generatedFromTemplateId: atelierRule.id,
       assignments: {
         create: [{ userId: agentLucas.id }],
       },

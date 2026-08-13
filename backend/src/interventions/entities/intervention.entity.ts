@@ -18,30 +18,13 @@ export class InterventionEntity {
   billable: boolean = true;
   createdAt!: Date;
   updatedAt!: Date;
-  generatedFromRuleId?: string;
-  generatedFromTourId?: string;
+  generatedFromTemplateId?: string;
   batchId?: string;
 }
 
-export class InterventionRuleEntity {
+export class TemplateStopEntity {
   id!: string;
-  siteId!: string;
-  agentIds: string[] = [];
-  label!: string;
-  startTime!: string;
-  endTime!: string;
   daysOfWeek!: number[];
-  intervalWeeks: number = 1;
-  startDate!: Date;
-  endDate?: Date | null;
-  active: boolean = true;
-  createdAt!: Date;
-  updatedAt!: Date;
-}
-
-export class TourStopEntity {
-  id!: string;
-  dayOfWeek!: number;
   siteId!: string;
   startTime!: string;
   endTime!: string;
@@ -49,14 +32,15 @@ export class TourStopEntity {
   order: number = 0;
 }
 
-export class TourRuleEntity {
+export class InterventionTemplateEntity {
   id!: string;
   label!: string;
   intervalWeeks: number = 1;
   startDate!: Date;
   endDate?: Date | null;
+  autoGenerate: boolean = false;
   active: boolean = true;
   createdAt!: Date;
   updatedAt!: Date;
-  stops: TourStopEntity[] = [];
+  stops: TemplateStopEntity[] = [];
 }

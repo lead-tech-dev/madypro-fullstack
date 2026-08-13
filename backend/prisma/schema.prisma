@@ -109,8 +109,7 @@ enum ApprovalActionType {
   ASSIGN_AGENT
   UNASSIGN_AGENT
   CANCEL_INTERVENTION
-  CREATE_RECURRING_BATCH
-  CREATE_TOUR_BATCH
+  CREATE_TEMPLATE_BATCH
 }
 
 enum ApprovalStatus {
@@ -316,8 +315,7 @@ model Site {
   supervisors            SiteSupervisor[]
   interventions          Intervention[]
   absences               Absence[]
-  InterventionRule       InterventionRule[]
-  tourStops              TourStop[]
+  templateStops          TemplateStop[]
   checklistItems         SiteChecklistItem[]
   contracts              SiteContract[]
   zones                  SiteZone[]
@@ -384,34 +382,32 @@ model SiteSupervisor {
 }
 
 model Intervention {
-  id                  String                      @id @default(cuid())
-  siteId              String
-  site                Site                        @relation(fields: [siteId], references: [id])
-  date                DateTime
-  startTime           String
-  endTime             String
-  type                InterventionType
-  subType             String?
-  label               String?
-  photos              String[]                    @default([])
-  status              InterventionStatus          @default(PLANNED)
-  observation         String?
-  clientSignature     String?
-  billable            Boolean                     @default(true)
-  createdAt           DateTime                    @default(now())
-  updatedAt           DateTime                    @updatedAt
-  assignments         InterventionAssignment[]
-  trucks              InterventionTruck[]
-  anomalies           Anomaly[]
-  generatedFromRuleId String?
-  generatedFromRule   InterventionRule?           @relation(fields: [generatedFromRuleId], references: [id])
-  generatedFromTourId String?
-  generatedFromTour   TourRule?                   @relation(fields: [generatedFromTourId], references: [id])
-  batchId             String?
-  attendances         Attendance[]
-  checklistItems      InterventionChecklistItem[]
-  shiftSwapRequests   ShiftSwapRequest[]
-  quotes              Quote[]
+  id                      String                      @id @default(cuid())
+  siteId                  String
+  site                    Site                        @relation(fields: [siteId], references: [id])
+  date                    DateTime
+  startTime               String
+  endTime                 String
+  type                    InterventionType
+  subType                 String?
+  label                   String?
+  photos                  String[]                    @default([])
+  status                  InterventionStatus          @default(PLANNED)
+  observation             String?
+  clientSignature         String?
+  billable                Boolean                     @default(true)
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  assignments             InterventionAssignment[]
+  trucks                  InterventionTruck[]
+  anomalies               Anomaly[]
+  generatedFromTemplateId String?
+  generatedFromTemplate   InterventionTemplate?       @relation(fields: [generatedFromTemplateId], references: [id])
+  batchId                 String?
+  attendances             Attendance[]
+  checklistItems          InterventionChecklistItem[]
+  shiftSwapRequests       ShiftSwapRequest[]
+  quotes                  Quote[]
 
   @@index([batchId])
 }
@@ -445,52 +441,35 @@ model InterventionTruck {
   intervention   Intervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
 }
 
-model InterventionRule {
-  id            String         @id @default(cuid())
-  siteId        String
-  site          Site           @relation(fields: [siteId], references: [id])
-  label         String
-  startTime     String
-  endTime       String
-  daysOfWeek    Int[]
-  intervalWeeks Int            @default(1)
-  startDate     DateTime       @default(now())
-  endDate       DateTime?
-  agentIds      String[]
-  active        Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  interventions Intervention[]
-}
-
-model TourRule {
+model InterventionTemplate {
   id            String         @id @default(cuid())
   label         String
   intervalWeeks Int            @default(1)
   startDate     DateTime       @default(now())
   endDate       DateTime?
+  autoGenerate  Boolean        @default(false)
   active        Boolean        @default(true)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  stops         TourStop[]
+  stops         TemplateStop[]
   interventions Intervention[]
 }
 
-model TourStop {
-  id         String   @id @default(cuid())
-  tourRuleId String
-  tourRule   TourRule @relation(fields: [tourRuleId], references: [id], onDelete: Cascade)
-  dayOfWeek  Int
+model TemplateStop {
+  id         String               @id @default(cuid())
+  templateId String
+  template   InterventionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  daysOfWeek Int[]
   siteId     String
-  site       Site     @relation(fields: [siteId], references: [id])
+  site       Site                 @relation(fields: [siteId], references: [id])
   startTime  String
   endTime    String
   agentIds   String[]
-  order      Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  order      Int                  @default(0)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
-  @@index([tourRuleId])
+  @@index([templateId])
 }
 
 model Attendance {

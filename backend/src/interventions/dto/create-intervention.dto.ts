@@ -44,11 +44,7 @@ export class CreateInterventionDto {
 
   @IsOptional()
   @IsString()
-  generatedFromRuleId?: string;
-
-  @IsOptional()
-  @IsString()
-  generatedFromTourId?: string;
+  generatedFromTemplateId?: string;
 
   @IsOptional()
   @IsString()

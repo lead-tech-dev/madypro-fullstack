@@ -10,9 +10,11 @@ import {
   Min,
 } from 'class-validator';
 
-export class TourStopInputDto {
-  @IsIn([0, 1, 2, 3, 4, 5, 6])
-  dayOfWeek!: number;
+export class TemplateStopInputDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsIn([0, 1, 2, 3, 4, 5, 6], { each: true })
+  daysOfWeek!: number[];
 
   @IsString()
   siteId!: string;
@@ -31,13 +33,13 @@ export class TourStopInputDto {
   order?: number;
 }
 
-export class CreateTourRuleDto {
+export class CreateTemplateDto {
   @IsString()
   label!: string;
 
   @IsArray()
   @ArrayMinSize(1)
-  stops!: TourStopInputDto[];
+  stops!: TemplateStopInputDto[];
 
   @IsOptional()
   @IsInt()
@@ -51,6 +53,10 @@ export class CreateTourRuleDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  autoGenerate?: boolean;
 
   @IsOptional()
   @IsBoolean()
