@@ -35,7 +35,7 @@ const shiftTime = (time: string, deltaMinutes: number) => {
   return `${nh}:${nm}`;
 };
 
-export const SupervisorPlanningPage: React.FC = () => {
+export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const { token, user, notify } = useAuthContext();
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
@@ -153,12 +153,14 @@ export const SupervisorPlanningPage: React.FC = () => {
   };
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <span className="pill">Supervision</span>
-        <h2>Planning des équipes</h2>
-        <p>Vue hebdomadaire des équipes par site, avec ajustement horaires et remplacements.</p>
-      </div>
+    <div className={embedded ? undefined : 'page'}>
+      {!embedded && (
+        <div className="page-header">
+          <span className="pill">Supervision</span>
+          <h2>Planning des équipes</h2>
+          <p>Vue hebdomadaire des équipes par site, avec ajustement horaires et remplacements.</p>
+        </div>
+      )}
 
       <div className="filter-grid" style={{ marginBottom: '1rem' }}>
         <div className="filter-card" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -215,6 +217,7 @@ export const SupervisorPlanningPage: React.FC = () => {
         </label>
       </div>
 
+      {!embedded && (
       <div className="panel" style={{ marginBottom: '1rem' }}>
         <h3>Optimisation de tournée</h3>
         <div className="filter-grid">
@@ -259,6 +262,7 @@ export const SupervisorPlanningPage: React.FC = () => {
           </div>
         )}
       </div>
+      )}
 
       {loading ? (
         <div className="panel">

@@ -28,6 +28,7 @@ import { Attendance } from '../../types/attendance';
 import { compressImageFile } from '../../utils/image';
 import { RulesPage } from './RulesPage';
 import { ToursPage } from './ToursPage';
+import { SupervisorPlanningPage } from '../supervision/SupervisorPlanningPage';
 
 const formatHour = (value?: string | null) => {
   if (!value) return '—';
@@ -100,7 +101,7 @@ const createFormDefaults: CreateInterventionPayload = {
 
 export const InterventionsPage: React.FC = () => {
   const { token, notify } = useAuthContext();
-  const [tab, setTab] = useState<'planning' | 'rules' | 'tours'>('planning');
+  const [tab, setTab] = useState<'planning' | 'weekly' | 'rules' | 'tours'>('planning');
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [filters, setFilters] = useState(defaultFilters);
   const [sites, setSites] = useState<Site[]>([]);
@@ -475,6 +476,9 @@ export const InterventionsPage: React.FC = () => {
         <button type="button" className={`chip ${tab === 'planning' ? 'chip--selected' : ''}`} onClick={() => setTab('planning')}>
           Planning
         </button>
+        <button type="button" className={`chip ${tab === 'weekly' ? 'chip--selected' : ''}`} onClick={() => setTab('weekly')}>
+          Vue hebdomadaire
+        </button>
         <button type="button" className={`chip ${tab === 'rules' ? 'chip--selected' : ''}`} onClick={() => setTab('rules')}>
           Règles récurrentes
         </button>
@@ -483,6 +487,7 @@ export const InterventionsPage: React.FC = () => {
         </button>
       </div>
 
+      {tab === 'weekly' && <SupervisorPlanningPage embedded />}
       {tab === 'rules' && <RulesPage embedded />}
       {tab === 'tours' && <ToursPage embedded />}
 

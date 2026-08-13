@@ -7,7 +7,6 @@ import { UserFormPage } from '../pages/users/UserFormPage';
 import { SitesListPage } from '../pages/sites/SitesListPage';
 import { SiteFormPage } from '../pages/sites/SiteFormPage';
 import { InterventionsPage } from '../pages/interventions/InterventionsPage';
-import { SupervisorPlanningPage } from '../pages/supervision/SupervisorPlanningPage';
 import { AttendanceListPage } from '../pages/attendance/AttendanceListPage';
 import { AbsencesListPage } from '../pages/absences/AbsencesListPage';
 import { AbsenceDetailPage } from '../pages/absences/AbsenceDetailPage';
@@ -48,7 +47,6 @@ export const AdminRoutes = () => (
       <Route path="/sites/:id/edit" element={<SiteFormPage />} />
       <Route path="/interventions" element={<InterventionsPage />} />
       <Route path="/approvals" element={<ApprovalsPage />} />
-      <Route path="/planning" element={<SupervisorPlanningPage />} />
       <Route path="/attendance" element={<AttendanceListPage />} />
       <Route path="/absences" element={<AbsencesListPage />} />
       <Route path="/absences/:id" element={<AbsenceDetailPage />} />

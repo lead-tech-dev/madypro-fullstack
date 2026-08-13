@@ -7,12 +7,13 @@ import {
   toggleTour,
   previewTour,
   generateTour,
+  getRouteOptimization,
   CreateTourPayload,
   TourStopPayload,
 } from '../../services/api/interventions.api';
 import { listSites } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
-import { TourRule, TourPreview } from '../../types/intervention';
+import { TourRule, TourPreview, RouteOptimizationResult } from '../../types/intervention';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
@@ -92,6 +93,24 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
+
+  const [routeAgentId, setRouteAgentId] = useState('');
+  const [routeDate, setRouteDate] = useState(new Date().toISOString().slice(0, 10));
+  const [route, setRoute] = useState<RouteOptimizationResult | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+
+  const fetchRoute = async () => {
+    if (!token || !routeAgentId || !routeDate) return;
+    setRouteLoading(true);
+    try {
+      const result = await getRouteOptimization(token, routeAgentId, routeDate);
+      setRoute(result);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Optimisation impossible', 'error');
+    } finally {
+      setRouteLoading(false);
+    }
+  };
 
   const [generateTourId, setGenerateTourId] = useState<string | null>(null);
   const [generatePeriod, setGeneratePeriod] = useState<'day' | 'week' | 'custom'>('week');
@@ -329,6 +348,51 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
           </Button>
         </div>
       )}
+
+      <div className="panel" style={{ marginBottom: '1rem' }}>
+        <h3>Optimisation de tournée du jour</h3>
+        <div className="filter-grid">
+          <label className="filter-field filter-card">
+            Agent
+            <select value={routeAgentId} onChange={(e) => setRouteAgentId(e.target.value)}>
+              <option value="">Sélectionner</option>
+              {agentOptions.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="filter-field filter-card">
+            Date
+            <input type="date" value={routeDate} onChange={(e) => setRouteDate(e.target.value)} />
+          </label>
+          <div className="filter-card" style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <Button type="button" onClick={fetchRoute} disabled={!routeAgentId || routeLoading}>
+              {routeLoading ? 'Calcul...' : 'Optimiser'}
+            </Button>
+          </div>
+        </div>
+        {route && (
+          <div style={{ marginTop: '0.75rem' }}>
+            <p className="card__meta">
+              Distance totale estimée : {(route.totalDistanceMeters / 1000).toFixed(1)} km
+            </p>
+            {route.stops.length === 0 ? (
+              <p>Aucune intervention géolocalisée ce jour-là.</p>
+            ) : (
+              <ol className="list-line">
+                {route.stops.map((stop) => (
+                  <li key={stop.interventionId}>
+                    <span>{stop.startTime}</span>
+                    <span>{stop.siteName}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="panel">
         <div className="table-wrapper">
