@@ -49,7 +49,7 @@ const INTERVAL_LABELS: Record<number, string> = {
   4: 'Toutes les 4 semaines',
 };
 
-export const RulesPage: React.FC = () => {
+export const RulesPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const { token, notify } = useAuthContext();
   const [rules, setRules] = useState<InterventionRule[]>([]);
   const [siteNames, setSiteNames] = useState<Record<string, string>>({});
@@ -177,18 +177,30 @@ export const RulesPage: React.FC = () => {
   };
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <span className="pill">Interventions</span>
-        <h2>Règles récurrentes</h2>
-        <p>
-          Définissez les interventions qui se répètent (chaque jour, chaque semaine, une semaine sur deux, etc.).
-          Les occurrences générées passent par une validation admin avant création.
-        </p>
-        <Button type="button" onClick={openCreateForm}>
-          Nouvelle règle
-        </Button>
-      </div>
+    <div className={embedded ? undefined : 'page'}>
+      {embedded ? (
+        <div style={{ marginBottom: '1rem' }}>
+          <p style={{ marginTop: 0 }}>
+            Définissez les interventions qui se répètent (chaque jour, chaque semaine, une semaine sur deux, etc.).
+            Les occurrences générées passent par une validation admin avant création.
+          </p>
+          <Button type="button" onClick={openCreateForm}>
+            Nouvelle règle
+          </Button>
+        </div>
+      ) : (
+        <div className="page-header">
+          <span className="pill">Interventions</span>
+          <h2>Règles récurrentes</h2>
+          <p>
+            Définissez les interventions qui se répètent (chaque jour, chaque semaine, une semaine sur deux, etc.).
+            Les occurrences générées passent par une validation admin avant création.
+          </p>
+          <Button type="button" onClick={openCreateForm}>
+            Nouvelle règle
+          </Button>
+        </div>
+      )}
 
       <div className="panel">
         <div className="table-wrapper">

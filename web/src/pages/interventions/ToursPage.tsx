@@ -61,7 +61,26 @@ const addDays = (dateStr: string, days: number) => {
   return toIso(d);
 };
 
-export const ToursPage: React.FC = () => {
+/** Grille calendrier (semaines complètes Lun→Dim) couvrant [start, end]. */
+const buildCalendarDays = (start: string, end: string): string[] => {
+  const startD = new Date(`${start}T00:00:00Z`);
+  const endD = new Date(`${end}T00:00:00Z`);
+  const gridStart = new Date(startD);
+  gridStart.setUTCDate(gridStart.getUTCDate() - ((startD.getUTCDay() + 6) % 7));
+  const gridEnd = new Date(endD);
+  gridEnd.setUTCDate(gridEnd.getUTCDate() + (6 - ((endD.getUTCDay() + 6) % 7)));
+  const days: string[] = [];
+  const cursor = new Date(gridStart);
+  while (cursor <= gridEnd) {
+    days.push(toIso(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
+};
+
+const SITE_COLORS = ['#0E8E7C', '#B15B00', '#3B5BDB', '#C2255C', '#5C940D', '#862E9C'];
+
+export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const { token, notify } = useAuthContext();
   const [tours, setTours] = useState<TourRule[]>([]);
   const [siteNames, setSiteNames] = useState<Record<string, string>>({});
@@ -284,19 +303,32 @@ export const ToursPage: React.FC = () => {
   const generatingTour = tours.find((t) => t.id === generateTourId);
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <span className="pill">Interventions</span>
-        <h2>Tournées</h2>
-        <p>
-          Un agent qui visite plusieurs sites différents selon le jour de la semaine. Générez toutes les
-          interventions d'une période (jour, semaine, ou jusqu'à un mois) en une seule fois — une seule
-          notification est envoyée à chaque agent, pas une par intervention.
-        </p>
-        <Button type="button" onClick={openCreateForm}>
-          Nouvelle tournée
-        </Button>
-      </div>
+    <div className={embedded ? undefined : 'page'}>
+      {embedded ? (
+        <div style={{ marginBottom: '1rem' }}>
+          <p style={{ marginTop: 0 }}>
+            Un agent qui visite plusieurs sites différents selon le jour de la semaine. Générez toutes les
+            interventions d'une période (jour, semaine, ou jusqu'à un mois) en une seule fois — une seule
+            notification est envoyée à chaque agent, pas une par intervention.
+          </p>
+          <Button type="button" onClick={openCreateForm}>
+            Nouvelle tournée
+          </Button>
+        </div>
+      ) : (
+        <div className="page-header">
+          <span className="pill">Interventions</span>
+          <h2>Tournées</h2>
+          <p>
+            Un agent qui visite plusieurs sites différents selon le jour de la semaine. Générez toutes les
+            interventions d'une période (jour, semaine, ou jusqu'à un mois) en une seule fois — une seule
+            notification est envoyée à chaque agent, pas une par intervention.
+          </p>
+          <Button type="button" onClick={openCreateForm}>
+            Nouvelle tournée
+          </Button>
+        </div>
+      )}
 
       <div className="panel">
         <div className="table-wrapper">
@@ -616,14 +648,75 @@ export const ToursPage: React.FC = () => {
               {preview && (
                 <div className="panel" style={{ padding: '0.75rem' }}>
                   <p className="card__meta">{preview.occurrences.length} intervention(s) seront créées :</p>
-                  <ul className="list-line">
-                    {preview.occurrences.map((occ, index) => (
-                      <li key={index}>
-                        {DAY_LABEL[new Date(`${occ.date}T00:00:00Z`).getUTCDay()]} {occ.date} — {occ.siteName} —{' '}
-                        {occ.startTime}–{occ.endTime}
-                      </li>
-                    ))}
-                  </ul>
+                  {(() => {
+                    const occurrencesByDate = new Map<string, typeof preview.occurrences>();
+                    preview.occurrences.forEach((occ) => {
+                      const list = occurrencesByDate.get(occ.date) ?? [];
+                      list.push(occ);
+                      occurrencesByDate.set(occ.date, list);
+                    });
+                    const siteColor = new Map<string, string>();
+                    Array.from(new Set(preview.occurrences.map((o) => o.siteId))).forEach((siteId, index) => {
+                      siteColor.set(siteId, SITE_COLORS[index % SITE_COLORS.length]);
+                    });
+                    const days = buildCalendarDays(genStartDate, genEndDate);
+
+                    return (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '2px' }}>
+                          {DAYS.map((d) => (
+                            <div
+                              key={d.value}
+                              style={{ fontSize: '0.7rem', fontWeight: 600, textAlign: 'center', color: 'var(--color-muted)' }}
+                            >
+                              {d.label.slice(0, 3)}
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+                          {days.map((day) => {
+                            const inRange = day >= genStartDate && day <= genEndDate;
+                            const dayOccurrences = occurrencesByDate.get(day) ?? [];
+                            return (
+                              <div
+                                key={day}
+                                style={{
+                                  minHeight: '64px',
+                                  border: '1px solid #eef1f4',
+                                  borderRadius: '6px',
+                                  padding: '0.25rem',
+                                  background: inRange ? '#fff' : '#fafafa',
+                                  opacity: inRange ? 1 : 0.45,
+                                }}
+                              >
+                                <div style={{ fontSize: '0.7rem', color: 'var(--color-muted)' }}>{Number(day.slice(8, 10))}</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+                                  {dayOccurrences.map((occ, index) => (
+                                    <div
+                                      key={index}
+                                      title={`${occ.siteName} — ${occ.startTime}–${occ.endTime}`}
+                                      style={{
+                                        fontSize: '0.65rem',
+                                        color: '#fff',
+                                        background: siteColor.get(occ.siteId) ?? '#0E8E7C',
+                                        borderRadius: '4px',
+                                        padding: '1px 4px',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      {occ.startTime} {occ.siteName}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

@@ -26,6 +26,8 @@ import { ImageSlider } from '../../components/ui/ImageSlider';
 import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
 import { compressImageFile } from '../../utils/image';
+import { RulesPage } from './RulesPage';
+import { ToursPage } from './ToursPage';
 
 const formatHour = (value?: string | null) => {
   if (!value) return '—';
@@ -98,6 +100,7 @@ const createFormDefaults: CreateInterventionPayload = {
 
 export const InterventionsPage: React.FC = () => {
   const { token, notify } = useAuthContext();
+  const [tab, setTab] = useState<'planning' | 'rules' | 'tours'>('planning');
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [filters, setFilters] = useState(defaultFilters);
   const [sites, setSites] = useState<Site[]>([]);
@@ -443,27 +446,48 @@ export const InterventionsPage: React.FC = () => {
       <div className="page-header">
         <span className="pill">Interventions</span>
         <h2>Vue terrain concrète</h2>
-        <p>Planifiez les missions régulières ou ponctuelles et pilotez les équipes affectées.</p>
-        <Button type="button" onClick={openCreateForm}>
-          Nouvelle intervention
-        </Button>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
-          <span className="pill" style={{ background: '#fff5e0', color: '#b15b00' }}>
-            À valider : {needsReviewCount}
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setFilters((prev) => ({ ...prev, status: 'NEEDS_REVIEW' }))}
-          >
-            Filtrer "À valider"
-          </Button>
-          <Button type="button" variant="ghost" onClick={exportCsv}>
-            Export CSV
-          </Button>
-        </div>
+        <p>Planifiez les missions régulières ou ponctuelles, les règles récurrentes et les tournées multi-sites.</p>
+        {tab === 'planning' && (
+          <>
+            <Button type="button" onClick={openCreateForm}>
+              Nouvelle intervention
+            </Button>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
+              <span className="pill" style={{ background: '#fff5e0', color: '#b15b00' }}>
+                À valider : {needsReviewCount}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setFilters((prev) => ({ ...prev, status: 'NEEDS_REVIEW' }))}
+              >
+                Filtrer "À valider"
+              </Button>
+              <Button type="button" variant="ghost" onClick={exportCsv}>
+                Export CSV
+              </Button>
+            </div>
+          </>
+        )}
       </div>
 
+      <div className="chips" style={{ margin: '1rem 0' }}>
+        <button type="button" className={`chip ${tab === 'planning' ? 'chip--selected' : ''}`} onClick={() => setTab('planning')}>
+          Planning
+        </button>
+        <button type="button" className={`chip ${tab === 'rules' ? 'chip--selected' : ''}`} onClick={() => setTab('rules')}>
+          Règles récurrentes
+        </button>
+        <button type="button" className={`chip ${tab === 'tours' ? 'chip--selected' : ''}`} onClick={() => setTab('tours')}>
+          Tournées
+        </button>
+      </div>
+
+      {tab === 'rules' && <RulesPage embedded />}
+      {tab === 'tours' && <ToursPage embedded />}
+
+      {tab === 'planning' && (
+      <>
       <div className="filter-grid" role="search">
         <label className="filter-field filter-card">
           Du
@@ -1201,6 +1225,8 @@ export const InterventionsPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

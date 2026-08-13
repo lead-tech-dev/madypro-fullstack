@@ -7,8 +7,6 @@ import { UserFormPage } from '../pages/users/UserFormPage';
 import { SitesListPage } from '../pages/sites/SitesListPage';
 import { SiteFormPage } from '../pages/sites/SiteFormPage';
 import { InterventionsPage } from '../pages/interventions/InterventionsPage';
-import { RulesPage } from '../pages/interventions/RulesPage';
-import { ToursPage } from '../pages/interventions/ToursPage';
 import { SupervisorPlanningPage } from '../pages/supervision/SupervisorPlanningPage';
 import { AttendanceListPage } from '../pages/attendance/AttendanceListPage';
 import { AbsencesListPage } from '../pages/absences/AbsencesListPage';
@@ -49,8 +47,6 @@ export const AdminRoutes = () => (
       <Route path="/sites/new" element={<SiteFormPage />} />
       <Route path="/sites/:id/edit" element={<SiteFormPage />} />
       <Route path="/interventions" element={<InterventionsPage />} />
-      <Route path="/interventions/regles" element={<RulesPage />} />
-      <Route path="/interventions/tournees" element={<ToursPage />} />
       <Route path="/approvals" element={<ApprovalsPage />} />
       <Route path="/planning" element={<SupervisorPlanningPage />} />
       <Route path="/attendance" element={<AttendanceListPage />} />
