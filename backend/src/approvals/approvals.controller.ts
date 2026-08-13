@@ -74,6 +74,8 @@ export class ApprovalsController {
         return this.interventionsService.cancel(request.entityId, payload.observation, reviewerId);
       case 'CREATE_RECURRING_BATCH':
         return this.interventionsService.createBatch(payload, reviewerId);
+      case 'CREATE_TOUR_BATCH':
+        return this.interventionsService.createTourBatch(payload, reviewerId);
       default:
         throw new Error('Type d’action non pris en charge');
     }

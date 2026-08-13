@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Query, Req, UseGuards, forwardRef } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Inject, Param, Patch, Post, Query, Req, UseGuards, forwardRef } from '@nestjs/common';
 import { Request } from 'express';
 import { InterventionsService, InterventionFilters } from './interventions.service';
 import { CreateInterventionDto } from './dto/create-intervention.dto';
@@ -6,6 +6,8 @@ import { UpdateInterventionDto } from './dto/update-intervention.dto';
 import { DuplicateInterventionDto } from './dto/duplicate-intervention.dto';
 import { CreateInterventionRuleDto } from './dto/create-rule.dto';
 import { UpdateInterventionRuleDto } from './dto/update-rule.dto';
+import { CreateTourRuleDto } from './dto/create-tour-rule.dto';
+import { UpdateTourRuleDto } from './dto/update-tour-rule.dto';
 import { SetSignatureDto } from './dto/set-signature.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -204,6 +206,79 @@ export class InterventionsController {
   @Patch('rules/:id/toggle')
   toggleRule(@Param('id') id: string, @Body('active') active: boolean) {
     return this.service.toggleRule(id, active);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('tours/list')
+  listTours() {
+    return this.service.listTourRules();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Post('tours')
+  createTour(@Body() dto: CreateTourRuleDto) {
+    return this.service.createTourRule(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Patch('tours/:id')
+  updateTour(@Param('id') id: string, @Body() dto: UpdateTourRuleDto) {
+    return this.service.updateTourRule(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Patch('tours/:id/toggle')
+  toggleTour(@Param('id') id: string, @Body('active') active: boolean) {
+    return this.service.toggleTourRule(id, active);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('tours/:id/preview')
+  previewTour(@Param('id') id: string, @Query('startDate') startDate: string, @Query('endDate') endDate: string) {
+    return this.service.previewTourOccurrences(id, startDate, endDate);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Post('tours/:id/generate')
+  async generateTour(
+    @Param('id') id: string,
+    @Body('startDate') startDate: string,
+    @Body('endDate') endDate: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as any;
+    const preview = await this.service.previewTourOccurrences(id, startDate, endDate);
+    if (!preview.occurrences.length) {
+      throw new BadRequestException('Aucune occurrence à générer sur cette période.');
+    }
+    const payload = {
+      tourRuleId: preview.tourRuleId,
+      tourRuleLabel: preview.tourRuleLabel,
+      occurrences: preview.occurrences.map(({ date, siteId, startTime, endTime, agentIds }) => ({
+        date,
+        siteId,
+        startTime,
+        endTime,
+        agentIds,
+      })),
+    };
+    if (user.role === 'SUPERVISOR') {
+      return this.approvals.createRequest({
+        actionType: 'CREATE_TOUR_BATCH',
+        entityType: 'TourRule',
+        entityId: id,
+        payload,
+        requestedById: user.sub,
+        summary: `${preview.occurrences.length} occurrence(s) — ${preview.tourRuleLabel}`,
+      });
+    }
+    return this.service.createTourBatch(payload, user.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

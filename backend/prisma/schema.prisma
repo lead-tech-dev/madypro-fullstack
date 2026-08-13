@@ -110,6 +110,7 @@ enum ApprovalActionType {
   UNASSIGN_AGENT
   CANCEL_INTERVENTION
   CREATE_RECURRING_BATCH
+  CREATE_TOUR_BATCH
 }
 
 enum ApprovalStatus {
@@ -316,6 +317,7 @@ model Site {
   interventions          Intervention[]
   absences               Absence[]
   InterventionRule       InterventionRule[]
+  tourStops              TourStop[]
   checklistItems         SiteChecklistItem[]
   contracts              SiteContract[]
   zones                  SiteZone[]
@@ -403,10 +405,15 @@ model Intervention {
   anomalies           Anomaly[]
   generatedFromRuleId String?
   generatedFromRule   InterventionRule?           @relation(fields: [generatedFromRuleId], references: [id])
+  generatedFromTourId String?
+  generatedFromTour   TourRule?                   @relation(fields: [generatedFromTourId], references: [id])
+  batchId             String?
   attendances         Attendance[]
   checklistItems      InterventionChecklistItem[]
   shiftSwapRequests   ShiftSwapRequest[]
   quotes              Quote[]
+
+  @@index([batchId])
 }
 
 model InterventionChecklistItem {
@@ -454,6 +461,36 @@ model InterventionRule {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   interventions Intervention[]
+}
+
+model TourRule {
+  id            String         @id @default(cuid())
+  label         String
+  intervalWeeks Int            @default(1)
+  startDate     DateTime       @default(now())
+  endDate       DateTime?
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  stops         TourStop[]
+  interventions Intervention[]
+}
+
+model TourStop {
+  id         String   @id @default(cuid())
+  tourRuleId String
+  tourRule   TourRule @relation(fields: [tourRuleId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int
+  siteId     String
+  site       Site     @relation(fields: [siteId], references: [id])
+  startTime  String
+  endTime    String
+  agentIds   String[]
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tourRuleId])
 }
 
 model Attendance {

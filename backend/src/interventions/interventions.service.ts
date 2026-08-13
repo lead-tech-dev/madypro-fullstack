@@ -9,6 +9,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import {
   InterventionEntity,
   InterventionRuleEntity,
@@ -29,7 +30,10 @@ import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { haversineDistanceMeters } from '../common/utils/geo';
 import { checkAttendanceCompleteness } from './attendance-completeness.util';
-import { computeRuleOccurrences } from './recurrence.util';
+import { computeRuleOccurrences, computeTourOccurrences, findTourStopConflicts, TourStopLike } from './recurrence.util';
+import { CreateTourRuleDto } from './dto/create-tour-rule.dto';
+import { UpdateTourRuleDto } from './dto/update-tour-rule.dto';
+import { TourRuleEntity } from './entities/intervention.entity';
 import { ApprovalsService } from '../approvals/approvals.service';
 
 export type InterventionFilters = {
@@ -565,6 +569,8 @@ export class InterventionsService implements OnModuleInit {
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       generatedFromRuleId: record.generatedFromRuleId ?? undefined,
+      generatedFromTourId: (record as any).generatedFromTourId ?? undefined,
+      batchId: (record as any).batchId ?? undefined,
     };
   }
 
@@ -625,6 +631,41 @@ export class InterventionsService implements OnModuleInit {
           targetId: agentId,
         }),
       ),
+    );
+  }
+
+  /**
+   * Envoie UNE notification par agent concerné, résumant tout un lot d'interventions créées
+   * en même temps (règle récurrente ou tournée) — évite qu'un lot de N occurrences déclenche N
+   * notifications individuelles pour le même agent.
+   */
+  private async sendConsolidatedNotification(views: InterventionView[]) {
+    if (!views.length) return;
+    const byAgent = new Map<string, InterventionView[]>();
+    for (const view of views) {
+      for (const agentId of view.agentIds ?? []) {
+        if (!byAgent.has(agentId)) byAgent.set(agentId, []);
+        byAgent.get(agentId)!.push(view);
+      }
+    }
+    await Promise.all(
+      Array.from(byAgent.entries()).map(([agentId, agentViews]) => {
+        const sorted = [...agentViews].sort((a, b) => a.date.localeCompare(b.date));
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+        const period = first.date === last.date ? first.date : `${first.date} → ${last.date}`;
+        const preview = sorted
+          .slice(0, 5)
+          .map((v) => `${v.siteName} (${v.date})`)
+          .join(', ');
+        const more = sorted.length > 5 ? ` et ${sorted.length - 5} autre(s)` : '';
+        return this.notifications.send({
+          title: `${sorted.length} intervention(s) planifiée(s)`,
+          message: `Du ${period} : ${preview}${more}`,
+          audience: 'AGENT',
+          targetId: agentId,
+        });
+      }),
     );
   }
 
@@ -703,7 +744,7 @@ export class InterventionsService implements OnModuleInit {
     return this.present(this.toEntity(record), (record as any).attendances);
   }
 
-  async create(dto: CreateInterventionDto, actorId = 'system') {
+  async create(dto: CreateInterventionDto, actorId = 'system', options?: { silent?: boolean }) {
     const normalizedType = this.normalizeTypeInput(dto.type);
     if (!normalizedType) {
       throw new BadRequestException("Type d'intervention invalide");
@@ -726,6 +767,8 @@ export class InterventionsService implements OnModuleInit {
         observation: dto.observation ?? null,
         photos: dto.photos ?? [],
         generatedFromRuleId: dto.generatedFromRuleId ?? null,
+        generatedFromTourId: dto.generatedFromTourId ?? null,
+        batchId: dto.batchId ?? null,
         assignments: dto.agentIds?.length
           ? {
               create: dto.agentIds.map((userId) => ({ userId })),
@@ -790,9 +833,11 @@ export class InterventionsService implements OnModuleInit {
       type: view.type,
       status: view.status,
     });
-    this.notifyAssignedAgents(view, 'created').catch((err) =>
-      this.logger.warn(`Notification agents échouée: ${err.message}`),
-    );
+    if (!options?.silent) {
+      this.notifyAssignedAgents(view, 'created').catch((err) =>
+        this.logger.warn(`Notification agents échouée: ${err.message}`),
+      );
+    }
     return view;
   }
 
@@ -1038,6 +1083,7 @@ export class InterventionsService implements OnModuleInit {
         await this.checkAssignmentConflicts(payload.agentIds, occurrence.date, payload.startTime, payload.endTime);
       }
     }
+    const batchId = randomUUID();
     const created: InterventionView[] = [];
     for (const occurrence of payload.occurrences) {
       const view = await this.create(
@@ -1050,10 +1096,17 @@ export class InterventionsService implements OnModuleInit {
           label: payload.ruleLabel,
           agentIds: payload.agentIds,
           generatedFromRuleId: payload.ruleId,
+          batchId,
         } as CreateInterventionDto,
         actorId,
+        { silent: true },
       );
       created.push(view);
+    }
+    try {
+      await this.sendConsolidatedNotification(created);
+    } catch (err) {
+      this.logger.warn(`Notification de lot échouée: ${(err as Error).message}`);
     }
     return created;
   }
@@ -1291,6 +1344,238 @@ export class InterventionsService implements OnModuleInit {
     } finally {
       this.generatingRules = false;
     }
+  }
+
+  private presentTourRule(rule: {
+    id: string;
+    label: string;
+    intervalWeeks: number;
+    startDate: Date;
+    endDate: Date | null;
+    active: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    stops: { id: string; dayOfWeek: number; siteId: string; startTime: string; endTime: string; agentIds: string[]; order: number }[];
+  }): TourRuleEntity {
+    return {
+      id: rule.id,
+      label: rule.label,
+      intervalWeeks: rule.intervalWeeks,
+      startDate: rule.startDate,
+      endDate: rule.endDate,
+      active: rule.active,
+      createdAt: rule.createdAt,
+      updatedAt: rule.updatedAt,
+      stops: rule.stops
+        .slice()
+        .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.order - b.order)
+        .map((s) => ({
+          id: s.id,
+          dayOfWeek: s.dayOfWeek,
+          siteId: s.siteId,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          agentIds: s.agentIds,
+          order: s.order,
+        })),
+    };
+  }
+
+  /** Un agent ne peut pas être sur deux arrêts du même jour avec des horaires qui se chevauchent. */
+  private assertNoTourStopConflicts(stops: TourStopLike[]) {
+    const conflicts = findTourStopConflicts(stops);
+    if (conflicts.length) {
+      const { a, b, agentId } = conflicts[0];
+      const agent = this.usersService.findOne(agentId);
+      throw new BadRequestException(
+        `Conflit dans le gabarit : ${agent?.name ?? agentId} est affecté à deux arrêts qui se chevauchent le même jour (${a.startTime}–${a.endTime} et ${b.startTime}–${b.endTime}).`,
+      );
+    }
+  }
+
+  async listTourRules(): Promise<TourRuleEntity[]> {
+    const rules = await this.prisma.tourRule.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { stops: true },
+    });
+    return rules.map((rule) => this.presentTourRule(rule));
+  }
+
+  async createTourRule(dto: CreateTourRuleDto) {
+    this.assertNoTourStopConflicts(
+      dto.stops.map((s, index) => ({
+        id: `new-${index}`,
+        dayOfWeek: s.dayOfWeek,
+        siteId: s.siteId,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        agentIds: s.agentIds ?? [],
+      })),
+    );
+    const rule = await this.prisma.tourRule.create({
+      data: {
+        label: dto.label,
+        intervalWeeks: dto.intervalWeeks ?? 1,
+        startDate: dto.startDate ? new Date(dto.startDate) : new Date(),
+        endDate: dto.endDate ? new Date(dto.endDate) : null,
+        active: dto.active ?? true,
+        stops: {
+          create: dto.stops.map((s, index) => ({
+            dayOfWeek: s.dayOfWeek,
+            siteId: s.siteId,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            agentIds: s.agentIds ?? [],
+            order: s.order ?? index,
+          })),
+        },
+      },
+      include: { stops: true },
+    });
+    return this.presentTourRule(rule);
+  }
+
+  async updateTourRule(id: string, dto: UpdateTourRuleDto) {
+    const existing = await this.prisma.tourRule.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Tournée introuvable');
+    }
+    if (dto.stops) {
+      this.assertNoTourStopConflicts(
+        dto.stops.map((s, index) => ({
+          id: `new-${index}`,
+          dayOfWeek: s.dayOfWeek,
+          siteId: s.siteId,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          agentIds: s.agentIds ?? [],
+        })),
+      );
+    }
+
+    const data: Prisma.TourRuleUpdateInput = {};
+    if (dto.label !== undefined) data.label = dto.label;
+    if (dto.intervalWeeks !== undefined) data.intervalWeeks = dto.intervalWeeks;
+    if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
+    if (dto.endDate !== undefined) data.endDate = dto.endDate ? new Date(dto.endDate) : null;
+    if (dto.active !== undefined) data.active = dto.active;
+
+    const rule = await this.prisma.$transaction(async (tx) => {
+      if (dto.stops) {
+        await tx.tourStop.deleteMany({ where: { tourRuleId: id } });
+      }
+      return tx.tourRule.update({
+        where: { id },
+        data: {
+          ...data,
+          stops: dto.stops
+            ? {
+                create: dto.stops.map((s, index) => ({
+                  dayOfWeek: s.dayOfWeek,
+                  siteId: s.siteId,
+                  startTime: s.startTime,
+                  endTime: s.endTime,
+                  agentIds: s.agentIds ?? [],
+                  order: s.order ?? index,
+                })),
+              }
+            : undefined,
+        },
+        include: { stops: true },
+      });
+    });
+    return this.presentTourRule(rule);
+  }
+
+  async toggleTourRule(id: string, active: boolean) {
+    const rule = await this.prisma.tourRule.update({
+      where: { id },
+      data: { active },
+      include: { stops: true },
+    });
+    return this.presentTourRule(rule);
+  }
+
+  /** Calcule (sans rien créer) les occurrences d'une tournée sur une période, pour aperçu admin. */
+  async previewTourOccurrences(tourRuleId: string, startDate: string, endDate: string) {
+    const rule = await this.prisma.tourRule.findUnique({
+      where: { id: tourRuleId },
+      include: { stops: true },
+    });
+    if (!rule) {
+      throw new NotFoundException('Tournée introuvable');
+    }
+    const stops: TourStopLike[] = rule.stops.map((s) => ({
+      id: s.id,
+      dayOfWeek: s.dayOfWeek,
+      siteId: s.siteId,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      agentIds: s.agentIds,
+    }));
+    const occurrences = computeTourOccurrences(
+      { intervalWeeks: rule.intervalWeeks, startDate: rule.startDate, endDate: rule.endDate },
+      stops,
+      this.toDateOnly(startDate),
+      this.toDateOnly(endDate),
+    );
+    const siteIds = Array.from(new Set(occurrences.map((o) => o.siteId)));
+    const sites = siteIds.length
+      ? await this.prisma.site.findMany({ where: { id: { in: siteIds } }, select: { id: true, name: true } })
+      : [];
+    const siteNameById = new Map(sites.map((s) => [s.id, s.name]));
+    return {
+      tourRuleId: rule.id,
+      tourRuleLabel: rule.label,
+      occurrences: occurrences.map((o) => ({ ...o, siteName: siteNameById.get(o.siteId) ?? o.siteId })),
+    };
+  }
+
+  /**
+   * Applique un lot de tournée (généré à la demande depuis la page Tournées, ou approuvé par un
+   * admin) : pré-valide les conflits d'affectation, crée toutes les interventions en mode
+   * silencieux (une par arrêt/date), taguées du même batchId, puis envoie une notification
+   * consolidée par agent concerné.
+   */
+  async createTourBatch(
+    payload: {
+      tourRuleId: string;
+      tourRuleLabel?: string;
+      occurrences: { date: string; siteId: string; startTime: string; endTime: string; agentIds: string[] }[];
+    },
+    actorId: string,
+  ) {
+    for (const occurrence of payload.occurrences) {
+      if (occurrence.agentIds?.length) {
+        await this.checkAssignmentConflicts(occurrence.agentIds, occurrence.date, occurrence.startTime, occurrence.endTime);
+      }
+    }
+    const batchId = randomUUID();
+    const created: InterventionView[] = [];
+    for (const occurrence of payload.occurrences) {
+      const view = await this.create(
+        {
+          type: 'REGULAR',
+          siteId: occurrence.siteId,
+          date: occurrence.date,
+          startTime: occurrence.startTime,
+          endTime: occurrence.endTime,
+          label: payload.tourRuleLabel,
+          agentIds: occurrence.agentIds,
+          generatedFromTourId: payload.tourRuleId,
+          batchId,
+        } as CreateInterventionDto,
+        actorId,
+        { silent: true },
+      );
+      created.push(view);
+    }
+    try {
+      await this.sendConsolidatedNotification(created);
+    } catch (err) {
+      this.logger.warn(`Notification de tournée échouée: ${(err as Error).message}`);
+    }
+    return created;
   }
 
   async listChecklist(interventionId: string) {

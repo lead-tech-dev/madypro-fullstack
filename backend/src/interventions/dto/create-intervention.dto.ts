@@ -47,6 +47,14 @@ export class CreateInterventionDto {
   generatedFromRuleId?: string;
 
   @IsOptional()
+  @IsString()
+  generatedFromTourId?: string;
+
+  @IsOptional()
+  @IsString()
+  batchId?: string;
+
+  @IsOptional()
   @IsBoolean()
   billable?: boolean;
 }
