@@ -49,6 +49,9 @@ export type CreateRulePayload = {
   startTime: string;
   endTime: string;
   daysOfWeek: number[];
+  intervalWeeks?: number;
+  startDate?: string;
+  endDate?: string;
   active?: boolean;
 };
 

@@ -23,6 +23,7 @@ const ADMIN_MENU: NavItem[] = [
     ],
   },
   { type: 'link', to: '/interventions', label: 'Interventions' },
+  { type: 'link', to: '/interventions/regles', label: 'Règles récurrentes' },
   { type: 'link', to: '/approvals', label: 'Demandes de validation' },
   { type: 'link', to: '/planning', label: 'Planning' },
   { type: 'link', to: '/supervision/carte', label: 'Présence & carte temps réel' },

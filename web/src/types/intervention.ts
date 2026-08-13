@@ -48,6 +48,9 @@ export type InterventionRule = {
   startTime: string;
   endTime: string;
   daysOfWeek: number[];
+  intervalWeeks: number;
+  startDate: string;
+  endDate: string | null;
   active: boolean;
   createdAt: string;
 };
