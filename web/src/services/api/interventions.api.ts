@@ -6,6 +6,8 @@ import {
   InterventionStatus,
   InterventionType,
   RouteOptimizationResult,
+  TourPreview,
+  TourRule,
 } from '../../types/intervention';
 import { ApprovalRequest, isApprovalRequest } from '../../types/approval';
 import { apiFetch } from './client';
@@ -184,6 +186,81 @@ export async function toggleRule(token: string, id: string, active: boolean) {
     options: {
       method: 'PATCH',
       body: JSON.stringify({ active }),
+    },
+  });
+}
+
+export type TourStopPayload = {
+  dayOfWeek: number;
+  siteId: string;
+  startTime: string;
+  endTime: string;
+  agentIds: string[];
+  order?: number;
+};
+
+export type CreateTourPayload = {
+  label: string;
+  stops: TourStopPayload[];
+  intervalWeeks?: number;
+  startDate?: string;
+  endDate?: string;
+  active?: boolean;
+};
+
+export type UpdateTourPayload = Partial<CreateTourPayload>;
+
+export async function listTours(token: string) {
+  return apiFetch<TourRule[]>({ path: 'interventions/tours/list', token });
+}
+
+export async function createTour(token: string, payload: CreateTourPayload) {
+  return apiFetch<TourRule>({
+    path: 'interventions/tours',
+    token,
+    options: {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  });
+}
+
+export async function updateTour(token: string, id: string, payload: UpdateTourPayload) {
+  return apiFetch<TourRule>({
+    path: `interventions/tours/${id}`,
+    token,
+    options: {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  });
+}
+
+export async function toggleTour(token: string, id: string, active: boolean) {
+  return apiFetch<TourRule>({
+    path: `interventions/tours/${id}/toggle`,
+    token,
+    options: {
+      method: 'PATCH',
+      body: JSON.stringify({ active }),
+    },
+  });
+}
+
+export async function previewTour(token: string, id: string, startDate: string, endDate: string) {
+  return apiFetch<TourPreview>({
+    path: `interventions/tours/${id}/preview?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
+    token,
+  });
+}
+
+export async function generateTour(token: string, id: string, startDate: string, endDate: string) {
+  return apiFetch<Record<string, unknown>[] | { status: string }>({
+    path: `interventions/tours/${id}/generate`,
+    token,
+    options: {
+      method: 'POST',
+      body: JSON.stringify({ startDate, endDate }),
     },
   });
 }

@@ -4,7 +4,8 @@ export type ApprovalActionType =
   | 'ASSIGN_AGENT'
   | 'UNASSIGN_AGENT'
   | 'CANCEL_INTERVENTION'
-  | 'CREATE_RECURRING_BATCH';
+  | 'CREATE_RECURRING_BATCH'
+  | 'CREATE_TOUR_BATCH';
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
 
@@ -16,6 +17,12 @@ export type RecurringBatchPayload = {
   endTime: string;
   agentIds: string[];
   occurrences: { date: string }[];
+};
+
+export type TourBatchPayload = {
+  tourRuleId: string;
+  tourRuleLabel?: string;
+  occurrences: { date: string; siteId: string; startTime: string; endTime: string; agentIds: string[] }[];
 };
 
 export type ApprovalRequest = {
