@@ -4,25 +4,19 @@ export type ApprovalActionType =
   | 'ASSIGN_AGENT'
   | 'UNASSIGN_AGENT'
   | 'CANCEL_INTERVENTION'
-  | 'CREATE_RECURRING_BATCH'
-  | 'CREATE_TOUR_BATCH';
+  | 'CREATE_TEMPLATE_BATCH';
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
 
-export type RecurringBatchPayload = {
-  ruleId: string;
-  ruleLabel?: string;
-  siteId: string;
-  startTime: string;
-  endTime: string;
-  agentIds: string[];
-  occurrences: { date: string }[];
+export type TemplateBatchPayload = {
+  templateId: string;
+  templateLabel?: string;
+  occurrences: { date: string; siteId: string; startTime: string; endTime: string; agentIds: string[] }[];
 };
 
-export type TourBatchPayload = {
-  tourRuleId: string;
-  tourRuleLabel?: string;
-  occurrences: { date: string; siteId: string; startTime: string; endTime: string; agentIds: string[] }[];
+/** Payload de CREATE_INTERVENTION quand plusieurs arrêts (sites) sont soumis en une fois. */
+export type OneshotBatchPayload = {
+  occurrences: { siteId: string; date: string; startTime: string; endTime: string; agentIds: string[]; label?: string }[];
 };
 
 export type ApprovalRequest = {

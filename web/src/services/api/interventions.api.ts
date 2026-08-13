@@ -2,12 +2,11 @@ import {
   AssignmentSuggestion,
   DurationEstimate,
   Intervention,
-  InterventionRule,
   InterventionStatus,
   InterventionType,
   RouteOptimizationResult,
-  TourPreview,
-  TourRule,
+  TemplatePreview,
+  InterventionTemplate,
 } from '../../types/intervention';
 import { ApprovalRequest, isApprovalRequest } from '../../types/approval';
 import { apiFetch } from './client';
@@ -43,21 +42,6 @@ export type CreateInterventionPayload = {
 export type UpdateInterventionPayload = Partial<CreateInterventionPayload> & {
   status?: InterventionStatus;
 };
-
-export type CreateRulePayload = {
-  siteId: string;
-  agentIds: string[];
-  label: string;
-  startTime: string;
-  endTime: string;
-  daysOfWeek: number[];
-  intervalWeeks?: number;
-  startDate?: string;
-  endDate?: string;
-  active?: boolean;
-};
-
-export type UpdateRulePayload = Partial<CreateRulePayload>;
 
 const mapTypeFromApi = (type: InterventionType | 'PUNCTUAL'): InterventionType =>
   type === 'PUNCTUAL' ? 'PONCTUAL' : type;
@@ -153,45 +137,37 @@ export async function cancelIntervention(
   return isApprovalRequest(item) ? item : { ...item, type: mapTypeFromApi(item.type) };
 }
 
-export async function listRules(token: string) {
-  return apiFetch<InterventionRule[]>({ path: 'interventions/rules/list', token });
-}
+export type OneshotOccurrence = {
+  siteId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  agentIds: string[];
+  label?: string;
+};
 
-export async function createRule(token: string, payload: CreateRulePayload) {
-  return apiFetch<InterventionRule>({
-    path: 'interventions/rules',
+/**
+ * Création ponctuelle (une seule fois) — un ou plusieurs arrêts en une soumission. Un seul arrêt
+ * se comporte comme `createIntervention`, plusieurs déclenchent la sémantique de lot (batchId
+ * partagé, notification consolidée par agent).
+ */
+export async function createOneshotBatch(
+  token: string,
+  occurrences: OneshotOccurrence[],
+): Promise<Intervention[] | ApprovalRequest> {
+  const item = await apiFetch<Intervention[] | ApprovalRequest>({
+    path: 'interventions/batch',
     token,
     options: {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ occurrences }),
     },
   });
+  return isApprovalRequest(item) ? item : item.map((i) => ({ ...i, type: mapTypeFromApi(i.type) }));
 }
 
-export async function updateRule(token: string, id: string, payload: UpdateRulePayload) {
-  return apiFetch<InterventionRule>({
-    path: `interventions/rules/${id}`,
-    token,
-    options: {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    },
-  });
-}
-
-export async function toggleRule(token: string, id: string, active: boolean) {
-  return apiFetch<InterventionRule>({
-    path: `interventions/rules/${id}/toggle`,
-    token,
-    options: {
-      method: 'PATCH',
-      body: JSON.stringify({ active }),
-    },
-  });
-}
-
-export type TourStopPayload = {
-  dayOfWeek: number;
+export type TemplateStopPayload = {
+  daysOfWeek: number[];
   siteId: string;
   startTime: string;
   endTime: string;
@@ -199,24 +175,25 @@ export type TourStopPayload = {
   order?: number;
 };
 
-export type CreateTourPayload = {
+export type CreateTemplatePayload = {
   label: string;
-  stops: TourStopPayload[];
+  stops: TemplateStopPayload[];
   intervalWeeks?: number;
   startDate?: string;
   endDate?: string;
+  autoGenerate?: boolean;
   active?: boolean;
 };
 
-export type UpdateTourPayload = Partial<CreateTourPayload>;
+export type UpdateTemplatePayload = Partial<CreateTemplatePayload>;
 
-export async function listTours(token: string) {
-  return apiFetch<TourRule[]>({ path: 'interventions/tours/list', token });
+export async function listTemplates(token: string) {
+  return apiFetch<InterventionTemplate[]>({ path: 'interventions/templates/list', token });
 }
 
-export async function createTour(token: string, payload: CreateTourPayload) {
-  return apiFetch<TourRule>({
-    path: 'interventions/tours',
+export async function createTemplate(token: string, payload: CreateTemplatePayload) {
+  return apiFetch<InterventionTemplate>({
+    path: 'interventions/templates',
     token,
     options: {
       method: 'POST',
@@ -225,9 +202,9 @@ export async function createTour(token: string, payload: CreateTourPayload) {
   });
 }
 
-export async function updateTour(token: string, id: string, payload: UpdateTourPayload) {
-  return apiFetch<TourRule>({
-    path: `interventions/tours/${id}`,
+export async function updateTemplate(token: string, id: string, payload: UpdateTemplatePayload) {
+  return apiFetch<InterventionTemplate>({
+    path: `interventions/templates/${id}`,
     token,
     options: {
       method: 'PATCH',
@@ -236,9 +213,9 @@ export async function updateTour(token: string, id: string, payload: UpdateTourP
   });
 }
 
-export async function toggleTour(token: string, id: string, active: boolean) {
-  return apiFetch<TourRule>({
-    path: `interventions/tours/${id}/toggle`,
+export async function toggleTemplate(token: string, id: string, active: boolean) {
+  return apiFetch<InterventionTemplate>({
+    path: `interventions/templates/${id}/toggle`,
     token,
     options: {
       method: 'PATCH',
@@ -247,16 +224,16 @@ export async function toggleTour(token: string, id: string, active: boolean) {
   });
 }
 
-export async function previewTour(token: string, id: string, startDate: string, endDate: string) {
-  return apiFetch<TourPreview>({
-    path: `interventions/tours/${id}/preview?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
+export async function previewTemplate(token: string, id: string, startDate: string, endDate: string) {
+  return apiFetch<TemplatePreview>({
+    path: `interventions/templates/${id}/preview?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
     token,
   });
 }
 
-export async function generateTour(token: string, id: string, startDate: string, endDate: string) {
+export async function generateTemplate(token: string, id: string, startDate: string, endDate: string) {
   return apiFetch<Record<string, unknown>[] | { status: string }>({
-    path: `interventions/tours/${id}/generate`,
+    path: `interventions/templates/${id}/generate`,
     token,
     options: {
       method: 'POST',

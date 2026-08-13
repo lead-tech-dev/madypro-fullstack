@@ -3,7 +3,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { listApprovalRequests, approveRequest, rejectRequest } from '../../services/api/approvals.api';
 import { listUsers } from '../../services/api/users.api';
 import { listSites } from '../../services/api/sites.api';
-import { ApprovalActionType, ApprovalRequest, RecurringBatchPayload, TourBatchPayload } from '../../types/approval';
+import { ApprovalActionType, ApprovalRequest, TemplateBatchPayload, OneshotBatchPayload } from '../../types/approval';
 import { Button } from '../../components/ui/Button';
 
 const ACTION_LABELS: Record<ApprovalActionType, string> = {
@@ -12,8 +12,7 @@ const ACTION_LABELS: Record<ApprovalActionType, string> = {
   ASSIGN_AGENT: 'Ajout d’agent',
   UNASSIGN_AGENT: 'Retrait d’agent',
   CANCEL_INTERVENTION: 'Annulation d’intervention',
-  CREATE_RECURRING_BATCH: 'Génération récurrente',
-  CREATE_TOUR_BATCH: 'Génération de tournée',
+  CREATE_TEMPLATE_BATCH: 'Génération d’un gabarit',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -72,8 +71,14 @@ export const ApprovalsPage: React.FC = () => {
     const payload = req.payload as any;
     const prev = req.previousState as any;
     switch (req.actionType) {
-      case 'CREATE_INTERVENTION':
-        return `${payload.date} · ${payload.startTime}–${payload.endTime}${payload.siteId ? ` (site ${payload.siteId})` : ''}`;
+      case 'CREATE_INTERVENTION': {
+        if (Array.isArray(payload.occurrences)) {
+          const batch = payload as OneshotBatchPayload;
+          const siteLabels = Array.from(new Set(batch.occurrences.map((o) => siteNames[o.siteId] ?? o.siteId)));
+          return `${siteLabels.join(', ')} — ${batch.occurrences.length} intervention(s)`;
+        }
+        return `${payload.date} · ${payload.startTime}–${payload.endTime}${payload.siteId ? ` (site ${siteNames[payload.siteId] ?? payload.siteId})` : ''}`;
+      }
       case 'UPDATE_INTERVENTION_SCHEDULE': {
         const beforeLabel = prev ? `${prev.date} ${prev.startTime}–${prev.endTime}` : '—';
         const afterLabel = `${payload.date ?? prev?.date} ${payload.startTime ?? prev?.startTime}–${payload.endTime ?? prev?.endTime}`;
@@ -92,16 +97,10 @@ export const ApprovalsPage: React.FC = () => {
       }
       case 'CANCEL_INTERVENTION':
         return `Motif : ${payload.observation}`;
-      case 'CREATE_RECURRING_BATCH': {
-        const batch = payload as RecurringBatchPayload;
-        const siteLabel = siteNames[batch.siteId] ?? batch.siteId;
-        const agentLabels = (batch.agentIds ?? []).map((id) => agentNames[id] ?? id).join(', ') || 'aucun agent';
-        return `${batch.ruleLabel ?? 'Règle'} — ${siteLabel} — ${batch.occurrences?.length ?? 0} occurrence(s) — ${batch.startTime}–${batch.endTime} — ${agentLabels}`;
-      }
-      case 'CREATE_TOUR_BATCH': {
-        const batch = payload as TourBatchPayload;
+      case 'CREATE_TEMPLATE_BATCH': {
+        const batch = payload as TemplateBatchPayload;
         const siteLabels = Array.from(new Set((batch.occurrences ?? []).map((o) => siteNames[o.siteId] ?? o.siteId)));
-        return `${batch.tourRuleLabel ?? 'Tournée'} — ${siteLabels.join(', ')} — ${batch.occurrences?.length ?? 0} intervention(s)`;
+        return `${batch.templateLabel ?? 'Gabarit'} — ${siteLabels.join(', ')} — ${batch.occurrences?.length ?? 0} intervention(s)`;
       }
       default:
         return '';
@@ -190,7 +189,8 @@ export const ApprovalsPage: React.FC = () => {
                   <td>{ACTION_LABELS[req.actionType] ?? req.actionType}</td>
                   <td>
                     {describe(req)}
-                    {(req.actionType === 'CREATE_RECURRING_BATCH' || req.actionType === 'CREATE_TOUR_BATCH') && (
+                    {(req.actionType === 'CREATE_TEMPLATE_BATCH' ||
+                      (req.actionType === 'CREATE_INTERVENTION' && Array.isArray((req.payload as any).occurrences))) && (
                       <div style={{ marginTop: '0.35rem' }}>
                         <button
                           type="button"
@@ -209,11 +209,9 @@ export const ApprovalsPage: React.FC = () => {
                         </button>
                         {expandedId === req.id && (
                           <div className="card__meta" style={{ marginTop: '0.35rem', maxWidth: 320 }}>
-                            {req.actionType === 'CREATE_TOUR_BATCH'
-                              ? (req.payload as TourBatchPayload).occurrences
-                                  ?.map((o) => `${o.date} (${siteNames[o.siteId] ?? o.siteId})`)
-                                  .join(', ')
-                              : (req.payload as RecurringBatchPayload).occurrences?.map((o) => o.date).join(', ')}
+                            {(req.payload as TemplateBatchPayload | OneshotBatchPayload).occurrences
+                              ?.map((o) => `${o.date} (${siteNames[o.siteId] ?? o.siteId})`)
+                              .join(', ')}
                           </div>
                         )}
                       </div>

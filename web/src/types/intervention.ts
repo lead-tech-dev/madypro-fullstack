@@ -40,24 +40,9 @@ export type DurationEstimate = {
   estimatedMinutes: number | null;
 };
 
-export type InterventionRule = {
+export type TemplateStop = {
   id: string;
-  siteId: string;
-  agentIds: string[];
-  label: string;
-  startTime: string;
-  endTime: string;
   daysOfWeek: number[];
-  intervalWeeks: number;
-  startDate: string;
-  endDate: string | null;
-  active: boolean;
-  createdAt: string;
-};
-
-export type TourStop = {
-  id: string;
-  dayOfWeek: number;
   siteId: string;
   startTime: string;
   endTime: string;
@@ -65,18 +50,19 @@ export type TourStop = {
   order: number;
 };
 
-export type TourRule = {
+export type InterventionTemplate = {
   id: string;
   label: string;
   intervalWeeks: number;
   startDate: string;
   endDate: string | null;
+  autoGenerate: boolean;
   active: boolean;
   createdAt: string;
-  stops: TourStop[];
+  stops: TemplateStop[];
 };
 
-export type TourOccurrence = {
+export type TemplateOccurrence = {
   date: string;
   stopId: string;
   siteId: string;
@@ -86,8 +72,8 @@ export type TourOccurrence = {
   agentIds: string[];
 };
 
-export type TourPreview = {
-  tourRuleId: string;
-  tourRuleLabel: string;
-  occurrences: TourOccurrence[];
+export type TemplatePreview = {
+  templateId: string;
+  templateLabel: string;
+  occurrences: TemplateOccurrence[];
 };

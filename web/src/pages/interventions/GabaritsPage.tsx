@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import {
-  listTours,
-  createTour,
-  updateTour,
-  toggleTour,
-  previewTour,
-  generateTour,
+  listTemplates,
+  createTemplate,
+  updateTemplate,
+  toggleTemplate,
+  previewTemplate,
+  generateTemplate,
   getRouteOptimization,
-  CreateTourPayload,
-  TourStopPayload,
+  CreateTemplatePayload,
+  TemplateStopPayload,
 } from '../../services/api/interventions.api';
 import { listSites } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
-import { TourRule, TourPreview, RouteOptimizationResult } from '../../types/intervention';
+import { InterventionTemplate, TemplatePreview, RouteOptimizationResult } from '../../types/intervention';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
@@ -27,23 +27,22 @@ const DAYS = [
   { value: 6, label: 'Samedi' },
   { value: 0, label: 'Dimanche' },
 ];
-const DAY_LABEL: Record<number, string> = Object.fromEntries(DAYS.map((d) => [d.value, d.label]));
-
 type StopRow = {
-  dayOfWeek: number;
+  daysOfWeek: number[];
   siteId: string;
   startTime: string;
   endTime: string;
   agentIds: string[];
 };
 
-const EMPTY_STOP: StopRow = { dayOfWeek: 1, siteId: '', startTime: '08:00', endTime: '10:00', agentIds: [] };
+const EMPTY_STOP: StopRow = { daysOfWeek: [1], siteId: '', startTime: '08:00', endTime: '10:00', agentIds: [] };
 
 type FormState = {
   label: string;
   intervalWeeks: string;
   startDate: string;
   endDate: string;
+  autoGenerate: boolean;
   stops: StopRow[];
 };
 
@@ -52,6 +51,7 @@ const INITIAL_FORM: FormState = {
   startDate: new Date().toISOString().slice(0, 10),
   endDate: '',
   intervalWeeks: '1',
+  autoGenerate: false,
   stops: [{ ...EMPTY_STOP }],
 };
 
@@ -81,9 +81,9 @@ const buildCalendarDays = (start: string, end: string): string[] => {
 
 const SITE_COLORS = ['#0E8E7C', '#B15B00', '#3B5BDB', '#C2255C', '#5C940D', '#862E9C'];
 
-export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
+export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const { token, notify } = useAuthContext();
-  const [tours, setTours] = useState<TourRule[]>([]);
+  const [templates, setTemplates] = useState<InterventionTemplate[]>([]);
   const [siteNames, setSiteNames] = useState<Record<string, string>>({});
   const [siteOptions, setSiteOptions] = useState<{ value: string; label: string }[]>([]);
   const [agentOptions, setAgentOptions] = useState<{ id: string; name: string }[]>([]);
@@ -112,20 +112,20 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
     }
   };
 
-  const [generateTourId, setGenerateTourId] = useState<string | null>(null);
+  const [generateTemplateId, setGenerateTemplateId] = useState<string | null>(null);
   const [generatePeriod, setGeneratePeriod] = useState<'day' | 'week' | 'custom'>('week');
   const [genStartDate, setGenStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [genEndDate, setGenEndDate] = useState(addDays(new Date().toISOString().slice(0, 10), 6));
-  const [preview, setPreview] = useState<TourPreview | null>(null);
+  const [preview, setPreview] = useState<TemplatePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   const load = () => {
     if (!token) return;
     setLoading(true);
-    listTours(token)
-      .then(setTours)
-      .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger les tournées', 'error'))
+    listTemplates(token)
+      .then(setTemplates)
+      .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger les gabarits', 'error'))
       .finally(() => setLoading(false));
   };
 
@@ -157,16 +157,17 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
     setFormOpen(true);
   };
 
-  const openEditForm = (tour: TourRule) => {
-    setEditingId(tour.id);
+  const openEditForm = (template: InterventionTemplate) => {
+    setEditingId(template.id);
     setForm({
-      label: tour.label,
-      intervalWeeks: String(tour.intervalWeeks ?? 1),
-      startDate: tour.startDate.slice(0, 10),
-      endDate: tour.endDate ? tour.endDate.slice(0, 10) : '',
-      stops: tour.stops.length
-        ? tour.stops.map((s) => ({
-            dayOfWeek: s.dayOfWeek,
+      label: template.label,
+      intervalWeeks: String(template.intervalWeeks ?? 1),
+      startDate: template.startDate.slice(0, 10),
+      endDate: template.endDate ? template.endDate.slice(0, 10) : '',
+      autoGenerate: template.autoGenerate,
+      stops: template.stops.length
+        ? template.stops.map((s) => ({
+            daysOfWeek: s.daysOfWeek,
             siteId: s.siteId,
             startTime: s.startTime,
             endTime: s.endTime,
@@ -181,6 +182,22 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
     setForm((prev) => ({
       ...prev,
       stops: prev.stops.map((stop, i) => (i === index ? { ...stop, ...patch } : stop)),
+    }));
+  };
+
+  const toggleStopDay = (index: number, day: number) => {
+    setForm((prev) => ({
+      ...prev,
+      stops: prev.stops.map((stop, i) =>
+        i === index
+          ? {
+              ...stop,
+              daysOfWeek: stop.daysOfWeek.includes(day)
+                ? stop.daysOfWeek.filter((d) => d !== day)
+                : [...stop.daysOfWeek, day],
+            }
+          : stop,
+      ),
     }));
   };
 
@@ -212,21 +229,22 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
     !token ||
     !form.label.trim() ||
     !form.stops.length ||
-    form.stops.some((s) => !s.siteId || !s.startTime || !s.endTime);
+    form.stops.some((s) => !s.siteId || !s.startTime || !s.endTime || !s.daysOfWeek.length);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!token || isInvalid) return;
     setSubmitting(true);
     try {
-      const payload: CreateTourPayload = {
+      const payload: CreateTemplatePayload = {
         label: form.label.trim(),
         intervalWeeks: Number(form.intervalWeeks) || 1,
         startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
+        autoGenerate: form.autoGenerate,
         stops: form.stops.map(
-          (s, index): TourStopPayload => ({
-            dayOfWeek: s.dayOfWeek,
+          (s, index): TemplateStopPayload => ({
+            daysOfWeek: s.daysOfWeek,
             siteId: s.siteId,
             startTime: s.startTime,
             endTime: s.endTime,
@@ -236,35 +254,35 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
         ),
       };
       if (editingId) {
-        await updateTour(token, editingId, payload);
-        notify('Tournée mise à jour');
+        await updateTemplate(token, editingId, payload);
+        notify('Gabarit mis à jour');
       } else {
-        await createTour(token, payload);
-        notify('Tournée créée — utilisez « Générer » pour planifier les interventions');
+        await createTemplate(token, payload);
+        notify('Gabarit créé — utilisez « Générer » pour planifier les interventions');
       }
       setFormOpen(false);
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : "Impossible d'enregistrer cette tournée", 'error');
+      notify(err instanceof Error ? err.message : "Impossible d'enregistrer ce gabarit", 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleToggleActive = async (tour: TourRule) => {
+  const handleToggleActive = async (template: InterventionTemplate) => {
     if (!token) return;
     try {
-      await toggleTour(token, tour.id, !tour.active);
-      notify(tour.active ? 'Tournée désactivée' : 'Tournée activée');
+      await toggleTemplate(token, template.id, !template.active);
+      notify(template.active ? 'Gabarit désactivé' : 'Gabarit activé');
       load();
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Impossible de modifier le statut', 'error');
     }
   };
 
-  const openGenerate = (tour: TourRule) => {
+  const openGenerate = (template: InterventionTemplate) => {
     const today = new Date().toISOString().slice(0, 10);
-    setGenerateTourId(tour.id);
+    setGenerateTemplateId(template.id);
     setGeneratePeriod('week');
     setGenStartDate(today);
     setGenEndDate(addDays(today, 6));
@@ -285,10 +303,10 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   };
 
   const handlePreview = async () => {
-    if (!token || !generateTourId) return;
+    if (!token || !generateTemplateId) return;
     setPreviewLoading(true);
     try {
-      const result = await previewTour(token, generateTourId, genStartDate, genEndDate);
+      const result = await previewTemplate(token, generateTemplateId, genStartDate, genEndDate);
       setPreview(result);
       if (!result.occurrences.length) {
         notify('Aucune occurrence sur cette période.', 'error');
@@ -301,50 +319,50 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   };
 
   const handleGenerate = async () => {
-    if (!token || !generateTourId || !preview?.occurrences.length) return;
+    if (!token || !generateTemplateId || !preview?.occurrences.length) return;
     setGenerating(true);
     try {
-      const result = await generateTour(token, generateTourId, genStartDate, genEndDate);
+      const result = await generateTemplate(token, generateTemplateId, genStartDate, genEndDate);
       if (Array.isArray(result)) {
         notify(`${result.length} intervention(s) créée(s) — notification unique envoyée à chaque agent concerné`);
       } else {
         notify('Demande envoyée pour validation par un admin');
       }
-      setGenerateTourId(null);
+      setGenerateTemplateId(null);
       setPreview(null);
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Impossible de générer la tournée', 'error');
+      notify(err instanceof Error ? err.message : 'Impossible de générer ce gabarit', 'error');
     } finally {
       setGenerating(false);
     }
   };
 
-  const generatingTour = tours.find((t) => t.id === generateTourId);
+  const generatingTemplate = templates.find((t) => t.id === generateTemplateId);
 
   return (
     <div className={embedded ? undefined : 'page'}>
       {embedded ? (
         <div style={{ marginBottom: '1rem' }}>
           <p style={{ marginTop: 0 }}>
-            Un agent qui visite plusieurs sites différents selon le jour de la semaine. Générez toutes les
-            interventions d'une période (jour, semaine, ou jusqu'à un mois) en une seule fois — une seule
-            notification est envoyée à chaque agent, pas une par intervention.
+            Un gabarit d'interventions qui se répètent — un seul site ou plusieurs selon le jour. Générez toutes
+            les interventions d'une période (jour, semaine, jusqu'à un mois) en une seule fois, ou laissez la
+            génération automatique s'en charger — une seule notification est envoyée à chaque agent, pas une par
+            intervention.
           </p>
           <Button type="button" onClick={openCreateForm}>
-            Nouvelle tournée
+            Nouveau gabarit
           </Button>
         </div>
       ) : (
         <div className="page-header">
           <span className="pill">Interventions</span>
-          <h2>Tournées</h2>
+          <h2>Gabarits</h2>
           <p>
-            Un agent qui visite plusieurs sites différents selon le jour de la semaine. Générez toutes les
-            interventions d'une période (jour, semaine, ou jusqu'à un mois) en une seule fois — une seule
-            notification est envoyée à chaque agent, pas une par intervention.
+            Un gabarit d'interventions qui se répètent — un seul site ou plusieurs selon le jour. Générez toutes
+            les interventions d'une période en une seule fois, ou activez la génération automatique.
           </p>
           <Button type="button" onClick={openCreateForm}>
-            Nouvelle tournée
+            Nouveau gabarit
           </Button>
         </div>
       )}
@@ -396,54 +414,62 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
 
       <div className="panel">
         <div className="table-wrapper">
-          <table className="table" aria-label="tournées">
+          <table className="table" aria-label="gabarits">
             <thead>
               <tr>
                 <th>Libellé</th>
                 <th>Arrêts</th>
                 <th>Fréquence</th>
                 <th>Période</th>
+                <th>Auto</th>
                 <th>Statut</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {tours.map((tour) => (
-                <tr key={tour.id}>
-                  <td>{tour.label}</td>
+              {templates.map((template) => (
+                <tr key={template.id}>
+                  <td>{template.label}</td>
                   <td>
-                    {tour.stops.length} arrêt(s) —{' '}
-                    {Array.from(new Set(tour.stops.map((s) => siteNames[s.siteId] ?? s.siteId))).join(', ')}
-                  </td>
-                  <td>{tour.intervalWeeks === 1 ? 'Chaque semaine' : `Toutes les ${tour.intervalWeeks} semaines`}</td>
-                  <td>
-                    {new Date(tour.startDate).toLocaleDateString('fr-FR')}
-                    {tour.endDate ? ` → ${new Date(tour.endDate).toLocaleDateString('fr-FR')}` : ' → indéfini'}
+                    {template.stops.length} arrêt(s) —{' '}
+                    {Array.from(new Set(template.stops.map((s) => siteNames[s.siteId] ?? s.siteId))).join(', ')}
                   </td>
                   <td>
-                    <span className={`status-chip ${tour.active ? 'status-chip--success' : 'status-chip--warning'}`}>
-                      {tour.active ? 'Active' : 'Inactive'}
+                    {template.intervalWeeks === 1 ? 'Chaque semaine' : `Toutes les ${template.intervalWeeks} semaines`}
+                  </td>
+                  <td>
+                    {new Date(template.startDate).toLocaleDateString('fr-FR')}
+                    {template.endDate ? ` → ${new Date(template.endDate).toLocaleDateString('fr-FR')}` : ' → indéfini'}
+                  </td>
+                  <td>
+                    <span className={`status-chip ${template.autoGenerate ? 'status-chip--info' : ''}`}>
+                      {template.autoGenerate ? 'Auto' : 'Manuel'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`status-chip ${template.active ? 'status-chip--success' : 'status-chip--warning'}`}>
+                      {template.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <Button type="button" className="btn--compact" onClick={() => openGenerate(tour)}>
+                      <Button type="button" className="btn--compact" onClick={() => openGenerate(template)}>
                         Générer
                       </Button>
-                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => openEditForm(tour)}>
+                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => openEditForm(template)}>
                         Modifier
                       </Button>
-                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleToggleActive(tour)}>
-                        {tour.active ? 'Désactiver' : 'Activer'}
+                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleToggleActive(template)}>
+                        {template.active ? 'Désactiver' : 'Activer'}
                       </Button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {!loading && tours.length === 0 && (
+              {!loading && templates.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
-                    Aucune tournée définie.
+                  <td colSpan={7} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                    Aucun gabarit défini.
                   </td>
                 </tr>
               )}
@@ -480,9 +506,9 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
               <div>
-                <span className="pill">Tournée</span>
+                <span className="pill">Gabarit</span>
                 <h3 style={{ margin: 0, letterSpacing: '-0.01em' }}>
-                  {editingId ? 'Modifier la tournée' : 'Nouvelle tournée'}
+                  {editingId ? 'Modifier le gabarit' : 'Nouveau gabarit'}
                 </h3>
               </div>
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>
@@ -499,7 +525,7 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                 id="label"
                 name="label"
                 label="Libellé"
-                placeholder="Tournée vitres — équipe A"
+                placeholder="Nettoyage vitres — équipe A"
                 required
                 value={form.label}
                 onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value }))}
@@ -536,6 +562,15 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                 />
               </div>
 
+              <label className="form-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={form.autoGenerate}
+                  onChange={(e) => setForm((prev) => ({ ...prev, autoGenerate: e.target.checked }))}
+                />
+                <span>Génération automatique (propose un nouveau lot toutes les 8 semaines, à valider par un admin)</span>
+              </label>
+
               <div className="form-field">
                 <span>Arrêts (un agent peut avoir plusieurs arrêts le même jour)</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
@@ -551,12 +586,6 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                       }}
                     >
                       <div className="form-row">
-                        <Select
-                          label="Jour"
-                          options={DAYS.map((d) => ({ value: String(d.value), label: d.label }))}
-                          value={String(stop.dayOfWeek)}
-                          onChange={(e) => updateStop(index, { dayOfWeek: Number(e.target.value) })}
-                        />
                         <Select
                           label="Site"
                           options={[{ value: '', label: 'Sélectionner un site' }, ...siteOptions]}
@@ -575,6 +604,21 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                           value={stop.endTime}
                           onChange={(e) => updateStop(index, { endTime: e.target.value })}
                         />
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--color-muted)' }}>Jours</span>
+                        <div className="chips">
+                          {DAYS.map((day) => (
+                            <button
+                              key={day.value}
+                              type="button"
+                              className={`chip ${stop.daysOfWeek.includes(day.value) ? 'chip--selected' : ''}`}
+                              onClick={() => toggleStopDay(index, day.value)}
+                            >
+                              {day.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div>
                         <span style={{ fontSize: '0.8rem', color: 'var(--color-muted)' }}>Agents</span>
@@ -603,14 +647,14 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                     </div>
                   ))}
                   <Button type="button" variant="ghost" onClick={addStop}>
-                    + Ajouter un arrêt
+                    + Ajouter un site
                   </Button>
                 </div>
               </div>
 
               <div className="form-actions">
                 <Button type="submit" disabled={isInvalid || submitting}>
-                  {submitting ? 'Enregistrement...' : editingId ? 'Mettre à jour' : 'Créer la tournée'}
+                  {submitting ? 'Enregistrement...' : editingId ? 'Mettre à jour' : 'Créer le gabarit'}
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>
                   Annuler
@@ -621,7 +665,7 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
         </div>
       )}
 
-      {generateTourId && (
+      {generateTemplateId && (
         <div
           style={{
             position: 'fixed',
@@ -650,9 +694,9 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
               <div>
                 <span className="pill">Génération</span>
-                <h3 style={{ margin: 0, letterSpacing: '-0.01em' }}>{generatingTour?.label}</h3>
+                <h3 style={{ margin: 0, letterSpacing: '-0.01em' }}>{generatingTemplate?.label}</h3>
               </div>
-              <Button type="button" variant="ghost" onClick={() => setGenerateTourId(null)}>
+              <Button type="button" variant="ghost" onClick={() => setGenerateTemplateId(null)}>
                 Fermer
               </Button>
             </div>
@@ -788,7 +832,7 @@ export const ToursPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                 <Button type="button" onClick={handleGenerate} disabled={!preview?.occurrences.length || generating}>
                   {generating ? 'Génération...' : 'Confirmer la génération'}
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setGenerateTourId(null)}>
+                <Button type="button" variant="ghost" onClick={() => setGenerateTemplateId(null)}>
                   Annuler
                 </Button>
               </div>

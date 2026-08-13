@@ -5,6 +5,8 @@ import { isApprovalRequest } from '../../types/approval';
 import {
   listInterventions,
   createIntervention,
+  createOneshotBatch,
+  OneshotOccurrence,
   updateIntervention,
   duplicateIntervention,
   cancelIntervention,
@@ -26,8 +28,7 @@ import { ImageSlider } from '../../components/ui/ImageSlider';
 import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
 import { compressImageFile } from '../../utils/image';
-import { RulesPage } from './RulesPage';
-import { ToursPage } from './ToursPage';
+import { GabaritsPage } from './GabaritsPage';
 import { SupervisorPlanningPage } from '../supervision/SupervisorPlanningPage';
 
 const formatHour = (value?: string | null) => {
@@ -101,13 +102,14 @@ const createFormDefaults: CreateInterventionPayload = {
 
 export const InterventionsPage: React.FC = () => {
   const { token, notify } = useAuthContext();
-  const [tab, setTab] = useState<'planning' | 'weekly' | 'rules' | 'tours'>('planning');
+  const [tab, setTab] = useState<'planning' | 'weekly' | 'templates'>('planning');
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [filters, setFilters] = useState(defaultFilters);
   const [sites, setSites] = useState<Site[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<CreateInterventionPayload>(createFormDefaults);
+  const [extraStops, setExtraStops] = useState<OneshotOccurrence[]>([]);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [observationOnly, setObservationOnly] = useState(false);
@@ -150,6 +152,7 @@ export const InterventionsPage: React.FC = () => {
     setObservationOnly(false);
     setEditingId(null);
     setSuggestions(null);
+    setExtraStops([]);
     setForm({
       ...createFormDefaults,
       date: formatDate(new Date()),
@@ -161,6 +164,36 @@ export const InterventionsPage: React.FC = () => {
       subType: undefined,
     });
     setFormVisible(true);
+  };
+
+  const addExtraStop = () => {
+    setExtraStops((prev) => [
+      ...prev,
+      { siteId: sites[0]?.id ?? '', date: form.date, startTime: form.startTime, endTime: form.endTime, agentIds: [] },
+    ]);
+  };
+
+  const updateExtraStop = (index: number, patch: Partial<OneshotOccurrence>) => {
+    setExtraStops((prev) => prev.map((stop, i) => (i === index ? { ...stop, ...patch } : stop)));
+  };
+
+  const toggleExtraStopAgent = (index: number, agentId: string) => {
+    setExtraStops((prev) =>
+      prev.map((stop, i) =>
+        i === index
+          ? {
+              ...stop,
+              agentIds: stop.agentIds.includes(agentId)
+                ? stop.agentIds.filter((a) => a !== agentId)
+                : [...stop.agentIds, agentId],
+            }
+          : stop,
+      ),
+    );
+  };
+
+  const removeExtraStop = (index: number) => {
+    setExtraStops((prev) => prev.filter((_, i) => i !== index));
   };
 
   useEffect(() => {
@@ -365,11 +398,23 @@ export const InterventionsPage: React.FC = () => {
         const payload = observationOnly ? { observation: form.observation } : form;
         const result = await updateIntervention(token, editingId, payload);
         notify(isApprovalRequest(result) ? 'Demande envoyée pour validation admin' : 'Intervention mise à jour');
+      } else if (extraStops.length) {
+        const occurrences: OneshotOccurrence[] = [
+          { siteId: form.siteId, date: form.date, startTime: form.startTime, endTime: form.endTime, agentIds: form.agentIds, label: form.label },
+          ...extraStops.map((stop) => ({ ...stop, label: form.label })),
+        ];
+        const result = await createOneshotBatch(token, occurrences);
+        notify(
+          isApprovalRequest(result)
+            ? 'Demande envoyée pour validation admin'
+            : `${result.length} intervention(s) créée(s) — notification unique envoyée à chaque agent concerné`,
+        );
       } else {
         const result = await createIntervention(token, form);
         notify(isApprovalRequest(result) ? 'Demande envoyée pour validation admin' : 'Intervention créée');
       }
       setForm((prev) => ({ ...prev, label: '', truckLabels: [], agentIds: form.agentIds, observation: '' }));
+      setExtraStops([]);
       setEditingId(null);
       setObservationOnly(false);
       fetchInterventions();
@@ -392,6 +437,7 @@ export const InterventionsPage: React.FC = () => {
     setObservationOnly(obsOnly);
     setEditingId(intervention.id);
     setSuggestions(null);
+    setExtraStops([]);
     setForm({
       type: intervention.type,
       siteId: intervention.siteId,
@@ -410,6 +456,7 @@ export const InterventionsPage: React.FC = () => {
   const cancelEditing = () => {
     setEditingId(null);
     setObservationOnly(false);
+    setExtraStops([]);
     setForm((prev) => ({ ...createFormDefaults, siteId: prev.siteId, agentIds: prev.agentIds }));
   };
 
@@ -479,17 +526,13 @@ export const InterventionsPage: React.FC = () => {
         <button type="button" className={`chip ${tab === 'weekly' ? 'chip--selected' : ''}`} onClick={() => setTab('weekly')}>
           Vue hebdomadaire
         </button>
-        <button type="button" className={`chip ${tab === 'rules' ? 'chip--selected' : ''}`} onClick={() => setTab('rules')}>
-          Règles récurrentes
-        </button>
-        <button type="button" className={`chip ${tab === 'tours' ? 'chip--selected' : ''}`} onClick={() => setTab('tours')}>
-          Tournées
+        <button type="button" className={`chip ${tab === 'templates' ? 'chip--selected' : ''}`} onClick={() => setTab('templates')}>
+          Gabarits
         </button>
       </div>
 
       {tab === 'weekly' && <SupervisorPlanningPage embedded />}
-      {tab === 'rules' && <RulesPage embedded />}
-      {tab === 'tours' && <ToursPage embedded />}
+      {tab === 'templates' && <GabaritsPage embedded />}
 
       {tab === 'planning' && (
       <>
@@ -720,6 +763,72 @@ export const InterventionsPage: React.FC = () => {
                   ))}
                 </select>
               </label>
+              {!editingId && (
+                <div className="form-field">
+                  <span>Autres sites (une seule fois, même jour ou non)</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    {extraStops.map((stop, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          border: '1px solid #eef1f4',
+                          borderRadius: '10px',
+                          padding: '0.75rem',
+                          display: 'grid',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        <div className="form-row">
+                          <select
+                            value={stop.siteId}
+                            onChange={(e) => updateExtraStop(index, { siteId: e.target.value })}
+                          >
+                            <option value="">Sélectionner un site</option>
+                            {sites.map((site) => (
+                              <option key={site.id} value={site.id}>
+                                {site.name}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="date"
+                            value={stop.date}
+                            onChange={(e) => updateExtraStop(index, { date: e.target.value })}
+                          />
+                          <input
+                            type="time"
+                            value={stop.startTime}
+                            onChange={(e) => updateExtraStop(index, { startTime: e.target.value })}
+                          />
+                          <input
+                            type="time"
+                            value={stop.endTime}
+                            onChange={(e) => updateExtraStop(index, { endTime: e.target.value })}
+                          />
+                        </div>
+                        <div className="chips">
+                          {users.map((user) => (
+                            <button
+                              key={user.id}
+                              type="button"
+                              className={`chip ${stop.agentIds.includes(user.id) ? 'chip--selected' : ''}`}
+                              onClick={() => toggleExtraStopAgent(index, user.id)}
+                            >
+                              {user.name}
+                            </button>
+                          ))}
+                        </div>
+                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeExtraStop(index)}>
+                          Retirer ce site
+                        </Button>
+                      </div>
+                    ))}
+                    <Button type="button" variant="ghost" onClick={addExtraStop}>
+                      + Ajouter un site
+                    </Button>
+                  </div>
+                </div>
+              )}
               {editingId && !observationOnly && (
                 <div className="form-field">
                   <Button type="button" variant="ghost" onClick={fetchSuggestions} disabled={suggestionsLoading}>
