@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { UserForm } from './UserForm';
 import {
   createUser,
@@ -205,19 +206,17 @@ export const UserFormPage: React.FC = () => {
           </p>
           <div style={{ display: 'grid', gap: '0.5rem', marginTop: '1rem' }}>
             {PERMISSION_OPTIONS.map((option) => (
-              <label key={option.value} className="settings-toggle" style={{ justifyContent: 'flex-start', gap: '0.5rem' }}>
-                <input
-                  type="checkbox"
-                  checked={permissions.includes(option.value)}
-                  onChange={() => togglePermission(option.value)}
-                />
-                <span style={{ textTransform: 'none' }}>{option.label}</span>
-              </label>
+              <Checkbox
+                key={option.value}
+                checked={permissions.includes(option.value)}
+                onChange={() => togglePermission(option.value)}
+                label={option.label}
+              />
             ))}
           </div>
           <div className="form-actions" style={{ marginTop: '1rem' }}>
-            <Button type="button" onClick={savePermissions} disabled={savingPermissions}>
-              {savingPermissions ? 'Enregistrement...' : 'Enregistrer les permissions'}
+            <Button type="button" onClick={savePermissions} loading={savingPermissions}>
+              Enregistrer les permissions
             </Button>
           </div>
         </article>

@@ -3,6 +3,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { TeamPost } from '../../types/team';
 import { listTeamPosts, createTeamPost, deleteTeamPost } from '../../services/api/team.api';
 import { Button } from '../../components/ui/Button';
+import { Textarea } from '../../components/ui/Textarea';
 import { formatDateTime } from '../../utils/datetime';
 
 export const TeamFeedPage: React.FC = () => {
@@ -57,19 +58,17 @@ export const TeamFeedPage: React.FC = () => {
       </div>
 
       <form className="form-card" onSubmit={handleSubmit} style={{ marginBottom: '1.5rem' }}>
-        <label className="form-field" htmlFor="teamPostMessage">
-          <span>Message</span>
-          <textarea
-            id="teamPostMessage"
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            rows={3}
-            placeholder="Bravo à toute l’équipe pour la semaine !"
-          />
-        </label>
+        <Textarea
+          id="teamPostMessage"
+          label="Message"
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          rows={3}
+          placeholder="Bravo à toute l’équipe pour la semaine !"
+        />
         <div className="form-actions">
-          <Button type="submit" disabled={posting || !message.trim()}>
-            {posting ? 'Publication...' : 'Publier'}
+          <Button type="submit" loading={posting} disabled={!message.trim()}>
+            Publier
           </Button>
         </div>
       </form>

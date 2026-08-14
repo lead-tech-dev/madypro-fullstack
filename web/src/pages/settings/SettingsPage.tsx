@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { useAuthContext } from '../../context/AuthContext';
 import { AttendanceRules, SettingsSummary, AbsenceTypeConfig } from '../../types/settings';
 import {
@@ -127,18 +128,15 @@ export const SettingsPage: React.FC = () => {
             />
           </td>
           <td>
-            <label className="settings-toggle" style={{ justifyContent: 'flex-start' }}>
-              <input
-                type="checkbox"
-                checked={type.active}
-                onChange={(event) => {
-                  const next = { ...type, active: event.target.checked };
-                  handleAbsenceEdit(type.id, { active: next.active });
-                  persistAbsenceType(next);
-                }}
-              />
-              <span style={{ textTransform: 'none' }}>{type.active ? 'Actif' : 'Inactif'}</span>
-            </label>
+            <Checkbox
+              checked={type.active}
+              onChange={(checked) => {
+                const next = { ...type, active: checked };
+                handleAbsenceEdit(type.id, { active: checked });
+                persistAbsenceType(next);
+              }}
+              label={type.active ? 'Actif' : 'Inactif'}
+            />
           </td>
         </tr>
       )),

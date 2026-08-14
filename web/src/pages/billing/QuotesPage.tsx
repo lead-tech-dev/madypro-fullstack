@@ -192,8 +192,8 @@ export const QuotesPage: React.FC = () => {
             />
           </div>
           <div className="form-actions">
-            <Button type="submit" disabled={creating}>
-              {creating ? 'Création...' : 'Créer le devis'}
+            <Button type="submit" loading={creating}>
+              Créer le devis
             </Button>
           </div>
         </form>

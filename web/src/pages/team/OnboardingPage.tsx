@@ -14,6 +14,7 @@ import { listUsers } from '../../services/api/users.api';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
 
 export const OnboardingPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -135,10 +136,7 @@ export const OnboardingPage: React.FC = () => {
             <ul className="list-line" style={{ marginTop: '1rem' }}>
               {userItems.map((item) => (
                 <li key={item.id}>
-                  <label className="settings-toggle" style={{ justifyContent: 'flex-start', gap: '0.5rem' }}>
-                    <input type="checkbox" checked={item.done} onChange={() => toggleItem(item)} />
-                    <span style={{ textTransform: 'none' }}>{item.label}</span>
-                  </label>
+                  <Checkbox checked={item.done} onChange={() => toggleItem(item)} label={item.label} />
                 </li>
               ))}
             </ul>

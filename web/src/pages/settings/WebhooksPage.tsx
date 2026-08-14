@@ -10,6 +10,7 @@ import {
 } from '../../services/api/webhooks.api';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { formatDateTime } from '../../utils/datetime';
 
 export const WebhooksPage: React.FC = () => {
@@ -126,20 +127,18 @@ export const WebhooksPage: React.FC = () => {
             <span>Événements</span>
             <div style={{ display: 'grid', gap: '0.4rem', marginTop: '0.5rem' }}>
               {WEBHOOK_EVENTS.map((eventName) => (
-                <label key={eventName} className="settings-toggle" style={{ justifyContent: 'flex-start', gap: '0.5rem' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedEvents.includes(eventName)}
-                    onChange={() => toggleEvent(eventName)}
-                  />
-                  <span style={{ textTransform: 'none', fontFamily: 'monospace' }}>{eventName}</span>
-                </label>
+                <Checkbox
+                  key={eventName}
+                  checked={selectedEvents.includes(eventName)}
+                  onChange={() => toggleEvent(eventName)}
+                  label={<span style={{ fontFamily: 'monospace' }}>{eventName}</span>}
+                />
               ))}
             </div>
           </div>
           <div className="form-actions">
-            <Button type="submit" disabled={creating}>
-              {creating ? 'Création...' : 'Créer le webhook'}
+            <Button type="submit" loading={creating}>
+              Créer le webhook
             </Button>
           </div>
         </form>

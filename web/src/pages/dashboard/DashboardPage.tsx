@@ -5,6 +5,7 @@ import { listLowStockInventory } from '../../services/api/inventory.api';
 import { DashboardSummary } from '../../types/dashboard';
 import { InventoryItem } from '../../types/inventory';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { env } from '../../config/env';
 
 const WIDGET_LABELS: Record<string, string> = {
@@ -229,10 +230,7 @@ export const DashboardPage: React.FC = () => {
             <Button type="button" variant="ghost" className="btn--compact" onClick={() => moveWidget(widget.id, 1)}>
               ↓
             </Button>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              <input type="checkbox" checked={widget.visible} onChange={() => toggleWidgetVisible(widget.id)} />
-              Visible
-            </label>
+            <Checkbox checked={widget.visible} onChange={() => toggleWidgetVisible(widget.id)} label="Visible" />
           </div>
         );
 

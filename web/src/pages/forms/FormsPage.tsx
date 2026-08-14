@@ -5,6 +5,9 @@ import { listForms, createForm, archiveForm, listFormSubmissions } from '../../s
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
+import { RepeatableFieldArray } from '../../components/ui/RepeatableFieldArray';
 import { formatDateTime } from '../../utils/datetime';
 
 const FIELD_TYPE_OPTIONS: { value: FormFieldType; label: string }[] = [
@@ -44,7 +47,13 @@ export const FormsPage: React.FC = () => {
   };
 
   const removeField = (index: number) => {
-    setFields((prev) => prev.filter((_, i) => i !== index));
+    setFields((prev) => {
+      if (prev.length <= 1) {
+        notify('Un formulaire doit conserver au moins un champ', 'error');
+        return prev;
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleCreate = async (event: React.FormEvent) => {
@@ -107,48 +116,45 @@ export const FormsPage: React.FC = () => {
           <Input id="formName" label="Nom du formulaire" value={name} onChange={(event) => setName(event.target.value)} />
           <div className="form-field">
             <span>Champs</span>
-            <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
-              {fields.map((field, index) => (
-                <div key={index} className="form-row">
-                  <Input
-                    label="Clé"
-                    placeholder="niveau_proprete"
-                    value={field.key}
-                    onChange={(event) => updateField(index, { key: event.target.value })}
-                  />
-                  <Input
-                    label="Libellé"
-                    placeholder="Niveau de propreté"
-                    value={field.label}
-                    onChange={(event) => updateField(index, { label: event.target.value })}
-                  />
-                  <Select
-                    label="Type"
-                    options={FIELD_TYPE_OPTIONS}
-                    value={field.type}
-                    onChange={(event) => updateField(index, { type: event.target.value as FormFieldType })}
-                  />
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={field.required ?? false}
-                      onChange={(event) => updateField(index, { required: event.target.checked })}
+            <div style={{ marginTop: '0.5rem' }}>
+              <RepeatableFieldArray
+                items={fields}
+                onAdd={() => setFields((prev) => [...prev, emptyField()])}
+                onRemove={removeField}
+                addLabel="Ajouter un champ"
+                renderItem={(field, index) => (
+                  <div className="form-row">
+                    <Input
+                      label="Clé"
+                      placeholder="niveau_proprete"
+                      value={field.key}
+                      onChange={(event) => updateField(index, { key: event.target.value })}
                     />
-                    Obligatoire
-                  </label>
-                  <Button type="button" variant="ghost" onClick={() => removeField(index)} disabled={fields.length === 1}>
-                    Retirer
-                  </Button>
-                </div>
-              ))}
-              <Button type="button" variant="ghost" onClick={() => setFields((prev) => [...prev, emptyField()])}>
-                Ajouter un champ
-              </Button>
+                    <Input
+                      label="Libellé"
+                      placeholder="Niveau de propreté"
+                      value={field.label}
+                      onChange={(event) => updateField(index, { label: event.target.value })}
+                    />
+                    <Select
+                      label="Type"
+                      options={FIELD_TYPE_OPTIONS}
+                      value={field.type}
+                      onChange={(event) => updateField(index, { type: event.target.value as FormFieldType })}
+                    />
+                    <Checkbox
+                      checked={field.required ?? false}
+                      onChange={(checked) => updateField(index, { required: checked })}
+                      label="Obligatoire"
+                    />
+                  </div>
+                )}
+              />
             </div>
           </div>
           <div className="form-actions">
-            <Button type="submit" disabled={creating}>
-              {creating ? 'Création...' : 'Créer le formulaire'}
+            <Button type="submit" loading={creating}>
+              Créer le formulaire
             </Button>
           </div>
         </form>
@@ -195,43 +201,17 @@ export const FormsPage: React.FC = () => {
         )}
       </section>
 
-      {viewingSubmissions && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1.5rem',
-            zIndex: 999,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '12px',
-              padding: '1.5rem',
-              maxWidth: '800px',
-              width: '100%',
-              maxHeight: '80vh',
-              overflowY: 'auto',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0 }}>Soumissions — {viewingSubmissions.name}</h3>
-              <Button type="button" variant="ghost" onClick={() => setViewingSubmissions(null)}>
-                Fermer
-              </Button>
-            </div>
+      <Modal open={viewingSubmissions !== null} onClose={() => setViewingSubmissions(null)} maxWidth={800} labelledBy="form-submissions-title">
+        <ModalHeader
+          title={`Soumissions — ${viewingSubmissions?.name ?? ''}`}
+          titleId="form-submissions-title"
+          onClose={() => setViewingSubmissions(null)}
+        />
+        <ModalBody>
             {submissions.length === 0 ? (
-              <p className="card__meta" style={{ marginTop: '1rem' }}>
-                Aucune soumission pour ce formulaire.
-              </p>
+              <p className="card__meta">Aucune soumission pour ce formulaire.</p>
             ) : (
-              <ul className="list-line" style={{ marginTop: '1rem' }}>
+              <ul className="list-line">
                 {submissions.map((submission) => (
                   <li key={submission.id} style={{ display: 'block' }}>
                     <strong>{formatDateTime(submission.createdAt)}</strong>
@@ -240,9 +220,8 @@ export const FormsPage: React.FC = () => {
                 ))}
               </ul>
             )}
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
     </div>
   );
 };
