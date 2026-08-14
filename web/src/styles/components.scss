@@ -1,54 +1,8 @@
-.pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.35rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: var(--color-muted);
-}
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  border-radius: 999px;
-  padding: 0.75rem 1.8rem;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  transition: opacity 0.15s ease;
-}
 
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.btn--primary {
-  background: var(--color-ink);
-  color: #fff;
-}
-
-.btn--ghost {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-ink);
-}
-
-.btn:hover {
-  opacity: 0.9;
-}
-
-.btn--compact {
-  padding: 0.4rem 1rem;
-  font-size: 0.8rem;
 }
 
 .surface {
@@ -58,19 +12,13 @@
   padding: 1.5rem;
 }
 
+.btn--compact {
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+}
+
 .card {
   @extend .surface;
-}
-
-.page-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1.5rem;
-}
-
-.panel {
-  @extend .surface;
-  margin-top: 2.5rem;
 }
 
 .table {
@@ -85,13 +33,6 @@
   padding: 0.85rem 0.5rem;
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
-}
-
-.table th {
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-muted);
 }
 
 .table-actions {
@@ -130,32 +71,6 @@
 .tag--muted {
   color: var(--color-muted);
   border-style: dashed;
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.15rem 0.75rem;
-  border-radius: 999px;
-  text-transform: uppercase;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-}
-
-.status-chip--success {
-  background: #dbe9e0;
-  color: #1f4634;
-}
-
-.status-chip--warning {
-  background: #fff2df;
-  color: #9c5a18;
-}
-
-.status-chip--info {
-  background: #e0f2ff;
-  color: #0b4b71;
 }
 
 .agent-dot {
@@ -289,13 +204,6 @@
 .textarea:focus {
   outline: 2px solid rgba(31, 61, 122, 0.2);
   border-color: #1f3d7a;
-}
-
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.25rem;
-  margin-top: 2rem;
 }
 
 /* Interventions - responsive */
@@ -520,34 +428,6 @@
   }
 }
 
-.feature span {
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  color: var(--color-muted);
-  text-transform: uppercase;
-}
-
-.list-line {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.list-line li {
-  padding: 0.85rem 0;
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
-  justify-content: space-between;
-  font-weight: 500;
-}
-
-.filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -567,7 +447,6 @@
 .filter-card--wide {
   grid-column: span 2;
 }
-
 
 .form-field {
   display: flex;
@@ -648,8 +527,6 @@
   border-color: transparent;
 }
 
-
-
 .filter-card input,
 .filter-card select,
 .filter-card textarea {
@@ -666,39 +543,10 @@
   outline: none;
 }
 
-
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
-  margin-top: 1.5rem;
-}
-
-.calendar-day {
-  @extend .surface;
-  min-height: 220px;
-}
-
-.calendar-slot {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--color-border);
-  font-size: 0.88rem;
-  color: var(--color-muted);
-}
-
-.calendar-slot strong {
-  display: block;
-  color: var(--color-ink);
-}
-
 .form-row {
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
-}
-
-.page-header {
-  margin-bottom: 2rem;
 }
 
 .page-hero {
@@ -706,17 +554,6 @@
   grid-template-columns: minmax(0, 1.5fr) minmax(260px, 380px);
   gap: 1.5rem;
   margin-bottom: 2.5rem;
-}
-
-.page-hero__content {
-  @extend .surface;
-  background: #fff;
-}
-
-.page-hero__accent {
-  @extend .surface;
-  background: var(--color-sage);
-  color: var(--color-ink);
 }
 
 .form-card {
@@ -743,17 +580,6 @@
 .export-card {
   @extend .surface;
   min-height: 160px;
-}
-
-.settings-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 0.75rem;
-}
-
-.settings-toggle input {
-  accent-color: var(--color-ink);
 }
 
 @media (max-width: 768px) {
@@ -1001,7 +827,6 @@
 .table {
   width: 100%;
 }
-
 
 .table-head,
 .table-row {

@@ -27,6 +27,7 @@ import { Button } from '../../components/ui/Button';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { ChipGroup } from '../../components/ui/ChipGroup';
 import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
+import { FilterBar, FilterField } from '../../components/ui/FilterBar';
 import { RepeatableFieldArray } from '../../components/ui/RepeatableFieldArray';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { ImageSlider } from '../../components/ui/ImageSlider';
@@ -528,17 +529,14 @@ export const InterventionsPage: React.FC = () => {
 
       {tab === 'planning' && (
       <>
-      <div className="filter-grid" role="search">
-        <label className="filter-field filter-card">
-          Du
+      <FilterBar>
+        <FilterField label="Du">
           <input type="date" value={filters.startDate} onChange={(event) => setFilters((prev) => ({ ...prev, startDate: event.target.value }))} />
-        </label>
-        <label className="filter-field filter-card">
-          Au
+        </FilterField>
+        <FilterField label="Au">
           <input type="date" value={filters.endDate} onChange={(event) => setFilters((prev) => ({ ...prev, endDate: event.target.value }))} />
-        </label>
-        <label className="filter-field filter-card">
-          Site
+        </FilterField>
+        <FilterField label="Site">
           <select value={filters.siteId} onChange={(event) => setFilters((prev) => ({ ...prev, siteId: event.target.value }))}>
             {siteOptions.map((option) => (
               <option value={option.value} key={option.value}>
@@ -546,9 +544,8 @@ export const InterventionsPage: React.FC = () => {
               </option>
             ))}
           </select>
-        </label>
-        <label className="filter-field filter-card">
-          Type
+        </FilterField>
+        <FilterField label="Type">
           <select value={filters.type} onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value as InterventionType | 'all' }))}>
             {TYPE_OPTIONS.map((option) => (
               <option value={option.value} key={option.value}>
@@ -556,18 +553,16 @@ export const InterventionsPage: React.FC = () => {
               </option>
             ))}
           </select>
-        </label>
-        <label className="filter-field filter-card">
-          Sous-type
+        </FilterField>
+        <FilterField label="Sous-type">
           <input
             type="text"
             value={filters.subType}
             onChange={(event) => setFilters((prev) => ({ ...prev, subType: event.target.value }))}
             placeholder="Ponctuel"
           />
-        </label>
-        <label className="filter-field filter-card">
-          Agent
+        </FilterField>
+        <FilterField label="Agent">
           <select value={filters.agentId} onChange={(event) => setFilters((prev) => ({ ...prev, agentId: event.target.value }))}>
             {agentOptions.map((option) => (
               <option value={option.value} key={option.value}>
@@ -575,9 +570,8 @@ export const InterventionsPage: React.FC = () => {
               </option>
             ))}
           </select>
-        </label>
-        <label className="filter-field filter-card">
-          Statut
+        </FilterField>
+        <FilterField label="Statut">
           <select value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value as InterventionStatus | 'all' }))}>
             {STATUS_OPTIONS.map((option) => (
               <option value={option.value} key={option.value}>
@@ -585,7 +579,7 @@ export const InterventionsPage: React.FC = () => {
               </option>
             ))}
           </select>
-        </label>
+        </FilterField>
         <div className="pagination">
           <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
             Précédent
@@ -604,7 +598,7 @@ export const InterventionsPage: React.FC = () => {
           </Button>
           <span className="card__meta">{total} résultats</span>
         </div>
-      </div>
+      </FilterBar>
 
       <Modal open={formVisible} onClose={() => { cancelEditing(); setFormVisible(false); }} maxWidth={960} labelledBy="intervention-form-title">
         <ModalHeader

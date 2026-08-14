@@ -10,6 +10,7 @@ import {
 import { User } from '../../types/user';
 import { Button } from '../../components/ui/Button';
 import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
+import { FilterBar, FilterField } from '../../components/ui/FilterBar';
 import { useAuthContext } from '../../context/AuthContext';
 import { UserForm } from './UserForm';
 import { listAttendance } from '../../services/api/attendance.api';
@@ -196,18 +197,16 @@ export const UsersListPage: React.FC = () => {
         </ModalBody>
       </Modal>
 
-      <div className="filter-grid" role="search">
-        <label className="filter-field filter-card filter-card--wide">
-          Recherche
+      <FilterBar>
+        <FilterField label="Recherche" wide>
           <input
             type="text"
             value={filters.search}
             onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
             placeholder="Nom ou email"
           />
-        </label>
-        <label className="filter-field filter-card">
-          Rôle
+        </FilterField>
+        <FilterField label="Rôle">
           <select
             value={filters.role}
             onChange={(event) => setFilters((prev) => ({ ...prev, role: event.target.value }))}
@@ -217,9 +216,8 @@ export const UsersListPage: React.FC = () => {
             <option value="SUPERVISOR">Superviseur</option>
             <option value="AGENT">Agent</option>
           </select>
-        </label>
-        <label className="filter-field filter-card">
-          Statut
+        </FilterField>
+        <FilterField label="Statut">
           <select
             value={filters.status}
             onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}
@@ -228,8 +226,8 @@ export const UsersListPage: React.FC = () => {
             <option value="active">Actifs</option>
             <option value="inactive">Inactifs</option>
           </select>
-        </label>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       {error && <p className="form-error">{error}</p>}
 
