@@ -3,10 +3,28 @@ import { Link } from 'react-router-dom';
 import { deleteSite, listSites, createSite, updateSite } from '../../services/api/sites.api';
 import { Site } from '../../types/site';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { ChipGroup } from '../../components/ui/ChipGroup';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { useAuthContext } from '../../context/AuthContext';
 import { listUsers } from '../../services/api/users.api';
 import { User } from '../../types/user';
 import { env } from '../../config/env';
+
+const STATUS_OPTIONS = [
+  { value: 'true', label: 'Actif' },
+  { value: 'false', label: 'Inactif' },
+];
+
+const EMPTY_FORM_VALUES = {
+  name: '',
+  address: '',
+  timeWindow: '',
+  active: true,
+  latitude: '',
+  longitude: '',
+};
 
 export const SitesListPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -21,14 +39,7 @@ export const SitesListPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [supervisors, setSupervisors] = useState<User[]>([]);
   const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([]);
-  const [formValues, setFormValues] = useState({
-    name: '',
-    address: '',
-    timeWindow: '',
-    active: true,
-    latitude: '',
-    longitude: '',
-  });
+  const [formValues, setFormValues] = useState(EMPTY_FORM_VALUES);
   const mapboxToken = env.mapboxToken;
   const [addressSuggestions, setAddressSuggestions] = useState<
     { id: string; label: string; latitude?: number; longitude?: number }[]
@@ -154,14 +165,7 @@ export const SitesListPage: React.FC = () => {
             type="button"
             onClick={() => {
               setEditingSite(null);
-              setFormValues({
-                name: '',
-                address: '',
-                timeWindow: '',
-                active: true,
-                latitude: '',
-                longitude: '',
-              });
+              setFormValues(EMPTY_FORM_VALUES);
               setSelectedSupervisors([]);
               setFormOpen(true);
             }}
@@ -261,75 +265,26 @@ export const SitesListPage: React.FC = () => {
         </div>
       )}
 
-      {formOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '2rem',
-              width: '100%',
-              maxWidth: '700px',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
-              border: '1px solid #eef1f4',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span className="pill">Site</span>
-                <h3 style={{ margin: '0.25rem 0 0 0' }}>
-                  {editingSite ? 'Modifier un site' : 'Nouveau site'}
-                </h3>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setFormValues({
-                      name: '',
-                      address: '',
-                      timeWindow: '',
-                      active: true,
-                      latitude: '',
-                      longitude: '',
-                    });
-                    setEditingSite(null);
-                  }}
-                  className="btn--compact"
-                >
-                  Réinitialiser
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setFormOpen(false);
-                    setEditingSite(null);
-                  }}
-                  className="btn--compact"
-                >
-                  Fermer
-                </Button>
-              </div>
-            </div>
-
+      <Modal open={formOpen} onClose={() => { setFormOpen(false); setEditingSite(null); }} maxWidth={700} labelledBy="site-quick-form-title">
+        <ModalHeader
+          eyebrow="Site"
+          title={editingSite ? 'Modifier un site' : 'Nouveau site'}
+          titleId="site-quick-form-title"
+          onClose={() => { setFormOpen(false); setEditingSite(null); }}
+          actions={
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setFormValues(EMPTY_FORM_VALUES);
+                setEditingSite(null);
+              }}
+            >
+              Réinitialiser
+            </Button>
+          }
+        />
+        <ModalBody>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -387,36 +342,30 @@ export const SitesListPage: React.FC = () => {
                 }
               }}
               className="form-card"
-              style={{ boxShadow: 'none', padding: '0.75rem', display: 'grid', gap: '1rem' }}
+              style={{ boxShadow: 'none', padding: 0, display: 'grid', gap: '1rem' }}
             >
+              <Input
+                label="Nom du site"
+                value={formValues.name}
+                onChange={(e) => setFormValues((p) => ({ ...p, name: e.target.value }))}
+                required
+              />
               <div className="form-field">
-                <label className="form-label">Nom du site</label>
-                <input
-                  className="form-control"
-                  value={formValues.name}
-                  onChange={(e) => setFormValues((p) => ({ ...p, name: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="form-field">
-                <label className="form-label">Adresse</label>
-                <input
-                  className="form-control"
+                <Input
+                  label="Adresse"
                   value={formValues.address}
                   onChange={(e) => setFormValues((p) => ({ ...p, address: e.target.value }))}
                   required
+                  helperText={
+                    mapboxToken
+                      ? addressError
+                        ? `Erreur Mapbox : ${addressError}`
+                        : addressLoading
+                        ? 'Recherche en cours…'
+                        : 'Tapez 3 lettres pour rechercher une adresse'
+                      : 'Ajoutez VITE_MAPBOX_TOKEN pour activer la recherche.'
+                  }
                 />
-                {mapboxToken ? (
-                  <small className="form-helper">
-                    {addressError
-                      ? `Erreur Mapbox : ${addressError}`
-                      : addressLoading
-                      ? 'Recherche en cours…'
-                      : 'Tapez 3 lettres pour rechercher une adresse'}
-                  </small>
-                ) : (
-                  <small className="form-helper">Ajoutez VITE_MAPBOX_TOKEN pour activer la recherche.</small>
-                )}
                 {mapboxToken && addressSuggestions.length > 0 && (
                   <div className="address-suggestions">
                     {addressSuggestions.map((suggestion) => (
@@ -452,53 +401,26 @@ export const SitesListPage: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="form-field">
-                <label className="form-label">Superviseurs</label>
-                <div className="chips">
-                  {supervisors.length ? (
-                    supervisors.map((sup) => (
-                      <button
-                        key={sup.id}
-                        type="button"
-                        className={`chip ${
-                          selectedSupervisors.includes(sup.id) ? 'chip--selected' : ''
-                        }`}
-                        onClick={() =>
-                          setSelectedSupervisors((prev) =>
-                            prev.includes(sup.id)
-                              ? prev.filter((id) => id !== sup.id)
-                              : [...prev, sup.id],
-                          )
-                        }
-                      >
-                        {sup.name}
-                      </button>
-                    ))
-                  ) : (
-                    <span className="tag tag--muted">Aucun superviseur actif</span>
-                  )}
-                </div>
-              </div>
-              <div className="form-field">
-                <label className="form-label">Fenêtre horaire</label>
-                <input
-                  className="form-control"
-                  value={formValues.timeWindow}
-                  onChange={(e) => setFormValues((p) => ({ ...p, timeWindow: e.target.value }))}
-                  placeholder="06h00 – 09h00"
-                />
-              </div>
-              <div className="form-field">
-                <label className="form-label">Statut</label>
-                <select
-                  className="form-control"
-                  value={formValues.active ? 'true' : 'false'}
-                  onChange={(e) => setFormValues((p) => ({ ...p, active: e.target.value === 'true' }))}
-                >
-                  <option value="true">Actif</option>
-                  <option value="false">Inactif</option>
-                </select>
-              </div>
+              <ChipGroup
+                multiple
+                label="Superviseurs"
+                options={supervisors.map((sup) => ({ value: sup.id, label: sup.name }))}
+                value={selectedSupervisors}
+                onChange={setSelectedSupervisors}
+                helperText={supervisors.length === 0 ? 'Aucun superviseur actif' : undefined}
+              />
+              <Input
+                label="Fenêtre horaire"
+                value={formValues.timeWindow}
+                onChange={(e) => setFormValues((p) => ({ ...p, timeWindow: e.target.value }))}
+                placeholder="06h00 – 09h00"
+              />
+              <Select
+                label="Statut"
+                options={STATUS_OPTIONS}
+                value={formValues.active ? 'true' : 'false'}
+                onChange={(e) => setFormValues((p) => ({ ...p, active: e.target.value === 'true' }))}
+              />
               {(formValues.latitude || formValues.longitude) && (
                 <div className="form-field">
                   <label className="form-label">Coordonnées détectées</label>
@@ -510,14 +432,13 @@ export const SitesListPage: React.FC = () => {
                 </div>
               )}
               <div className="form-actions">
-                <Button type="submit" disabled={saving}>
-                  {saving ? 'Enregistrement...' : editingSite ? 'Mettre à jour' : 'Enregistrer'}
+                <Button type="submit" loading={saving}>
+                  {editingSite ? 'Mettre à jour' : 'Enregistrer'}
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
     </div>
   );
 };
