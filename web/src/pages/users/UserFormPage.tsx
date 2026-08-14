@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
+import { UserForm } from './UserForm';
 import {
   createUser,
   getUser,
@@ -21,12 +22,6 @@ import {
 } from '../../services/api/team.api';
 import { Certification, EmployeeDocument } from '../../types/team';
 import { useAuthContext } from '../../context/AuthContext';
-
-const ROLE_OPTIONS = [
-  { value: 'ADMIN', label: 'Admin' },
-  { value: 'SUPERVISOR', label: 'Superviseur' },
-  { value: 'AGENT', label: 'Agent' },
-];
 
 const PERMISSION_OPTIONS = [
   { value: 'settings:manage', label: 'Gérer les paramètres' },
@@ -192,54 +187,14 @@ export const UserFormPage: React.FC = () => {
         <p>Gérez les accès et coordonnées des collaborateurs Madypro Clean.</p>
       </div>
       {error && <p className="form-error">{error}</p>}
-      <form className="form-card" onSubmit={handleSubmit}>
-        <Input
-          label="Prénom"
-          value={form.firstName}
-          onChange={(event) => handleChange('firstName', event.target.value)}
-          required
-        />
-        <Input
-          label="Nom"
-          value={form.lastName}
-          onChange={(event) => handleChange('lastName', event.target.value)}
-          required
-        />
-        <Input
-          type="email"
-          label="Email"
-          value={form.email}
-          onChange={(event) => handleChange('email', event.target.value)}
-          required
-        />
-        <Input
-          label="Téléphone"
-          value={form.phone}
-          onChange={(event) => handleChange('phone', event.target.value)}
-        />
-        <Select
-          label="Rôle"
-          value={form.role}
-          onChange={(event) => handleChange('role', event.target.value)}
-          options={ROLE_OPTIONS}
-        />
-        <Input
-          type="password"
-          label={isEdit ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'}
-          value={form.password}
-          onChange={(event) => handleChange('password', event.target.value)}
-          required={!isEdit}
-          placeholder={isEdit ? 'Laisser vide pour conserver l’actuel' : 'Au moins 6 caractères'}
-        />
-        <div className="form-actions">
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Enregistrement...' : 'Enregistrer'}
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => navigate('/users')}>
-            Annuler
-          </Button>
-        </div>
-      </form>
+      <UserForm
+        value={form}
+        onChange={handleChange}
+        onSubmit={handleSubmit}
+        onCancel={() => navigate('/users')}
+        isEdit={isEdit}
+        submitting={loading}
+      />
 
       {isEdit && form.role !== 'ADMIN' && (
         <article className="settings-card" style={{ marginTop: '1.5rem' }}>

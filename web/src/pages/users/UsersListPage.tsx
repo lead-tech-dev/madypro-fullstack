@@ -5,14 +5,24 @@ import {
   updateUserStatus,
   resetUserPassword,
   createUser,
+  CreateUserPayload,
 } from '../../services/api/users.api';
 import { User } from '../../types/user';
 import { Button } from '../../components/ui/Button';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { useAuthContext } from '../../context/AuthContext';
-import { Input } from '../../components/ui/Input';
-import { Select } from '../../components/ui/Select';
+import { UserForm } from './UserForm';
 import { listAttendance } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
+
+const EMPTY_CREATE_FORM: CreateUserPayload = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  role: 'AGENT',
+  password: '',
+};
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
@@ -28,14 +38,7 @@ export const UsersListPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ search: '', role: 'all', status: 'all' });
   const [formVisible, setFormVisible] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    role: 'AGENT',
-    password: '',
-  });
+  const [createForm, setCreateForm] = useState<CreateUserPayload>(EMPTY_CREATE_FORM);
   const [creating, setCreating] = useState(false);
   const [liveNotes, setLiveNotes] = useState<Array<{ id: string; text: string }>>([]);
   const { token, notify } = useAuthContext();
@@ -118,11 +121,8 @@ export const UsersListPage: React.FC = () => {
     }
   };
 
-  const handleCreateChange = (
-    event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = event.target;
-    setCreateForm((prev) => ({ ...prev, [name]: value }));
+  const handleCreateChange = (field: keyof CreateUserPayload, value: string) => {
+    setCreateForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleCreateSubmit = async (event: React.FormEvent) => {
@@ -133,7 +133,7 @@ export const UsersListPage: React.FC = () => {
       const newUser = await createUser(token, createForm);
       setUsers((prev) => [newUser, ...prev]);
       notify('Utilisateur créé', 'success');
-      setCreateForm({ firstName: '', lastName: '', email: '', phone: '', role: 'AGENT', password: '' });
+      setCreateForm(EMPTY_CREATE_FORM);
       setFormVisible(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Impossible de créer le compte';
@@ -144,14 +144,7 @@ export const UsersListPage: React.FC = () => {
   };
 
   const openCreateModal = () => {
-    setCreateForm({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      role: 'AGENT',
-      password: '',
-    });
+    setCreateForm(EMPTY_CREATE_FORM);
     setFormVisible(true);
   };
 
@@ -180,113 +173,28 @@ export const UsersListPage: React.FC = () => {
         </div>
       </div>
 
-      {formVisible && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background:
-              'radial-gradient(circle at 30% 20%, rgba(68,174,248,0.08), transparent 25%), rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '1.75rem',
-              maxWidth: '720px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
-              border: '1px solid #eef1f4',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <span className="pill">Utilisateur</span>
-                <h3 style={{ margin: 0 }}>Nouvel utilisateur</h3>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() =>
-                    setCreateForm({ firstName: '', lastName: '', email: '', phone: '', role: 'AGENT', password: '' })
-                  }
-                >
-                  Réinitialiser
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setFormVisible(false)}>
-                  Fermer
-                </Button>
-              </div>
-            </div>
-
-            <form
-              className="form-card"
-              onSubmit={handleCreateSubmit}
-              style={{ boxShadow: 'none', padding: '0.75rem', marginTop: '1rem', display: 'grid', gap: '1rem' }}
-            >
-              <Input
-                name="firstName"
-                label="Prénom"
-                value={createForm.firstName}
-                onChange={handleCreateChange}
-                required
-              />
-              <Input
-                name="lastName"
-                label="Nom"
-                value={createForm.lastName}
-                onChange={handleCreateChange}
-                required
-              />
-              <Input
-                type="email"
-                name="email"
-                label="Email"
-                value={createForm.email}
-                onChange={handleCreateChange}
-                required
-              />
-              <Input name="phone" label="Téléphone" value={createForm.phone} onChange={handleCreateChange} />
-              <Select
-                name="role"
-                label="Rôle"
-                value={createForm.role}
-                onChange={handleCreateChange}
-                options={[
-                  { value: 'ADMIN', label: 'Admin' },
-                  { value: 'SUPERVISOR', label: 'Superviseur' },
-                  { value: 'AGENT', label: 'Agent' },
-                ]}
-              />
-              <Input
-                type="password"
-                name="password"
-                label="Mot de passe"
-                value={createForm.password}
-                onChange={handleCreateChange}
-                required
-              />
-              <div className="form-actions">
-                <Button type="submit" disabled={creating}>
-                  {creating ? 'Enregistrement...' : 'Enregistrer'}
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setFormVisible(false)} style={{ marginLeft: '0.5rem' }}>
-                  Annuler
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <Modal open={formVisible} onClose={() => setFormVisible(false)} maxWidth={720} labelledBy="user-create-title">
+        <ModalHeader
+          eyebrow="Utilisateur"
+          title="Nouvel utilisateur"
+          titleId="user-create-title"
+          onClose={() => setFormVisible(false)}
+          actions={
+            <Button type="button" variant="ghost" onClick={() => setCreateForm(EMPTY_CREATE_FORM)}>
+              Réinitialiser
+            </Button>
+          }
+        />
+        <ModalBody>
+          <UserForm
+            value={createForm}
+            onChange={handleCreateChange}
+            onSubmit={handleCreateSubmit}
+            onCancel={() => setFormVisible(false)}
+            submitting={creating}
+          />
+        </ModalBody>
+      </Modal>
 
       <div className="filter-grid" role="search">
         <label className="filter-field filter-card filter-card--wide">
