@@ -17,8 +17,10 @@ import { Absence, AbsenceStatus, AbsenceType } from '../../types/absence';
 import { listUsers } from '../../services/api/users.api';
 import { Select } from '../../components/ui/Select';
 import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
 import { Button } from '../../components/ui/Button';
 import { PromptModal } from '../../components/ui/PromptModal';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { useAuthContext } from '../../context/AuthContext';
 import { User } from '../../types/user';
 
@@ -330,56 +332,23 @@ export const AbsencesListPage: React.FC = () => {
         </label>
       </div>
 
-      {manualOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background:
-              'radial-gradient(circle at 30% 20%, rgba(68,174,248,0.08), transparent 25%), rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '1.75rem',
-              maxWidth: '760px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
-              border: '1px solid #eef1f4',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <span className="pill">Absence</span>
-                <h3 style={{ margin: 0 }}>Absence manuelle</h3>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setManualForm(EMPTY_MANUAL_FORM)}
-                >
-                  Réinitialiser
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setManualOpen(false)}>
-                  Fermer
-                </Button>
-              </div>
-            </div>
-
+      <Modal open={manualOpen} onClose={() => setManualOpen(false)} maxWidth={760} labelledBy="manual-absence-title">
+        <ModalHeader
+          eyebrow="Absence"
+          title="Absence manuelle"
+          titleId="manual-absence-title"
+          onClose={() => setManualOpen(false)}
+          actions={
+            <Button type="button" variant="ghost" onClick={() => setManualForm(EMPTY_MANUAL_FORM)}>
+              Réinitialiser
+            </Button>
+          }
+        />
+        <ModalBody>
             <form
               className="form-card"
               onSubmit={submitManual}
-              style={{ boxShadow: 'none', padding: '0.75rem', marginTop: '1rem', display: 'grid', gap: '1rem' }}
+              style={{ boxShadow: 'none', padding: 0, display: 'grid', gap: '1rem' }}
             >
               <Select
                 id="manualAgent"
@@ -413,22 +382,18 @@ export const AbsencesListPage: React.FC = () => {
                 placeholder="Motif officiel"
                 required
               />
-              <label className="form-field" htmlFor="manualNote">
-                <span>Note interne</span>
-                <textarea id="manualNote" name="note" value={manualForm.note} onChange={handleManualChange} placeholder="Commentaire interne" />
-              </label>
+              <Textarea id="manualNote" name="note" label="Note interne" value={manualForm.note} onChange={handleManualChange} placeholder="Commentaire interne" />
               <div className="form-actions">
-                <Button type="submit" disabled={manualSubmitting}>
-                  {manualSubmitting ? 'Enregistrement...' : 'Enregistrer'}
+                <Button type="submit" loading={manualSubmitting}>
+                  Enregistrer
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setManualOpen(false)}>
                   Annuler
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       <section className="panel">
         <h3>Demandes d'absence</h3>

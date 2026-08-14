@@ -17,6 +17,10 @@ import { User } from '../../types/user';
 import { Site } from '../../types/site';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { Textarea } from '../../components/ui/Textarea';
+import { Checkbox } from '../../components/ui/Checkbox';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { formatDateTime } from '../../utils/datetime';
 
 const audienceOptions: { value: NotificationAudience; label: string }[] = [
@@ -181,40 +185,24 @@ export const NotificationsPage: React.FC = () => {
   const targetSelect = useMemo(() => {
     if (form.audience === 'SITE_AGENTS') {
       return (
-        <label className="form-field">
-          <span>Site</span>
-          <select
-            name="targetId"
-            value={form.targetId ?? ''}
-            onChange={handleChange}
-          >
-            <option value="">Sélectionner</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Site"
+          name="targetId"
+          value={form.targetId ?? ''}
+          onChange={handleChange}
+          options={[{ value: '', label: 'Sélectionner' }, ...sites.map((site) => ({ value: site.id, label: site.name }))]}
+        />
       );
     }
     if (form.audience === 'AGENT') {
       return (
-        <label className="form-field">
-          <span>Agent</span>
-          <select
-            name="targetId"
-            value={form.targetId ?? ''}
-            onChange={handleChange}
-          >
-            <option value="">Sélectionner</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Agent"
+          name="targetId"
+          value={form.targetId ?? ''}
+          onChange={handleChange}
+          options={[{ value: '', label: 'Sélectionner' }, ...users.map((user) => ({ value: user.id, label: user.name }))]}
+        />
       );
     }
     return null;
@@ -239,83 +227,41 @@ export const NotificationsPage: React.FC = () => {
         </div>
       </div>
 
-      {formVisible && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background:
-              'radial-gradient(circle at 30% 20%, rgba(68,174,248,0.08), transparent 25%), rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '1.75rem',
-              maxWidth: '760px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
-              border: '1px solid #eef1f4',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <span className="pill">Push</span>
-                <h3 style={{ margin: 0, letterSpacing: '-0.01em' }}>Envoyer une notification</h3>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setForm({ title: '', message: '', audience: 'ALL_AGENTS' })}
-                >
-                  Réinitialiser
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setFormVisible(false)}>
-                  Fermer
-                </Button>
-              </div>
-            </div>
-
+      <Modal open={formVisible} onClose={() => setFormVisible(false)} maxWidth={760} labelledBy="notification-form-title">
+        <ModalHeader
+          eyebrow="Push"
+          title="Envoyer une notification"
+          titleId="notification-form-title"
+          onClose={() => setFormVisible(false)}
+          actions={
+            <Button type="button" variant="ghost" onClick={() => setForm({ title: '', message: '', audience: 'ALL_AGENTS' })}>
+              Réinitialiser
+            </Button>
+          }
+        />
+        <ModalBody>
             <form
               className="form-card"
               onSubmit={handleSubmit}
-              style={{ boxShadow: 'none', padding: '0.75rem', marginTop: '1rem', display: 'grid', gap: '1rem' }}
+              style={{ boxShadow: 'none', padding: 0, display: 'grid', gap: '1rem' }}
             >
               {templates.length > 0 && (
-                <label className="form-field">
-                  <span>Modèle réutilisable</span>
-                  <select value={selectedTemplateId} onChange={(event) => applyTemplate(event.target.value)}>
-                    <option value="">— Partir de zéro —</option>
-                    {templates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <Select
+                  label="Modèle réutilisable"
+                  value={selectedTemplateId}
+                  onChange={(event) => applyTemplate(event.target.value)}
+                  options={[
+                    { value: '', label: '— Partir de zéro —' },
+                    ...templates.map((template) => ({ value: template.id, label: template.name })),
+                  ]}
+                />
               )}
-              <label className="form-field">
-                <span>Cible</span>
-                <select
-                  value={form.audience}
-                  onChange={(event) => handleAudienceChange(event.target.value as NotificationAudience)}
-                >
-                  {audienceOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Select
+                label="Cible"
+                value={form.audience}
+                onChange={(event) => handleAudienceChange(event.target.value as NotificationAudience)}
+                options={audienceOptions}
+              />
               {targetSelect}
               <Input
                 id="notifTitle"
@@ -326,35 +272,26 @@ export const NotificationsPage: React.FC = () => {
                 placeholder="Brief, rappel, info..."
                 required
               />
-              <label className="form-field" htmlFor="notifMessage">
-                <span>Message</span>
-                <textarea
-                  id="notifMessage"
-                  name="message"
-                  value={form.message}
-                  onChange={handleChange}
-                  placeholder="Détail de la notification"
-                  rows={3}
-                  required
-                />
-              </label>
+              <Textarea
+                id="notifMessage"
+                name="message"
+                label="Message"
+                value={form.message}
+                onChange={handleChange}
+                placeholder="Détail de la notification"
+                rows={3}
+                required
+              />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <label className="form-field">
-                  <span>Priorité</span>
-                  <select
-                    name="priority"
-                    value={form.priority ?? 'NORMAL'}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, priority: event.target.value as NotificationPriority }))
-                    }
-                  >
-                    {priorityOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <Select
+                  label="Priorité"
+                  name="priority"
+                  value={form.priority ?? 'NORMAL'}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, priority: event.target.value as NotificationPriority }))
+                  }
+                  options={priorityOptions}
+                />
                 <Input
                   id="notifCategory"
                   name="category"
@@ -390,10 +327,11 @@ export const NotificationsPage: React.FC = () => {
                   />
                 )}
               </div>
-              <label className="form-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                <input type="checkbox" checked={saveAsTemplate} onChange={(e) => setSaveAsTemplate(e.target.checked)} />
-                <span>Enregistrer comme modèle réutilisable</span>
-              </label>
+              <Checkbox
+                checked={saveAsTemplate}
+                onChange={setSaveAsTemplate}
+                label="Enregistrer comme modèle réutilisable"
+              />
               {saveAsTemplate && (
                 <Input
                   id="notifTemplateName"
@@ -404,14 +342,13 @@ export const NotificationsPage: React.FC = () => {
                 />
               )}
               <div className="form-actions" style={{ marginTop: '0.5rem' }}>
-                <Button type="submit" disabled={sending}>
-                  {sending ? 'Envoi...' : form.scheduledFor ? 'Programmer' : 'Envoyer'}
+                <Button type="submit" loading={sending}>
+                  {form.scheduledFor ? 'Programmer' : 'Envoyer'}
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       <section className="panel">
         <h3>Historique des notifications</h3>

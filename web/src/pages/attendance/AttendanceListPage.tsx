@@ -14,6 +14,8 @@ import { Table } from '../../components/ui/Table';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { PromptModal } from '../../components/ui/PromptModal';
 import { useAuthContext } from '../../context/AuthContext';
 import { listUsers } from '../../services/api/users.api';
@@ -415,52 +417,23 @@ export const AttendanceListPage: React.FC = () => {
         </div>
       </div>
 
-      {manualOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background:
-              'radial-gradient(circle at 30% 20%, rgba(68,174,248,0.08), transparent 25%), rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '1.75rem',
-              maxWidth: '760px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
-              border: '1px solid #eef1f4',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <span className="pill">Pointage</span>
-                <h3 style={{ margin: 0 }}>Pointage manuel</h3>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button type="button" variant="ghost" onClick={() => setManualForm(initialManualForm)}>
-                  Réinitialiser
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setManualOpen(false)}>
-                  Fermer
-                </Button>
-              </div>
-            </div>
-
+      <Modal open={manualOpen} onClose={() => setManualOpen(false)} maxWidth={760} labelledBy="manual-attendance-title">
+        <ModalHeader
+          eyebrow="Pointage"
+          title="Pointage manuel"
+          titleId="manual-attendance-title"
+          onClose={() => setManualOpen(false)}
+          actions={
+            <Button type="button" variant="ghost" onClick={() => setManualForm(initialManualForm)}>
+              Réinitialiser
+            </Button>
+          }
+        />
+        <ModalBody>
             <form
               className="form-card"
               onSubmit={handleManualSubmit}
-              style={{ boxShadow: 'none', padding: '0.75rem', marginTop: '1rem', display: 'grid', gap: '1rem' }}
+              style={{ boxShadow: 'none', padding: 0, display: 'grid', gap: '1rem' }}
             >
               <Select
                 id="manualUser"
@@ -470,32 +443,24 @@ export const AttendanceListPage: React.FC = () => {
                 value={manualForm.userId}
               onChange={handleManualChange}
             />
-              <label className="form-field">
-                <span>Intervention terminée</span>
-                <select
-                  value={manualForm.interventionId}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    const intervention = options.interventions.find((item) => item.id === value);
-                    setManualForm((prev) => ({
-                      ...prev,
-                      interventionId: value,
-                      siteId: intervention?.siteId ?? prev.siteId,
-                      userId: intervention?.agents[0]?.id ?? prev.userId,
-                      date: intervention?.date ?? prev.date,
-                      checkInTime: intervention?.startTime ?? prev.checkInTime,
-                      checkOutTime: intervention?.endTime ?? prev.checkOutTime,
-                    }));
-                  }}
-                >
-                  <option value="">Sélectionner une intervention</option>
-                  {manualInterventionOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Select
+                label="Intervention terminée"
+                options={[{ value: '', label: 'Sélectionner une intervention' }, ...manualInterventionOptions]}
+                value={manualForm.interventionId}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  const intervention = options.interventions.find((item) => item.id === value);
+                  setManualForm((prev) => ({
+                    ...prev,
+                    interventionId: value,
+                    siteId: intervention?.siteId ?? prev.siteId,
+                    userId: intervention?.agents[0]?.id ?? prev.userId,
+                    date: intervention?.date ?? prev.date,
+                    checkInTime: intervention?.startTime ?? prev.checkInTime,
+                    checkOutTime: intervention?.endTime ?? prev.checkOutTime,
+                  }));
+                }}
+              />
               <Input
                 id="manualDate"
                 name="date"
@@ -525,29 +490,26 @@ export const AttendanceListPage: React.FC = () => {
                   required
                 />
               </div>
-              <label className="form-field" htmlFor="manualNote">
-                <span>Note</span>
-                <textarea
-                  id="manualNote"
-                  name="note"
-                  required
-                  value={manualForm.note}
-                  onChange={handleManualChange}
-                  placeholder="Motif de la création manuelle"
-                />
-              </label>
+              <Textarea
+                id="manualNote"
+                name="note"
+                label="Note"
+                required
+                value={manualForm.note}
+                onChange={handleManualChange}
+                placeholder="Motif de la création manuelle"
+              />
               <div className="form-actions">
-                <Button type="submit" disabled={manualSubmitting}>
-                  {manualSubmitting ? 'Enregistrement...' : 'Enregistrer'}
+                <Button type="submit" loading={manualSubmitting}>
+                  Enregistrer
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setManualOpen(false)} style={{ marginLeft: '0.5rem' }}>
+                <Button type="button" variant="ghost" onClick={() => setManualOpen(false)}>
                   Annuler
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       <section className="panel">
         <h3>Liste des pointages</h3>
@@ -772,10 +734,7 @@ export const AttendanceListPage: React.FC = () => {
               </div>
             </div>
 
-            <label className="form-field" htmlFor="editNote">
-              <span>Note</span>
-              <textarea id="editNote" name="note" value={editForm.note} onChange={handleEditChange} />
-            </label>
+            <Textarea id="editNote" name="note" label="Note" value={editForm.note} onChange={handleEditChange} />
 
             <div className="form-row">
               <Input
