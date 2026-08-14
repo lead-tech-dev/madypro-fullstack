@@ -435,6 +435,15 @@
   border-bottom-color: var(--color-accent);
 }
 
+.ui-tabs__tab--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-tabs__tab--disabled:hover {
+  color: var(--color-muted);
+}
+
 .ui-tab-panel {
   display: flex;
   flex-direction: column;

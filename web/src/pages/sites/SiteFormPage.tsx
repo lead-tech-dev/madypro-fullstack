@@ -127,6 +127,7 @@ export const SiteFormPage: React.FC = () => {
   const mapboxToken = env.mapboxToken;
   const [formVisible, setFormVisible] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState('general');
+  const [maxUnlockedIndex, setMaxUnlockedIndex] = useState(0);
   const [siteCategories, setSiteCategories] = useState<SiteCategory[]>([]);
   const [categoryCatalog, setCategoryCatalog] = useState<InterventionCategory[]>([]);
   const [newSiteCategory, setNewSiteCategory] = useState({ categoryId: '', startTime: '08:00', endTime: '10:00' });
@@ -308,6 +309,11 @@ export const SiteFormPage: React.FC = () => {
   };
 
   const isInvalid = !form.name || !form.address || !token;
+
+  const isStepValid = (stepId: string) => {
+    if (stepId === 'general') return Boolean(form.name.trim() && form.address.trim());
+    return true;
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -543,10 +549,14 @@ export const SiteFormPage: React.FC = () => {
     setSelectedSupervisors([]);
     setAddressSelected(false);
     setActiveTab('general');
+    setMaxUnlockedIndex(0);
     setFormVisible(true);
   };
 
-  const tabs = isEdit ? [...CREATE_TABS, ...EDIT_ONLY_TABS] : CREATE_TABS;
+  const tabs = isEdit
+    ? [...CREATE_TABS, ...EDIT_ONLY_TABS]
+    : CREATE_TABS.map((tab, index) => ({ ...tab, disabled: index > maxUnlockedIndex }));
+  const currentStepIndex = CREATE_TABS.findIndex((t) => t.id === activeTab);
 
   return (
     <div>
@@ -569,7 +579,17 @@ export const SiteFormPage: React.FC = () => {
             titleId="site-form-title"
             onClose={() => setFormVisible(false)}
             actions={
-              <Button type="button" variant="ghost" onClick={() => setForm(INITIAL_FORM)}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setForm(INITIAL_FORM);
+                  if (!isEdit) {
+                    setActiveTab('general');
+                    setMaxUnlockedIndex(0);
+                  }
+                }}
+              >
                 Réinitialiser
               </Button>
             }
@@ -1121,14 +1141,53 @@ export const SiteFormPage: React.FC = () => {
                 </TabPanel>
               )}
 
-              <div className="form-actions">
-                <Button type="submit" loading={submitting} disabled={isInvalid}>
-                  {isEdit ? 'Mettre à jour' : 'Enregistrer'}
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => navigate('/sites')}>
-                  Annuler
-                </Button>
-              </div>
+              {isEdit ? (
+                <div className="form-actions">
+                  <Button type="submit" loading={submitting} disabled={isInvalid}>
+                    Mettre à jour
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => navigate('/sites')}>
+                    Annuler
+                  </Button>
+                </div>
+              ) : (
+                <div className="form-actions" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {currentStepIndex > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setActiveTab(CREATE_TABS[currentStepIndex - 1].id)}
+                      >
+                        Précédent
+                      </Button>
+                    )}
+                    {currentStepIndex < CREATE_TABS.length - 1 ? (
+                      <Button
+                        type="button"
+                        disabled={!isStepValid(activeTab)}
+                        onClick={() => {
+                          const nextIndex = currentStepIndex + 1;
+                          setMaxUnlockedIndex((m) => Math.max(m, nextIndex));
+                          setActiveTab(CREATE_TABS[nextIndex].id);
+                        }}
+                      >
+                        Continuer
+                      </Button>
+                    ) : (
+                      <Button type="submit" loading={submitting} disabled={isInvalid}>
+                        Créer le site
+                      </Button>
+                    )}
+                    <Button type="button" variant="ghost" onClick={() => navigate('/sites')}>
+                      Annuler
+                    </Button>
+                  </div>
+                  {activeTab === 'general' && !isStepValid('general') && (
+                    <small className="form-helper">Renseignez le nom et l'adresse pour continuer.</small>
+                  )}
+                </div>
+              )}
             </form>
           </ModalBody>
         </Modal>

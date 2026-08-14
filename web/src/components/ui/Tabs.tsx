@@ -3,6 +3,7 @@ import React from 'react';
 type Tab = {
   id: string;
   label: string;
+  disabled?: boolean;
 };
 
 type TabsProps = {
@@ -19,8 +20,10 @@ export const Tabs: React.FC<TabsProps> = ({ tabs, active, onChange }) => (
         type="button"
         role="tab"
         aria-selected={tab.id === active}
-        className={`ui-tabs__tab ${tab.id === active ? 'ui-tabs__tab--active' : ''}`.trim()}
-        onClick={() => onChange(tab.id)}
+        aria-disabled={tab.disabled || undefined}
+        disabled={tab.disabled}
+        className={`ui-tabs__tab ${tab.id === active ? 'ui-tabs__tab--active' : ''} ${tab.disabled ? 'ui-tabs__tab--disabled' : ''}`.trim()}
+        onClick={() => !tab.disabled && onChange(tab.id)}
       >
         {tab.label}
       </button>
