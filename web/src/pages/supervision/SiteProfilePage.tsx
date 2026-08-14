@@ -22,7 +22,22 @@ import { Intervention } from '../../types/intervention';
 import { Attendance } from '../../types/attendance';
 import { Absence } from '../../types/absence';
 import { Button } from '../../components/ui/Button';
+import { Tabs, TabPanel } from '../../components/ui/Tabs';
 import { formatDateTime } from '../../utils/datetime';
+
+const PROFILE_TABS = [
+  { id: 'general', label: 'Informations générales' },
+  { id: 'quality', label: 'Qualité & agents' },
+  { id: 'planning', label: 'Planning' },
+  { id: 'attendance', label: 'Pointages' },
+  { id: 'absences', label: 'Absences' },
+  { id: 'categories', label: 'Catégories & checklist' },
+  { id: 'roster', label: 'Équipe' },
+  { id: 'contracts', label: 'Contrats & incidents' },
+  { id: 'zones', label: 'Zones & plan' },
+  { id: 'inventory', label: 'Inventaire' },
+  { id: 'qr', label: 'QR code' },
+];
 
 const INTERVENTION_STATUS_LABELS: Record<string, string> = {
   PLANNED: 'Planifiée',
@@ -86,6 +101,7 @@ export const SiteProfilePage: React.FC = () => {
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [planningView, setPlanningView] = useState<PlanningView>('liste');
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()));
+  const [activeTab, setActiveTab] = useState('general');
 
   useEffect(() => {
     if (!token || !id) return;
@@ -182,6 +198,9 @@ export const SiteProfilePage: React.FC = () => {
         <p>Fiche complète : coordonnées, superviseurs, planning, pointages, absences, qualité et logistique.</p>
       </div>
 
+      <Tabs tabs={PROFILE_TABS} active={activeTab} onChange={setActiveTab} />
+
+      <TabPanel active={activeTab === 'general'}>
       <div className="panel" style={{ marginBottom: '1rem' }}>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <span className={`status-chip ${site.active ? 'status-chip--success' : 'status-chip--warning'}`}>
@@ -220,7 +239,9 @@ export const SiteProfilePage: React.FC = () => {
           </Link>
         </div>
       </div>
+      </TabPanel>
 
+      <TabPanel active={activeTab === 'quality'}>
       {qualityScore && (
         <div className="page-grid" style={{ marginBottom: '1rem' }}>
           <article className="card">
@@ -244,7 +265,7 @@ export const SiteProfilePage: React.FC = () => {
         </div>
       )}
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
+      <div className="panel">
         <h3>Agents intervenant sur ce site</h3>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
           {agentsAtSite.map(([agentId, name]) => (
@@ -255,8 +276,10 @@ export const SiteProfilePage: React.FC = () => {
           {agentsAtSite.length === 0 && <span className="card__meta">Aucun agent sur la période affichée.</span>}
         </div>
       </div>
+      </TabPanel>
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
+      <TabPanel active={activeTab === 'planning'}>
+      <div className="panel">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3>Planning</h3>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -364,8 +387,10 @@ export const SiteProfilePage: React.FC = () => {
           </div>
         )}
       </div>
+      </TabPanel>
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
+      <TabPanel active={activeTab === 'attendance'}>
+      <div className="panel">
         <h3>Pointages</h3>
         <div className="table-wrapper" style={{ marginTop: '0.5rem' }}>
           <table className="table" aria-label="pointages site">
@@ -403,8 +428,10 @@ export const SiteProfilePage: React.FC = () => {
           </table>
         </div>
       </div>
+      </TabPanel>
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
+      <TabPanel active={activeTab === 'absences'}>
+      <div className="panel">
         <h3>Absences liées à ce site</h3>
         <div className="table-wrapper" style={{ marginTop: '0.5rem' }}>
           <table className="table" aria-label="absences site">
@@ -440,8 +467,10 @@ export const SiteProfilePage: React.FC = () => {
           </table>
         </div>
       </div>
+      </TabPanel>
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
+      <TabPanel active={activeTab === 'categories'}>
+      <div className="panel">
         <h3>Catégories d'intervention & checklist</h3>
         {siteCategories.map((sc) => (
           <div key={sc.id} style={{ marginTop: '0.75rem' }}>
@@ -458,8 +487,10 @@ export const SiteProfilePage: React.FC = () => {
         ))}
         {siteCategories.length === 0 && <p className="card__meta" style={{ marginTop: '0.5rem' }}>Aucune catégorie associée à ce site.</p>}
       </div>
+      </TabPanel>
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
+      <TabPanel active={activeTab === 'roster'}>
+      <div className="panel">
         <h3>Équipe (dérivée des gabarits actifs)</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
           {roster &&
@@ -480,7 +511,9 @@ export const SiteProfilePage: React.FC = () => {
           )}
         </div>
       </div>
+      </TabPanel>
 
+      <TabPanel active={activeTab === 'contracts'}>
       <div className="panel" style={{ marginBottom: '1rem' }}>
         <h3>Contrats / SLA</h3>
         <ul className="list-line" style={{ marginTop: '0.5rem' }}>
@@ -497,20 +530,8 @@ export const SiteProfilePage: React.FC = () => {
         </ul>
       </div>
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
-        <h3>Zones & plan des locaux</h3>
-        <ul className="list-line" style={{ marginTop: '0.5rem' }}>
-          {zones.map((zone) => (
-            <li key={zone.id}>
-              {zone.completed ? '✓' : '•'} {zone.label} {zone.floor ? `(${zone.floor})` : ''}
-            </li>
-          ))}
-          {zones.length === 0 && <li>Aucune zone définie.</li>}
-        </ul>
-      </div>
-
       {incidents.length > 0 && (
-        <div className="panel" style={{ marginBottom: '1rem' }}>
+        <div className="panel">
           <h3>Incidents récents</h3>
           <ul className="list-line" style={{ marginTop: '0.5rem' }}>
             {incidents.slice(0, 10).map((incident) => (
@@ -521,8 +542,24 @@ export const SiteProfilePage: React.FC = () => {
           </ul>
         </div>
       )}
+      </TabPanel>
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
+      <TabPanel active={activeTab === 'zones'}>
+      <div className="panel">
+        <h3>Zones & plan des locaux</h3>
+        <ul className="list-line" style={{ marginTop: '0.5rem' }}>
+          {zones.map((zone) => (
+            <li key={zone.id}>
+              {zone.completed ? '✓' : '•'} {zone.label} {zone.floor ? `(${zone.floor})` : ''}
+            </li>
+          ))}
+          {zones.length === 0 && <li>Aucune zone définie.</li>}
+        </ul>
+      </div>
+      </TabPanel>
+
+      <TabPanel active={activeTab === 'inventory'}>
+      <div className="panel">
         <h3>Inventaire</h3>
         <div className="table-wrapper" style={{ marginTop: '0.5rem' }}>
           <table className="table" aria-label="inventaire site">
@@ -557,13 +594,18 @@ export const SiteProfilePage: React.FC = () => {
           </table>
         </div>
       </div>
+      </TabPanel>
 
-      {qrCode && (
+      <TabPanel active={activeTab === 'qr'}>
+      {qrCode ? (
         <div className="panel">
           <h3>QR code de pointage</h3>
           <img src={qrCode.qrCodeDataUrl} alt="QR code de pointage" style={{ width: 140, height: 140, marginTop: '0.5rem' }} />
         </div>
+      ) : (
+        <p className="card__meta">QR code non disponible pour ce site.</p>
       )}
+      </TabPanel>
     </div>
   );
 };
