@@ -10,6 +10,7 @@ export type Intervention = {
   endTime: string;
   type: InterventionType;
   subType?: string;
+  categoryId?: string;
   label?: string;
   agents: { id: string; name: string; attendanceId?: string; attendanceStatus?: string; arrivalTime?: string; checkInTime?: string; checkOutTime?: string }[];
   agentIds: string[];
@@ -44,6 +45,7 @@ export type TemplateStop = {
   id: string;
   daysOfWeek: number[];
   siteId: string;
+  categoryId?: string | null;
   startTime: string;
   endTime: string;
   agentIds: string[];
@@ -67,6 +69,7 @@ export type TemplateOccurrence = {
   stopId: string;
   siteId: string;
   siteName: string;
+  categoryId?: string | null;
   startTime: string;
   endTime: string;
   agentIds: string[];

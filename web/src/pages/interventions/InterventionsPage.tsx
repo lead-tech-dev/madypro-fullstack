@@ -16,8 +16,9 @@ import {
   InterventionFilters,
   CreateInterventionPayload,
 } from '../../services/api/interventions.api';
-import { listSites } from '../../services/api/sites.api';
+import { listSites, listSiteCategories } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
+import { SiteCategory } from '../../types/category';
 import { Site } from '../../types/site';
 import { User } from '../../types/user';
 import { Select } from '../../components/ui/Select';
@@ -60,18 +61,6 @@ const TYPE_OPTIONS: { value: InterventionType | 'all'; label: string }[] = [
   { value: 'PONCTUAL', label: 'Ponctuel' },
 ];
 
-const PONCTUAL_SUBTYPES = [
-  'Privat',
-  'Hivernage terrasse',
-  'Enlèvement de la terrasse',
-  'Enlèvement console',
-  'Nettoyage cuisine',
-  'Débarras',
-  'Remise de la terrasse',
-  'Nettoyage de fin de chantier',
-  'Manutention',
-];
-
 const TRUCK_OPTIONS = ['Camion (Drissa)', 'Camion (Cissé)', 'Camion (Samassa)'];
 
 const today = new Date();
@@ -110,6 +99,7 @@ export const InterventionsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<CreateInterventionPayload>(createFormDefaults);
   const [extraStops, setExtraStops] = useState<OneshotOccurrence[]>([]);
+  const [siteCategoriesBySite, setSiteCategoriesBySite] = useState<Record<string, SiteCategory[]>>({});
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [observationOnly, setObservationOnly] = useState(false);
@@ -164,6 +154,23 @@ export const InterventionsPage: React.FC = () => {
       subType: undefined,
     });
     setFormVisible(true);
+  };
+
+  const ensureSiteCategoriesLoaded = (siteId: string) => {
+    if (!token || !siteId || siteCategoriesBySite[siteId]) return;
+    listSiteCategories(token, siteId)
+      .then((cats) => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: cats })))
+      .catch(() => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: [] })));
+  };
+
+  const applyCategoryToForm = (categoryId: string) => {
+    const sc = (siteCategoriesBySite[form.siteId] ?? []).find((c) => c.categoryId === categoryId);
+    setForm((prev) => ({
+      ...prev,
+      categoryId,
+      subType: sc?.category.label,
+      ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
+    }));
   };
 
   const addExtraStop = () => {
@@ -683,16 +690,30 @@ export const InterventionsPage: React.FC = () => {
                 label="Site"
                 options={sites.map((site) => ({ value: site.id, label: site.name }))}
                 value={form.siteId}
-                onChange={handleFormChange}
+                onChange={(e) => {
+                  handleFormChange(e);
+                  ensureSiteCategoriesLoaded(e.target.value);
+                }}
                 disabled={observationOnly}
               />
-              {form.type === 'PONCTUAL' && (
-                <Select
+              <Select
+                id="categoryId"
+                name="categoryId"
+                label="Catégorie"
+                options={[
+                  { value: '', label: form.type === 'PONCTUAL' ? 'Sélectionner (obligatoire)' : 'Aucune / personnalisé' },
+                  ...(siteCategoriesBySite[form.siteId] ?? []).map((sc) => ({ value: sc.categoryId, label: sc.category.label })),
+                ]}
+                value={form.categoryId ?? ''}
+                onChange={(e) => applyCategoryToForm(e.target.value)}
+                disabled={observationOnly}
+              />
+              {form.type === 'PONCTUAL' && !form.categoryId && (
+                <Input
                   id="subType"
                   name="subType"
-                  label="Sous-type"
-                  options={PONCTUAL_SUBTYPES.map((sub) => ({ value: sub, label: sub }))}
-                  value={form.subType ?? PONCTUAL_SUBTYPES[0]}
+                  label="Sous-type (si aucune catégorie ne convient)"
+                  value={form.subType ?? ''}
                   onChange={handleFormChange}
                   disabled={observationOnly}
                 />
@@ -781,12 +802,34 @@ export const InterventionsPage: React.FC = () => {
                         <div className="form-row">
                           <select
                             value={stop.siteId}
-                            onChange={(e) => updateExtraStop(index, { siteId: e.target.value })}
+                            onChange={(e) => {
+                              const siteId = e.target.value;
+                              updateExtraStop(index, { siteId, categoryId: undefined });
+                              ensureSiteCategoriesLoaded(siteId);
+                            }}
                           >
                             <option value="">Sélectionner un site</option>
                             {sites.map((site) => (
                               <option key={site.id} value={site.id}>
                                 {site.name}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={stop.categoryId ?? ''}
+                            onChange={(e) => {
+                              const categoryId = e.target.value;
+                              const sc = (siteCategoriesBySite[stop.siteId] ?? []).find((c) => c.categoryId === categoryId);
+                              updateExtraStop(index, {
+                                categoryId: categoryId || undefined,
+                                ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
+                              });
+                            }}
+                          >
+                            <option value="">Aucune / personnalisé</option>
+                            {(siteCategoriesBySite[stop.siteId] ?? []).map((sc) => (
+                              <option key={sc.categoryId} value={sc.categoryId}>
+                                {sc.category.label}
                               </option>
                             ))}
                           </select>

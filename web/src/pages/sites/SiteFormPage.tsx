@@ -6,10 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { useAuthContext } from '../../context/AuthContext';
 import {
   createSite,
-  createSiteChecklistItem,
-  deleteSiteChecklistItem,
   getSite,
-  listSiteChecklist,
   SitePayload,
   updateSite,
   listSiteContracts,
@@ -24,13 +21,22 @@ import {
   getSiteQualityScore,
   getSiteQrCode,
   sendSitePlanning,
+  listSiteCategories,
+  addSiteCategory,
+  removeSiteCategory,
+  createSiteCategoryChecklistItem,
+  removeSiteCategoryChecklistItem,
 } from '../../services/api/sites.api';
 import { listInventory, createInventoryItem, adjustInventoryItem, deleteInventoryItem } from '../../services/api/inventory.api';
-import { SiteChecklistItem } from '../../types/site';
+import { listCategories } from '../../services/api/categories.api';
+import { getSiteRoster } from '../../services/api/interventions.api';
 import { SiteContract, SiteZone, SiteIncident, SiteQualityScore, SiteQrCode } from '../../types/siteAdvanced';
 import { InventoryItem } from '../../types/inventory';
+import { InterventionCategory, SiteCategory, SiteRoster } from '../../types/category';
 import { listUsers } from '../../services/api/users.api';
 import { env } from '../../config/env';
+
+const DAY_LABELS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
 const STATUS_OPTIONS = [
   { value: 'true', label: 'Actif' },
@@ -101,9 +107,12 @@ export const SiteFormPage: React.FC = () => {
   const [addressSelected, setAddressSelected] = useState(false);
   const mapboxToken = env.mapboxToken;
   const [formVisible, setFormVisible] = useState<boolean>(false);
-  const [checklist, setChecklist] = useState<SiteChecklistItem[]>([]);
-  const [newChecklistLabel, setNewChecklistLabel] = useState('');
-  const [checklistBusy, setChecklistBusy] = useState(false);
+  const [siteCategories, setSiteCategories] = useState<SiteCategory[]>([]);
+  const [categoryCatalog, setCategoryCatalog] = useState<InterventionCategory[]>([]);
+  const [newSiteCategory, setNewSiteCategory] = useState({ categoryId: '', startTime: '08:00', endTime: '10:00' });
+  const [categoryBusy, setCategoryBusy] = useState(false);
+  const [newChecklistLabelByCategory, setNewChecklistLabelByCategory] = useState<Record<string, string>>({});
+  const [roster, setRoster] = useState<SiteRoster | null>(null);
   const [contracts, setContracts] = useState<SiteContract[]>([]);
   const [newContract, setNewContract] = useState({ label: '', startDate: '', endDate: '', slaDetails: '' });
   const [zones, setZones] = useState<SiteZone[]>([]);
@@ -125,7 +134,14 @@ export const SiteFormPage: React.FC = () => {
     getSiteQualityScore(token, currentSiteId).then(setQualityScore).catch(() => {});
     listInventory(token, currentSiteId).then(setInventory).catch(() => {});
     getSiteQrCode(token, currentSiteId).then(setQrCode).catch(() => {});
+    listSiteCategories(token, currentSiteId).then(setSiteCategories).catch(() => setSiteCategories([]));
+    getSiteRoster(token, currentSiteId).then(setRoster).catch(() => setRoster(null));
   };
+
+  useEffect(() => {
+    if (!token) return;
+    listCategories(token).then(setCategoryCatalog).catch(() => setCategoryCatalog([]));
+  }, [token]);
 
   useEffect(() => {
     if (!token) {
@@ -175,9 +191,6 @@ export const SiteFormPage: React.FC = () => {
           setSelectedSupervisors(siteData.supervisorIds);
           setPlanImageUrl((siteData as any).planImageUrl ?? null);
           setFormVisible(true);
-          listSiteChecklist(token, siteData.id)
-            .then(setChecklist)
-            .catch(() => setChecklist([]));
           loadSiteExtras(siteData.id);
         } else {
           setSupervisors(supervisorOptions);
@@ -328,28 +341,53 @@ export const SiteFormPage: React.FC = () => {
     }
   };
 
-  const handleAddChecklistItem = async () => {
-    if (!token || !siteId || !newChecklistLabel.trim()) return;
-    setChecklistBusy(true);
+  const reloadSiteCategories = () => {
+    if (!token || !siteId) return;
+    listSiteCategories(token, siteId).then(setSiteCategories).catch(() => {});
+  };
+
+  const handleAddSiteCategory = async () => {
+    if (!token || !siteId || !newSiteCategory.categoryId) return;
+    setCategoryBusy(true);
     try {
-      const item = await createSiteChecklistItem(token, siteId, {
-        label: newChecklistLabel.trim(),
-        order: checklist.length,
-      });
-      setChecklist((prev) => [...prev, item]);
-      setNewChecklistLabel('');
+      await addSiteCategory(token, siteId, newSiteCategory);
+      setNewSiteCategory({ categoryId: '', startTime: '08:00', endTime: '10:00' });
+      reloadSiteCategories();
     } catch (err) {
-      notify(err instanceof Error ? err.message : "Impossible d'ajouter cet élément.", 'error');
+      notify(err instanceof Error ? err.message : "Impossible d'ajouter cette catégorie.", 'error');
     } finally {
-      setChecklistBusy(false);
+      setCategoryBusy(false);
     }
   };
 
-  const handleRemoveChecklistItem = async (itemId: string) => {
+  const handleRemoveSiteCategory = async (siteCategoryId: string) => {
     if (!token || !siteId) return;
     try {
-      await deleteSiteChecklistItem(token, siteId, itemId);
-      setChecklist((prev) => prev.filter((item) => item.id !== itemId));
+      await removeSiteCategory(token, siteId, siteCategoryId);
+      reloadSiteCategories();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible de retirer cette catégorie.', 'error');
+    }
+  };
+
+  const handleAddCategoryChecklistItem = async (siteCategoryId: string) => {
+    if (!token || !siteId) return;
+    const label = (newChecklistLabelByCategory[siteCategoryId] ?? '').trim();
+    if (!label) return;
+    try {
+      await createSiteCategoryChecklistItem(token, siteId, siteCategoryId, { label });
+      setNewChecklistLabelByCategory((prev) => ({ ...prev, [siteCategoryId]: '' }));
+      reloadSiteCategories();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Impossible d'ajouter cet élément.", 'error');
+    }
+  };
+
+  const handleRemoveCategoryChecklistItem = async (siteCategoryId: string, itemId: string) => {
+    if (!token || !siteId) return;
+    try {
+      await removeSiteCategoryChecklistItem(token, siteId, siteCategoryId, itemId);
+      reloadSiteCategories();
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Impossible de supprimer cet élément.', 'error');
     }
@@ -763,39 +801,116 @@ export const SiteFormPage: React.FC = () => {
 
                 {isEdit && siteId && (
                   <div className="form-field">
-                    <span>Cahier des charges (checklist du site)</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {checklist.length === 0 && (
-                        <small className="form-helper">Aucune tâche définie pour ce site.</small>
+                    <span>Catégories d'intervention pratiquées sur ce site</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+                      {siteCategories.length === 0 && (
+                        <small className="form-helper">Aucune catégorie associée à ce site pour l'instant.</small>
                       )}
-                      {checklist.map((item) => (
+                      {siteCategories.map((sc) => (
                         <div
-                          key={item.id}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}
+                          key={sc.id}
+                          style={{ border: '1px solid #eef1f4', borderRadius: '10px', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}
                         >
-                          <span>• {item.label}</span>
-                          <Button type="button" variant="ghost" onClick={() => handleRemoveChecklistItem(item.id)}>
-                            Retirer
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <strong>{sc.category.label}</strong>
+                            <span className="card__meta">
+                              {sc.startTime}–{sc.endTime}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            {sc.checklist.length === 0 && (
+                              <small className="form-helper">Aucune tâche définie pour cette catégorie.</small>
+                            )}
+                            {sc.checklist.map((item) => (
+                              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                <span>• {item.label}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="btn--compact"
+                                  onClick={() => handleRemoveCategoryChecklistItem(sc.id, item.id)}
+                                >
+                                  Retirer
+                                </Button>
+                              </div>
+                            ))}
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <Input
+                                label=""
+                                placeholder="Ex. Laver les vitres extérieures"
+                                value={newChecklistLabelByCategory[sc.id] ?? ''}
+                                onChange={(event) =>
+                                  setNewChecklistLabelByCategory((prev) => ({ ...prev, [sc.id]: event.target.value }))
+                                }
+                              />
+                              <Button type="button" className="btn--compact" onClick={() => handleAddCategoryChecklistItem(sc.id)}>
+                                Ajouter
+                              </Button>
+                            </div>
+                          </div>
+                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleRemoveSiteCategory(sc.id)}>
+                            Retirer cette catégorie du site
                           </Button>
                         </div>
                       ))}
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <div className="form-row">
+                        <Select
+                          label="Catégorie"
+                          options={[
+                            { value: '', label: 'Sélectionner une catégorie' },
+                            ...categoryCatalog
+                              .filter((c) => !siteCategories.some((sc) => sc.categoryId === c.id))
+                              .map((c) => ({ value: c.id, label: c.label })),
+                          ]}
+                          value={newSiteCategory.categoryId}
+                          onChange={(e) => setNewSiteCategory((prev) => ({ ...prev, categoryId: e.target.value }))}
+                        />
                         <Input
-                          id="newChecklistLabel"
-                          name="newChecklistLabel"
-                          label=""
-                          placeholder="Ex. Aspirer les tapis d'entrée"
-                          value={newChecklistLabel}
-                          onChange={(event) => setNewChecklistLabel(event.target.value)}
+                          label="Début"
+                          type="time"
+                          value={newSiteCategory.startTime}
+                          onChange={(e) => setNewSiteCategory((prev) => ({ ...prev, startTime: e.target.value }))}
+                        />
+                        <Input
+                          label="Fin"
+                          type="time"
+                          value={newSiteCategory.endTime}
+                          onChange={(e) => setNewSiteCategory((prev) => ({ ...prev, endTime: e.target.value }))}
                         />
                         <Button
                           type="button"
-                          onClick={handleAddChecklistItem}
-                          disabled={checklistBusy || !newChecklistLabel.trim()}
+                          onClick={handleAddSiteCategory}
+                          disabled={categoryBusy || !newSiteCategory.categoryId}
                         >
                           Ajouter
                         </Button>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {isEdit && siteId && (
+                  <div className="form-field">
+                    <span>Équipe (dérivée des gabarits actifs sur ce site)</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
+                      {roster &&
+                        [1, 2, 3, 4, 5, 6, 0].map((day) => {
+                          const entries = roster[String(day)] ?? [];
+                          if (!entries.length) return null;
+                          return (
+                            <div key={day} style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                              <strong style={{ minWidth: '90px' }}>{DAY_LABELS[day]}</strong>
+                              <span className="card__meta">
+                                {entries.map((e) => `${e.agentName} (${e.startTime}–${e.endTime}, ${e.templateLabel})`).join(', ')}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      {roster && Object.values(roster).every((entries) => entries.length === 0) && (
+                        <small className="form-helper">
+                          Aucun gabarit actif ne couvre ce site — l'équipe apparaîtra ici une fois un gabarit créé pour ce site.
+                        </small>
+                      )}
                     </div>
                   </div>
                 )}

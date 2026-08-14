@@ -27,6 +27,7 @@ import { OnboardingPage } from '../pages/team/OnboardingPage';
 import { AvailabilityPage } from '../pages/team/AvailabilityPage';
 import { ChatPage } from '../pages/team/ChatPage';
 import { ApprovalsPage } from '../pages/approvals/ApprovalsPage';
+import { CategoriesPage } from '../pages/categories/CategoriesPage';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 
 export const AdminRoutes = () => (
@@ -55,6 +56,7 @@ export const AdminRoutes = () => (
       <Route path="/settings/security" element={<SecuritySettingsPage />} />
       <Route path="/settings/webhooks" element={<WebhooksPage />} />
       <Route path="/settings/api-keys" element={<ApiKeysPage />} />
+      <Route path="/settings/categories" element={<CategoriesPage />} />
       <Route path="/devis" element={<QuotesPage />} />
       <Route path="/formulaires" element={<FormsPage />} />
       <Route path="/notifications" element={<NotificationsPage />} />

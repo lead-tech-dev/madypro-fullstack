@@ -11,9 +11,10 @@ import {
   CreateTemplatePayload,
   TemplateStopPayload,
 } from '../../services/api/interventions.api';
-import { listSites } from '../../services/api/sites.api';
+import { listSites, listSiteCategories } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
 import { InterventionTemplate, TemplatePreview, RouteOptimizationResult } from '../../types/intervention';
+import { SiteCategory } from '../../types/category';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
@@ -30,12 +31,13 @@ const DAYS = [
 type StopRow = {
   daysOfWeek: number[];
   siteId: string;
+  categoryId: string;
   startTime: string;
   endTime: string;
   agentIds: string[];
 };
 
-const EMPTY_STOP: StopRow = { daysOfWeek: [1], siteId: '', startTime: '08:00', endTime: '10:00', agentIds: [] };
+const EMPTY_STOP: StopRow = { daysOfWeek: [1], siteId: '', categoryId: '', startTime: '08:00', endTime: '10:00', agentIds: [] };
 
 type FormState = {
   label: string;
@@ -87,6 +89,7 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
   const [siteNames, setSiteNames] = useState<Record<string, string>>({});
   const [siteOptions, setSiteOptions] = useState<{ value: string; label: string }[]>([]);
   const [agentOptions, setAgentOptions] = useState<{ id: string; name: string }[]>([]);
+  const [siteCategoriesBySite, setSiteCategoriesBySite] = useState<Record<string, SiteCategory[]>>({});
   const [loading, setLoading] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -151,6 +154,13 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
       .catch(() => setAgentOptions([]));
   }, [token]);
 
+  const ensureSiteCategoriesLoaded = (siteId: string) => {
+    if (!token || !siteId || siteCategoriesBySite[siteId]) return;
+    listSiteCategories(token, siteId)
+      .then((cats) => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: cats })))
+      .catch(() => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: [] })));
+  };
+
   const openCreateForm = () => {
     setEditingId(null);
     setForm(INITIAL_FORM);
@@ -169,12 +179,14 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
         ? template.stops.map((s) => ({
             daysOfWeek: s.daysOfWeek,
             siteId: s.siteId,
+            categoryId: s.categoryId ?? '',
             startTime: s.startTime,
             endTime: s.endTime,
             agentIds: s.agentIds,
           }))
         : [{ ...EMPTY_STOP }],
     });
+    template.stops.forEach((s) => ensureSiteCategoriesLoaded(s.siteId));
     setFormOpen(true);
   };
 
@@ -246,6 +258,7 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
           (s, index): TemplateStopPayload => ({
             daysOfWeek: s.daysOfWeek,
             siteId: s.siteId,
+            categoryId: s.categoryId || undefined,
             startTime: s.startTime,
             endTime: s.endTime,
             agentIds: s.agentIds,
@@ -590,7 +603,30 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                           label="Site"
                           options={[{ value: '', label: 'Sélectionner un site' }, ...siteOptions]}
                           value={stop.siteId}
-                          onChange={(e) => updateStop(index, { siteId: e.target.value })}
+                          onChange={(e) => {
+                            const siteId = e.target.value;
+                            updateStop(index, { siteId, categoryId: '' });
+                            ensureSiteCategoriesLoaded(siteId);
+                          }}
+                        />
+                        <Select
+                          label="Catégorie (facultatif)"
+                          options={[
+                            { value: '', label: 'Aucune / personnalisé' },
+                            ...(siteCategoriesBySite[stop.siteId] ?? []).map((sc) => ({
+                              value: sc.categoryId,
+                              label: sc.category.label,
+                            })),
+                          ]}
+                          value={stop.categoryId}
+                          onChange={(e) => {
+                            const categoryId = e.target.value;
+                            const sc = (siteCategoriesBySite[stop.siteId] ?? []).find((c) => c.categoryId === categoryId);
+                            updateStop(index, {
+                              categoryId,
+                              ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
+                            });
+                          }}
                         />
                         <Input
                           label="Début"

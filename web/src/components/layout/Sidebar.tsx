@@ -39,6 +39,7 @@ const ADMIN_MENU: NavItem[] = [
       { to: '/settings/security', label: 'Sécurité' },
       { to: '/settings/webhooks', label: 'Webhooks' },
       { to: '/settings/api-keys', label: 'Clés API' },
+      { to: '/settings/categories', label: 'Catégories d’intervention' },
     ],
   },
   {

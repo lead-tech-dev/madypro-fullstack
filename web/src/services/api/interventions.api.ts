@@ -9,6 +9,7 @@ import {
   InterventionTemplate,
 } from '../../types/intervention';
 import { ApprovalRequest, isApprovalRequest } from '../../types/approval';
+import { SiteRoster } from '../../types/category';
 import { apiFetch } from './client';
 
 export type InterventionFilters = {
@@ -32,6 +33,7 @@ export type CreateInterventionPayload = {
   endTime: string;
   label?: string;
   subType?: string;
+  categoryId?: string;
   agentIds: string[];
   truckLabels?: string[];
   observation?: string;
@@ -144,6 +146,7 @@ export type OneshotOccurrence = {
   endTime: string;
   agentIds: string[];
   label?: string;
+  categoryId?: string;
 };
 
 /**
@@ -169,6 +172,7 @@ export async function createOneshotBatch(
 export type TemplateStopPayload = {
   daysOfWeek: number[];
   siteId: string;
+  categoryId?: string;
   startTime: string;
   endTime: string;
   agentIds: string[];
@@ -251,6 +255,10 @@ export async function getRouteOptimization(token: string, userId: string, date: 
     path: `interventions/route-optimization?userId=${encodeURIComponent(userId)}&date=${encodeURIComponent(date)}`,
     token,
   });
+}
+
+export async function getSiteRoster(token: string, siteId: string) {
+  return apiFetch<SiteRoster>({ path: `interventions/site-roster/${siteId}`, token });
 }
 
 export async function estimateDuration(token: string, siteId: string, type?: string) {

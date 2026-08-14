@@ -1,5 +1,6 @@
-import { Site, SiteChecklistItem } from '../../types/site';
+import { Site } from '../../types/site';
 import { SiteContract, SiteZone, SiteIncident, SiteQualityScore, SiteQrCode } from '../../types/siteAdvanced';
+import { SiteCategory, SiteCategoryChecklistItem } from '../../types/category';
 import { apiFetch } from './client';
 
 export type SitePayload = {
@@ -92,25 +93,64 @@ export async function deleteSite(token: string, id: string): Promise<Site> {
   });
 }
 
-export async function listSiteChecklist(token: string, siteId: string): Promise<SiteChecklistItem[]> {
-  return apiFetch<SiteChecklistItem[]>({ path: `sites/${siteId}/checklist`, token });
+export async function listSiteCategories(token: string, siteId: string): Promise<SiteCategory[]> {
+  return apiFetch<SiteCategory[]>({ path: `sites/${siteId}/categories`, token });
 }
 
-export async function createSiteChecklistItem(
+export async function addSiteCategory(
   token: string,
   siteId: string,
-  payload: { label: string; order?: number },
-): Promise<SiteChecklistItem> {
-  return apiFetch<SiteChecklistItem>({
-    path: `sites/${siteId}/checklist`,
+  payload: { categoryId: string; startTime: string; endTime: string },
+): Promise<SiteCategory> {
+  return apiFetch<SiteCategory>({
+    path: `sites/${siteId}/categories`,
     token,
     options: { method: 'POST', body: JSON.stringify(payload) },
   });
 }
 
-export async function deleteSiteChecklistItem(token: string, siteId: string, itemId: string): Promise<void> {
+export async function updateSiteCategory(
+  token: string,
+  siteId: string,
+  siteCategoryId: string,
+  payload: { startTime?: string; endTime?: string; active?: boolean },
+): Promise<SiteCategory> {
+  return apiFetch<SiteCategory>({
+    path: `sites/${siteId}/categories/${siteCategoryId}`,
+    token,
+    options: { method: 'PATCH', body: JSON.stringify(payload) },
+  });
+}
+
+export async function removeSiteCategory(token: string, siteId: string, siteCategoryId: string): Promise<void> {
   await apiFetch({
-    path: `sites/${siteId}/checklist/${itemId}`,
+    path: `sites/${siteId}/categories/${siteCategoryId}`,
+    token,
+    options: { method: 'DELETE' },
+  });
+}
+
+export async function createSiteCategoryChecklistItem(
+  token: string,
+  siteId: string,
+  siteCategoryId: string,
+  payload: { label: string; order?: number },
+): Promise<SiteCategoryChecklistItem> {
+  return apiFetch<SiteCategoryChecklistItem>({
+    path: `sites/${siteId}/categories/${siteCategoryId}/checklist`,
+    token,
+    options: { method: 'POST', body: JSON.stringify(payload) },
+  });
+}
+
+export async function removeSiteCategoryChecklistItem(
+  token: string,
+  siteId: string,
+  siteCategoryId: string,
+  itemId: string,
+): Promise<void> {
+  await apiFetch({
+    path: `sites/${siteId}/categories/${siteCategoryId}/checklist/${itemId}`,
     token,
     options: { method: 'DELETE' },
   });

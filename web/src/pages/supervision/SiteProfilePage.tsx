@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuthContext } from '../../context/AuthContext';
 import {
   getSite,
-  listSiteChecklist,
+  listSiteCategories,
   listSiteContracts,
   listSiteZones,
   getSiteIncidents,
@@ -11,10 +11,11 @@ import {
   getSiteQrCode,
 } from '../../services/api/sites.api';
 import { listInventory } from '../../services/api/inventory.api';
-import { listInterventions } from '../../services/api/interventions.api';
+import { listInterventions, getSiteRoster } from '../../services/api/interventions.api';
 import { listAttendance } from '../../services/api/attendance.api';
 import { listAbsences } from '../../services/api/absences.api';
-import { Site, SiteChecklistItem } from '../../types/site';
+import { Site } from '../../types/site';
+import { SiteCategory, SiteRoster } from '../../types/category';
 import { SiteContract, SiteZone, SiteIncident, SiteQualityScore, SiteQrCode } from '../../types/siteAdvanced';
 import { InventoryItem } from '../../types/inventory';
 import { Intervention } from '../../types/intervention';
@@ -39,6 +40,7 @@ const ABSENCE_TYPE_LABELS: Record<string, string> = {
 };
 const ABSENCE_STATUS_LABELS: Record<string, string> = { PENDING: 'En attente', APPROVED: 'Approuvé', REJECTED: 'Rejeté' };
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const DAY_LABELS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
 type PlanningView = 'liste' | 'calendrier';
 
@@ -70,7 +72,8 @@ export const SiteProfilePage: React.FC = () => {
 
   const [site, setSite] = useState<Site | null>(null);
   const [loadingSite, setLoadingSite] = useState(false);
-  const [checklist, setChecklist] = useState<SiteChecklistItem[]>([]);
+  const [siteCategories, setSiteCategories] = useState<SiteCategory[]>([]);
+  const [roster, setRoster] = useState<SiteRoster | null>(null);
   const [contracts, setContracts] = useState<SiteContract[]>([]);
   const [zones, setZones] = useState<SiteZone[]>([]);
   const [incidents, setIncidents] = useState<SiteIncident[]>([]);
@@ -95,7 +98,8 @@ export const SiteProfilePage: React.FC = () => {
 
   useEffect(() => {
     if (!token || !id) return;
-    listSiteChecklist(token, id).then(setChecklist).catch(() => setChecklist([]));
+    listSiteCategories(token, id).then(setSiteCategories).catch(() => setSiteCategories([]));
+    getSiteRoster(token, id).then(setRoster).catch(() => setRoster(null));
     listSiteContracts(token, id).then(setContracts).catch(() => setContracts([]));
     listSiteZones(token, id).then(setZones).catch(() => setZones([]));
     getSiteIncidents(token, id).then(setIncidents).catch(() => setIncidents([]));
@@ -438,13 +442,43 @@ export const SiteProfilePage: React.FC = () => {
       </div>
 
       <div className="panel" style={{ marginBottom: '1rem' }}>
-        <h3>Cahier des charges</h3>
-        <ul className="list-line" style={{ marginTop: '0.5rem' }}>
-          {checklist.map((item) => (
-            <li key={item.id}>• {item.label}</li>
-          ))}
-          {checklist.length === 0 && <li>Aucune tâche définie.</li>}
-        </ul>
+        <h3>Catégories d'intervention & checklist</h3>
+        {siteCategories.map((sc) => (
+          <div key={sc.id} style={{ marginTop: '0.75rem' }}>
+            <strong>
+              {sc.category.label} <span className="card__meta">({sc.startTime}–{sc.endTime})</span>
+            </strong>
+            <ul className="list-line" style={{ marginTop: '0.25rem' }}>
+              {sc.checklist.map((item) => (
+                <li key={item.id}>• {item.label}</li>
+              ))}
+              {sc.checklist.length === 0 && <li>Aucune tâche définie.</li>}
+            </ul>
+          </div>
+        ))}
+        {siteCategories.length === 0 && <p className="card__meta" style={{ marginTop: '0.5rem' }}>Aucune catégorie associée à ce site.</p>}
+      </div>
+
+      <div className="panel" style={{ marginBottom: '1rem' }}>
+        <h3>Équipe (dérivée des gabarits actifs)</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
+          {roster &&
+            [1, 2, 3, 4, 5, 6, 0].map((day) => {
+              const entries = roster[String(day)] ?? [];
+              if (!entries.length) return null;
+              return (
+                <div key={day} style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                  <strong style={{ minWidth: '90px' }}>{DAY_LABELS[day]}</strong>
+                  <span className="card__meta">
+                    {entries.map((e) => `${e.agentName} (${e.startTime}–${e.endTime})`).join(', ')}
+                  </span>
+                </div>
+              );
+            })}
+          {roster && Object.values(roster).every((entries) => entries.length === 0) && (
+            <p className="card__meta">Aucun gabarit actif ne couvre ce site.</p>
+          )}
+        </div>
       </div>
 
       <div className="panel" style={{ marginBottom: '1rem' }}>

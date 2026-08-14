@@ -18,12 +18,3 @@ export type Site = {
   toleranceMinutes?: number;
   minimumDurationMinutes?: number;
 };
-
-export type SiteChecklistItem = {
-  id: string;
-  siteId: string;
-  label: string;
-  order: number;
-  createdAt: string;
-  updatedAt: string;
-};
