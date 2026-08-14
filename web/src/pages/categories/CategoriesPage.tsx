@@ -4,6 +4,7 @@ import { listCategories, createCategory, updateCategory, deleteCategory } from '
 import { InterventionCategory } from '../../types/category';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
 
 export const CategoriesPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -11,6 +12,7 @@ export const CategoriesPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
 
@@ -27,7 +29,12 @@ export const CategoriesPage: React.FC = () => {
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!token || !newLabel.trim()) return;
+    if (!token) return;
+    if (!newLabel.trim()) {
+      setCreateError('Le libellé est obligatoire');
+      return;
+    }
+    setCreateError(undefined);
     setCreating(true);
     try {
       await createCategory(token, { label: newLabel.trim() });
@@ -35,7 +42,9 @@ export const CategoriesPage: React.FC = () => {
       notify('Catégorie créée');
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : "Impossible de créer la catégorie", 'error');
+      const message = err instanceof Error ? err.message : "Impossible de créer la catégorie";
+      setCreateError(message);
+      notify(message, 'error');
     } finally {
       setCreating(false);
     }
@@ -101,10 +110,14 @@ export const CategoriesPage: React.FC = () => {
             label="Nouvelle catégorie"
             placeholder="Nettoyage vitres"
             value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
+            error={createError}
+            onChange={(e) => {
+              setNewLabel(e.target.value);
+              if (createError) setCreateError(undefined);
+            }}
           />
-          <Button type="submit" disabled={!newLabel.trim() || creating}>
-            {creating ? 'Ajout...' : 'Ajouter'}
+          <Button type="submit" loading={creating}>
+            Ajouter
           </Button>
         </form>
       </div>
@@ -130,9 +143,15 @@ export const CategoriesPage: React.FC = () => {
                     )}
                   </td>
                   <td>
-                    <span className={`status-chip ${category.active ? 'status-chip--success' : 'status-chip--warning'}`}>
-                      {category.active ? 'Active' : 'Inactive'}
-                    </span>
+                    <Checkbox
+                      checked={category.active}
+                      onChange={() => toggleActive(category)}
+                      label={
+                        <span className={`status-chip ${category.active ? 'status-chip--success' : 'status-chip--warning'}`}>
+                          {category.active ? 'Active' : 'Inactive'}
+                        </span>
+                      }
+                    />
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
@@ -149,9 +168,6 @@ export const CategoriesPage: React.FC = () => {
                         <>
                           <Button type="button" variant="ghost" className="btn--compact" onClick={() => startEdit(category)}>
                             Modifier
-                          </Button>
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => toggleActive(category)}>
-                            {category.active ? 'Désactiver' : 'Activer'}
                           </Button>
                           <Button type="button" variant="ghost" className="btn--compact" onClick={() => remove(category)}>
                             Supprimer

@@ -1,21 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Fjalla+One&family=Cabin:wght@400;500;600&display=swap');
 
-:root {
-  font-family: 'Cabin', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: #f8f4ed;
-  color: #020912;
-  --font-body: 'Cabin', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-heading: 'Fjalla One', 'Cabin', sans-serif;
-  --color-ink: #020912;
-  --color-muted: #565656;
-  --color-cream: #f8f4ed;
-  --color-shell: #fdfbf5;
-  --color-sage: #dbe9e0;
-  --color-mist: #e4f6ff;
-  --color-border: #e3e1da;
-  --shadow-soft: 0 25px 45px rgba(2, 9, 18, 0.08);
-}
-
 * {
   box-sizing: border-box;
 }
