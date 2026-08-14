@@ -8,6 +8,8 @@ import { CreateSiteDto } from './dto/create-site.dto';
 import { UpdateSiteDto } from './dto/update-site.dto';
 import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
 import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
+import { CreateSiteCategoryDto } from './dto/create-site-category.dto';
+import { UpdateSiteCategoryDto } from './dto/update-site-category.dto';
 
 @Controller('sites')
 export class SitesController {
@@ -56,35 +58,72 @@ export class SitesController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
-  @Get(':id/checklist')
-  listChecklist(@Param('id') id: string) {
-    return this.service.listChecklist(id);
+  @Get(':id/categories')
+  listSiteCategories(@Param('id') id: string) {
+    return this.service.listSiteCategories(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
-  @Post(':id/checklist')
-  createChecklistItem(@Param('id') id: string, @Body() dto: CreateChecklistItemDto, @Req() req: Request) {
-    return this.service.createChecklistItem(id, dto, (req.user as any)?.sub);
+  @Post(':id/categories')
+  addSiteCategory(@Param('id') id: string, @Body() dto: CreateSiteCategoryDto, @Req() req: Request) {
+    return this.service.addSiteCategory(id, dto, (req.user as any)?.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
-  @Patch(':id/checklist/:itemId')
-  updateChecklistItem(
+  @Patch(':id/categories/:siteCategoryId')
+  updateSiteCategory(
     @Param('id') id: string,
+    @Param('siteCategoryId') siteCategoryId: string,
+    @Body() dto: UpdateSiteCategoryDto,
+    @Req() req: Request,
+  ) {
+    return this.service.updateSiteCategory(id, siteCategoryId, dto, (req.user as any)?.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Delete(':id/categories/:siteCategoryId')
+  removeSiteCategory(@Param('id') id: string, @Param('siteCategoryId') siteCategoryId: string, @Req() req: Request) {
+    return this.service.removeSiteCategory(id, siteCategoryId, (req.user as any)?.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Post(':id/categories/:siteCategoryId/checklist')
+  createSiteCategoryChecklistItem(
+    @Param('id') id: string,
+    @Param('siteCategoryId') siteCategoryId: string,
+    @Body() dto: CreateChecklistItemDto,
+    @Req() req: Request,
+  ) {
+    return this.service.createSiteCategoryChecklistItem(id, siteCategoryId, dto, (req.user as any)?.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Patch(':id/categories/:siteCategoryId/checklist/:itemId')
+  updateSiteCategoryChecklistItem(
+    @Param('id') id: string,
+    @Param('siteCategoryId') siteCategoryId: string,
     @Param('itemId') itemId: string,
     @Body() dto: UpdateChecklistItemDto,
     @Req() req: Request,
   ) {
-    return this.service.updateChecklistItem(id, itemId, dto, (req.user as any)?.sub);
+    return this.service.updateSiteCategoryChecklistItem(id, siteCategoryId, itemId, dto, (req.user as any)?.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
-  @Delete(':id/checklist/:itemId')
-  removeChecklistItem(@Param('id') id: string, @Param('itemId') itemId: string, @Req() req: Request) {
-    return this.service.removeChecklistItem(id, itemId, (req.user as any)?.sub);
+  @Delete(':id/categories/:siteCategoryId/checklist/:itemId')
+  removeSiteCategoryChecklistItem(
+    @Param('id') id: string,
+    @Param('siteCategoryId') siteCategoryId: string,
+    @Param('itemId') itemId: string,
+    @Req() req: Request,
+  ) {
+    return this.service.removeSiteCategoryChecklistItem(id, siteCategoryId, itemId, (req.user as any)?.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

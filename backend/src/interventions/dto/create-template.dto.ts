@@ -19,6 +19,10 @@ export class TemplateStopInputDto {
   @IsString()
   siteId!: string;
 
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
   @IsString()
   startTime!: string;
 

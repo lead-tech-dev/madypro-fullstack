@@ -32,6 +32,7 @@ import { PublicApiModule } from './public-api/public-api.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { FormsModule } from './forms/forms.module';
 import { ApprovalsModule } from './approvals/approvals.module';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { ApprovalsModule } from './approvals/approvals.module';
     PublicApiModule,
     QuotesModule,
     FormsModule,
+    CategoriesModule,
   ],
 })
 export class AppModule {}

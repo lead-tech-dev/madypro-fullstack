@@ -9,6 +9,7 @@ export class InterventionEntity {
   endTime!: string;
   type!: InterventionType;
   subType?: string;
+  categoryId?: string;
   label?: string;
   agentIds: string[] = [];
   truckLabels: string[] = [];
@@ -26,6 +27,7 @@ export class TemplateStopEntity {
   id!: string;
   daysOfWeek!: number[];
   siteId!: string;
+  categoryId?: string | null;
   startTime!: string;
   endTime!: string;
   agentIds: string[] = [];

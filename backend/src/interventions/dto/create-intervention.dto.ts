@@ -26,6 +26,10 @@ export class CreateInterventionDto {
   @IsNotEmpty()
   subType?: string;
 
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
   @IsArray()
   agentIds!: string[];
 

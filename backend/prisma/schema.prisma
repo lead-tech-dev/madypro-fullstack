@@ -316,7 +316,7 @@ model Site {
   interventions          Intervention[]
   absences               Absence[]
   templateStops          TemplateStop[]
-  checklistItems         SiteChecklistItem[]
+  categories             SiteCategory[]
   contracts              SiteContract[]
   zones                  SiteZone[]
   inventoryItems         InventoryItem[]
@@ -362,14 +362,41 @@ model SiteZone {
   updatedAt DateTime @updatedAt
 }
 
-model SiteChecklistItem {
-  id        String   @id @default(cuid())
-  siteId    String
-  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  label     String
-  order     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model InterventionCategory {
+  id             String         @id @default(cuid())
+  label          String
+  active         Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  siteCategories SiteCategory[]
+  templateStops  TemplateStop[]
+  interventions  Intervention[]
+}
+
+model SiteCategory {
+  id         String                      @id @default(cuid())
+  siteId     String
+  site       Site                        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   InterventionCategory        @relation(fields: [categoryId], references: [id])
+  startTime  String
+  endTime    String
+  active     Boolean                     @default(true)
+  createdAt  DateTime                    @default(now())
+  updatedAt  DateTime                    @updatedAt
+  checklist  SiteCategoryChecklistItem[]
+
+  @@unique([siteId, categoryId])
+}
+
+model SiteCategoryChecklistItem {
+  id             String       @id @default(cuid())
+  siteCategoryId String
+  siteCategory   SiteCategory @relation(fields: [siteCategoryId], references: [id], onDelete: Cascade)
+  label          String
+  order          Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model SiteSupervisor {
@@ -390,6 +417,8 @@ model Intervention {
   endTime                 String
   type                    InterventionType
   subType                 String?
+  categoryId              String?
+  category                InterventionCategory?       @relation(fields: [categoryId], references: [id])
   label                   String?
   photos                  String[]                    @default([])
   status                  InterventionStatus          @default(PLANNED)
@@ -456,18 +485,20 @@ model InterventionTemplate {
 }
 
 model TemplateStop {
-  id         String               @id @default(cuid())
+  id         String                @id @default(cuid())
   templateId String
-  template   InterventionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template   InterventionTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
   daysOfWeek Int[]
   siteId     String
-  site       Site                 @relation(fields: [siteId], references: [id])
+  site       Site                  @relation(fields: [siteId], references: [id])
+  categoryId String?
+  category   InterventionCategory? @relation(fields: [categoryId], references: [id])
   startTime  String
   endTime    String
   agentIds   String[]
-  order      Int                  @default(0)
-  createdAt  DateTime             @default(now())
-  updatedAt  DateTime             @updatedAt
+  order      Int                   @default(0)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
 
   @@index([templateId])
 }

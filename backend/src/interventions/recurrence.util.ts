@@ -20,6 +20,7 @@ export type TemplateStopLike = {
   id: string;
   daysOfWeek: number[];
   siteId: string;
+  categoryId?: string | null;
   startTime: string;
   endTime: string;
   agentIds: string[];
@@ -29,6 +30,7 @@ export type TemplateOccurrence = {
   date: string;
   stopId: string;
   siteId: string;
+  categoryId?: string | null;
   startTime: string;
   endTime: string;
   agentIds: string[];
@@ -71,6 +73,7 @@ export function computeTemplateOccurrences(
             date,
             stopId: stop.id,
             siteId: stop.siteId,
+            categoryId: stop.categoryId,
             startTime: stop.startTime,
             endTime: stop.endTime,
             agentIds: stop.agentIds,

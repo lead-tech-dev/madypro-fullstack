@@ -78,6 +78,13 @@ export class InterventionsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('site-roster/:siteId')
+  getSiteRoster(@Param('siteId') siteId: string) {
+    return this.service.getSiteRoster(siteId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
   @Get(':id')
   detail(@Param('id') id: string, @Req() req: Request) {
@@ -255,9 +262,10 @@ export class InterventionsController {
     const payload = {
       templateId: preview.templateId,
       templateLabel: preview.templateLabel,
-      occurrences: preview.occurrences.map(({ date, siteId, startTime, endTime, agentIds }) => ({
+      occurrences: preview.occurrences.map(({ date, siteId, categoryId, startTime, endTime, agentIds }) => ({
         date,
         siteId,
+        categoryId,
         startTime,
         endTime,
         agentIds,

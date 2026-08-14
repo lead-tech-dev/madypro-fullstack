@@ -556,6 +556,7 @@ export class InterventionsService implements OnModuleInit {
       endTime: record.endTime,
       type: record.type,
       subType: record.subType ?? undefined,
+      categoryId: (record as any).categoryId ?? undefined,
       label: record.label ?? undefined,
       agentIds: record.assignments.map((assignment) => assignment.userId),
       truckLabels: record.trucks.map((truck) => truck.label),
@@ -759,6 +760,7 @@ export class InterventionsService implements OnModuleInit {
         endTime: dto.endTime,
         type: normalizedType,
         subType: dto.subType ?? null,
+        categoryId: dto.categoryId ?? null,
         label: dto.label ?? null,
         observation: dto.observation ?? null,
         photos: dto.photos ?? [],
@@ -796,19 +798,21 @@ export class InterventionsService implements OnModuleInit {
       });
     }
 
-    // Copie le cahier des charges du site comme checklist de départ pour cette intervention
-    const siteChecklist = await this.prisma.siteChecklistItem.findMany({
-      where: { siteId: dto.siteId },
-      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-    });
-    if (siteChecklist.length) {
-      await this.prisma.interventionChecklistItem.createMany({
-        data: siteChecklist.map((item, index) => ({
-          interventionId: record.id,
-          label: item.label,
-          order: index,
-        })),
+    // Copie la checklist de la catégorie (site + catégorie) comme point de départ de cette intervention
+    if (dto.categoryId) {
+      const siteCategory = await this.prisma.siteCategory.findUnique({
+        where: { siteId_categoryId: { siteId: dto.siteId, categoryId: dto.categoryId } },
+        include: { checklist: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] } },
       });
+      if (siteCategory?.checklist.length) {
+        await this.prisma.interventionChecklistItem.createMany({
+          data: siteCategory.checklist.map((item, index) => ({
+            interventionId: record.id,
+            label: item.label,
+            order: index,
+          })),
+        });
+      }
     }
 
     const view = this.present(this.toEntity(record as any), (record as any).attendances);
@@ -899,6 +903,9 @@ export class InterventionsService implements OnModuleInit {
       }
     }
     if (dto.subType !== undefined) data.subType = dto.subType ?? null;
+    if (dto.categoryId !== undefined) {
+      data.category = dto.categoryId ? { connect: { id: dto.categoryId } } : { disconnect: true };
+    }
     if (dto.label !== undefined) data.label = dto.label ?? null;
     if (dto.observation !== undefined) data.observation = dto.observation ?? null;
     if (dto.billable !== undefined) data.billable = dto.billable;
@@ -1138,7 +1145,7 @@ export class InterventionsService implements OnModuleInit {
     active: boolean;
     createdAt: Date;
     updatedAt: Date;
-    stops: { id: string; daysOfWeek: number[]; siteId: string; startTime: string; endTime: string; agentIds: string[]; order: number }[];
+    stops: { id: string; daysOfWeek: number[]; siteId: string; categoryId: string | null; startTime: string; endTime: string; agentIds: string[]; order: number }[];
   }): InterventionTemplateEntity {
     return {
       id: template.id,
@@ -1157,6 +1164,7 @@ export class InterventionsService implements OnModuleInit {
           id: s.id,
           daysOfWeek: s.daysOfWeek,
           siteId: s.siteId,
+          categoryId: s.categoryId,
           startTime: s.startTime,
           endTime: s.endTime,
           agentIds: s.agentIds,
@@ -1208,6 +1216,7 @@ export class InterventionsService implements OnModuleInit {
           create: dto.stops.map((s, index) => ({
             daysOfWeek: s.daysOfWeek,
             siteId: s.siteId,
+            categoryId: s.categoryId ?? null,
             startTime: s.startTime,
             endTime: s.endTime,
             agentIds: s.agentIds ?? [],
@@ -1259,6 +1268,7 @@ export class InterventionsService implements OnModuleInit {
                 create: dto.stops.map((s, index) => ({
                   daysOfWeek: s.daysOfWeek,
                   siteId: s.siteId,
+                  categoryId: s.categoryId ?? null,
                   startTime: s.startTime,
                   endTime: s.endTime,
                   agentIds: s.agentIds ?? [],
@@ -1295,6 +1305,7 @@ export class InterventionsService implements OnModuleInit {
       id: s.id,
       daysOfWeek: s.daysOfWeek,
       siteId: s.siteId,
+      categoryId: s.categoryId,
       startTime: s.startTime,
       endTime: s.endTime,
       agentIds: s.agentIds,
@@ -1389,6 +1400,7 @@ export class InterventionsService implements OnModuleInit {
             occurrences: newOccurrences.map((o) => ({
               date: o.date,
               siteId: o.siteId,
+              categoryId: o.categoryId,
               startTime: o.startTime,
               endTime: o.endTime,
               agentIds: o.agentIds,
@@ -1415,7 +1427,7 @@ export class InterventionsService implements OnModuleInit {
     payload: {
       templateId: string;
       templateLabel?: string;
-      occurrences: { date: string; siteId: string; startTime: string; endTime: string; agentIds: string[] }[];
+      occurrences: { date: string; siteId: string; categoryId?: string | null; startTime: string; endTime: string; agentIds: string[] }[];
     },
     actorId: string,
   ) {
@@ -1436,6 +1448,7 @@ export class InterventionsService implements OnModuleInit {
           endTime: occurrence.endTime,
           label: payload.templateLabel,
           agentIds: occurrence.agentIds,
+          categoryId: occurrence.categoryId ?? undefined,
           generatedFromTemplateId: payload.templateId,
           batchId,
         } as CreateInterventionDto,
@@ -1459,7 +1472,15 @@ export class InterventionsService implements OnModuleInit {
    * notification consolidée par agent).
    */
   async createOneshotBatch(
-    occurrences: { siteId: string; date: string; startTime: string; endTime: string; agentIds: string[]; label?: string }[],
+    occurrences: {
+      siteId: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      agentIds: string[];
+      label?: string;
+      categoryId?: string;
+    }[],
     actorId: string,
   ) {
     for (const occurrence of occurrences) {
@@ -1478,6 +1499,7 @@ export class InterventionsService implements OnModuleInit {
           endTime: occurrence.endTime,
           label: occurrence.label,
           agentIds: occurrence.agentIds,
+          categoryId: occurrence.categoryId,
         } as CreateInterventionDto,
         actorId,
       );
@@ -1494,6 +1516,7 @@ export class InterventionsService implements OnModuleInit {
           endTime: occurrence.endTime,
           label: occurrence.label,
           agentIds: occurrence.agentIds,
+          categoryId: occurrence.categoryId,
           batchId,
         } as CreateInterventionDto,
         actorId,
@@ -1663,6 +1686,43 @@ export class InterventionsService implements OnModuleInit {
       });
 
     return { interventionId: id, candidates };
+  }
+
+  /**
+   * Roster d'un site dérivé des gabarits actifs (aucune donnée dédiée) : pour chaque jour de la
+   * semaine, les agents dont un arrêt de gabarit couvre ce site ce jour-là. Le titulaire/
+   * remplaçant se lit dans le nombre de jours couverts par chaque agent, pas dans un champ dédié.
+   */
+  async getSiteRoster(siteId: string) {
+    const stops = await this.prisma.templateStop.findMany({
+      where: { siteId, template: { active: true } },
+      include: { template: { select: { id: true, label: true } } },
+    });
+    const agentIds = Array.from(new Set(stops.flatMap((s) => s.agentIds)));
+    const agents = agentIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: agentIds } }, select: { id: true, firstName: true, lastName: true } })
+      : [];
+    const agentNameById = new Map(agents.map((a) => [a.id, `${a.firstName} ${a.lastName}`.trim()]));
+
+    const byDay: Record<
+      number,
+      { agentId: string; agentName: string; templateId: string; templateLabel: string; startTime: string; endTime: string }[]
+    > = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+    for (const stop of stops) {
+      for (const day of stop.daysOfWeek) {
+        for (const agentId of stop.agentIds) {
+          byDay[day].push({
+            agentId,
+            agentName: agentNameById.get(agentId) ?? agentId,
+            templateId: stop.template.id,
+            templateLabel: stop.template.label,
+            startTime: stop.startTime,
+            endTime: stop.endTime,
+          });
+        }
+      }
+    }
+    return byDay;
   }
 
   async getRouteOptimization(userId: string, date: string) {

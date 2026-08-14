@@ -10,6 +10,8 @@ import { UsersService } from '../users/users.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
 import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
+import { CreateSiteCategoryDto } from './dto/create-site-category.dto';
+import { UpdateSiteCategoryDto } from './dto/update-site-category.dto';
 import { MailerService } from '../notifications/mailer.service';
 import { buildIcs } from '../common/utils/ics';
 
@@ -213,22 +215,97 @@ export class SitesService implements OnModuleInit {
     return this.present(site);
   }
 
-  async listChecklist(siteId: string) {
+  async listSiteCategories(siteId: string) {
     this.ensureExists(siteId);
-    return this.prisma.siteChecklistItem.findMany({
+    return this.prisma.siteCategory.findMany({
       where: { siteId },
-      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      include: { category: true, checklist: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] } },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
-  async createChecklistItem(siteId: string, dto: CreateChecklistItemDto, actorId = 'system') {
-    const site = this.ensureExists(siteId);
-    const item = await this.prisma.siteChecklistItem.create({
+  async addSiteCategory(siteId: string, dto: CreateSiteCategoryDto, actorId = 'system') {
+    this.ensureExists(siteId);
+    const existing = await this.prisma.siteCategory.findUnique({
+      where: { siteId_categoryId: { siteId, categoryId: dto.categoryId } },
+    });
+    if (existing) {
+      throw new BadRequestException('Cette catégorie est déjà associée à ce site.');
+    }
+    const siteCategory = await this.prisma.siteCategory.create({
       data: {
         siteId,
-        label: dto.label,
-        order: dto.order ?? 0,
+        categoryId: dto.categoryId,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        active: dto.active ?? true,
       },
+      include: { category: true, checklist: true },
+    });
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_SITE',
+      entityType: 'site',
+      entityId: siteId,
+      details: `Catégorie ajoutée : ${siteCategory.category.label}`,
+    });
+    return siteCategory;
+  }
+
+  private async ensureSiteCategoryExists(siteId: string, siteCategoryId: string) {
+    const siteCategory = await this.prisma.siteCategory.findFirst({ where: { id: siteCategoryId, siteId } });
+    if (!siteCategory) {
+      throw new NotFoundException('Catégorie de site introuvable');
+    }
+    return siteCategory;
+  }
+
+  async updateSiteCategory(siteId: string, siteCategoryId: string, dto: UpdateSiteCategoryDto, actorId = 'system') {
+    this.ensureExists(siteId);
+    await this.ensureSiteCategoryExists(siteId, siteCategoryId);
+    const siteCategory = await this.prisma.siteCategory.update({
+      where: { id: siteCategoryId },
+      data: {
+        ...(dto.startTime !== undefined ? { startTime: dto.startTime } : {}),
+        ...(dto.endTime !== undefined ? { endTime: dto.endTime } : {}),
+        ...(dto.active !== undefined ? { active: dto.active } : {}),
+      },
+      include: { category: true, checklist: true },
+    });
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_SITE',
+      entityType: 'site',
+      entityId: siteId,
+      details: `Catégorie modifiée : ${siteCategory.category.label}`,
+    });
+    return siteCategory;
+  }
+
+  async removeSiteCategory(siteId: string, siteCategoryId: string, actorId = 'system') {
+    this.ensureExists(siteId);
+    const siteCategory = await this.ensureSiteCategoryExists(siteId, siteCategoryId);
+    await this.prisma.siteCategory.delete({ where: { id: siteCategoryId } });
+    this.auditService.record({
+      actorId,
+      action: 'UPDATE_SITE',
+      entityType: 'site',
+      entityId: siteId,
+      details: `Catégorie retirée`,
+    });
+    return { success: true };
+  }
+
+  async createSiteCategoryChecklistItem(
+    siteId: string,
+    siteCategoryId: string,
+    dto: CreateChecklistItemDto,
+    actorId = 'system',
+  ) {
+    this.ensureExists(siteId);
+    await this.ensureSiteCategoryExists(siteId, siteCategoryId);
+    const item = await this.prisma.siteCategoryChecklistItem.create({
+      data: { siteCategoryId, label: dto.label, order: dto.order ?? 0 },
     });
     this.auditService.record({
       actorId,
@@ -240,13 +317,20 @@ export class SitesService implements OnModuleInit {
     return item;
   }
 
-  async updateChecklistItem(siteId: string, itemId: string, dto: UpdateChecklistItemDto, actorId = 'system') {
+  async updateSiteCategoryChecklistItem(
+    siteId: string,
+    siteCategoryId: string,
+    itemId: string,
+    dto: UpdateChecklistItemDto,
+    actorId = 'system',
+  ) {
     this.ensureExists(siteId);
-    const existing = await this.prisma.siteChecklistItem.findFirst({ where: { id: itemId, siteId } });
+    await this.ensureSiteCategoryExists(siteId, siteCategoryId);
+    const existing = await this.prisma.siteCategoryChecklistItem.findFirst({ where: { id: itemId, siteCategoryId } });
     if (!existing) {
       throw new NotFoundException('Élément de checklist introuvable');
     }
-    const item = await this.prisma.siteChecklistItem.update({
+    const item = await this.prisma.siteCategoryChecklistItem.update({
       where: { id: itemId },
       data: {
         ...(dto.label !== undefined ? { label: dto.label } : {}),
@@ -263,13 +347,14 @@ export class SitesService implements OnModuleInit {
     return item;
   }
 
-  async removeChecklistItem(siteId: string, itemId: string, actorId = 'system') {
+  async removeSiteCategoryChecklistItem(siteId: string, siteCategoryId: string, itemId: string, actorId = 'system') {
     this.ensureExists(siteId);
-    const existing = await this.prisma.siteChecklistItem.findFirst({ where: { id: itemId, siteId } });
+    await this.ensureSiteCategoryExists(siteId, siteCategoryId);
+    const existing = await this.prisma.siteCategoryChecklistItem.findFirst({ where: { id: itemId, siteCategoryId } });
     if (!existing) {
       throw new NotFoundException('Élément de checklist introuvable');
     }
-    await this.prisma.siteChecklistItem.delete({ where: { id: itemId } });
+    await this.prisma.siteCategoryChecklistItem.delete({ where: { id: itemId } });
     this.auditService.record({
       actorId,
       action: 'UPDATE_SITE',
