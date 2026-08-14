@@ -1,8 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
+import { ChipGroup } from '../../components/ui/ChipGroup';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
+import { Tabs, TabPanel } from '../../components/ui/Tabs';
 import { useAuthContext } from '../../context/AuthContext';
 import {
   createSite,
@@ -41,6 +45,21 @@ const DAY_LABELS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi
 const STATUS_OPTIONS = [
   { value: 'true', label: 'Actif' },
   { value: 'false', label: 'Inactif' },
+];
+
+const CREATE_TABS = [
+  { id: 'general', label: 'Informations générales' },
+  { id: 'access', label: 'Accès & contacts' },
+  { id: 'gps', label: 'Règles GPS' },
+];
+
+const EDIT_ONLY_TABS = [
+  { id: 'categories', label: 'Catégories & checklist' },
+  { id: 'roster', label: 'Équipe' },
+  { id: 'contracts', label: 'Contrats & qualité' },
+  { id: 'zones', label: 'Zones & plan' },
+  { id: 'inventory', label: 'Inventaire' },
+  { id: 'qr', label: 'QR code' },
 ];
 
 type SupervisorOption = {
@@ -107,6 +126,7 @@ export const SiteFormPage: React.FC = () => {
   const [addressSelected, setAddressSelected] = useState(false);
   const mapboxToken = env.mapboxToken;
   const [formVisible, setFormVisible] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState('general');
   const [siteCategories, setSiteCategories] = useState<SiteCategory[]>([]);
   const [categoryCatalog, setCategoryCatalog] = useState<InterventionCategory[]>([]);
   const [newSiteCategory, setNewSiteCategory] = useState({ categoryId: '', startTime: '08:00', endTime: '10:00' });
@@ -221,12 +241,6 @@ export const SiteFormPage: React.FC = () => {
       setAddressError(null);
       setAddressSelected(false);
     }
-  };
-
-  const toggleSupervisor = (id: string) => {
-    setSelectedSupervisors((prev) =>
-      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
-    );
   };
 
   useEffect(() => {
@@ -528,8 +542,11 @@ export const SiteFormPage: React.FC = () => {
     setForm(INITIAL_FORM);
     setSelectedSupervisors([]);
     setAddressSelected(false);
+    setActiveTab('general');
     setFormVisible(true);
   };
+
+  const tabs = isEdit ? [...CREATE_TABS, ...EDIT_ONLY_TABS] : CREATE_TABS;
 
   return (
     <div>
@@ -545,55 +562,22 @@ export const SiteFormPage: React.FC = () => {
       {loading ? (
         <p>Chargement des informations...</p>
       ) : (
-        formVisible && (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background:
-                'radial-gradient(circle at 30% 20%, rgba(68,174,248,0.08), transparent 25%), rgba(0,0,0,0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '2rem',
-              zIndex: 1000,
-            }}
-          >
-            <div
-              style={{
-                background: '#fff',
-                borderRadius: '16px',
-                padding: '1.75rem',
-                maxWidth: '900px',
-                width: '100%',
-                maxHeight: '90vh',
-                overflowY: 'auto',
-                boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
-                border: '1px solid #eef1f4',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                <div>
-                  <span className="pill">Site</span>
-                  <h3 style={{ margin: 0, letterSpacing: '-0.01em' }}>
-                    {isEdit ? 'Modifier un site' : 'Nouveau site'}
-                  </h3>
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <Button type="button" variant="ghost" onClick={() => setForm(INITIAL_FORM)}>
-                    Réinitialiser
-                  </Button>
-                  <Button type="button" variant="ghost" onClick={() => setFormVisible(false)}>
-                    Fermer
-                  </Button>
-                </div>
-              </div>
-
-              <form
-                className="form-card"
-                onSubmit={handleSubmit}
-                style={{ boxShadow: 'none', padding: '0.75rem', marginTop: '1rem', display: 'grid', gap: '1rem' }}
-              >
+        <Modal open={formVisible} onClose={() => setFormVisible(false)} maxWidth={900} labelledBy="site-form-title">
+          <ModalHeader
+            eyebrow="Site"
+            title={isEdit ? 'Modifier un site' : 'Nouveau site'}
+            titleId="site-form-title"
+            onClose={() => setFormVisible(false)}
+            actions={
+              <Button type="button" variant="ghost" onClick={() => setForm(INITIAL_FORM)}>
+                Réinitialiser
+              </Button>
+            }
+          />
+          <ModalBody>
+            <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+            <form className="form-card" onSubmit={handleSubmit} style={{ boxShadow: 'none', padding: 0 }}>
+              <TabPanel active={activeTab === 'general'}>
                 <Input
                   id="name"
                   name="name"
@@ -666,7 +650,9 @@ export const SiteFormPage: React.FC = () => {
                   value={form.active}
                   onChange={handleChange}
                 />
+              </TabPanel>
 
+              <TabPanel active={activeTab === 'access'}>
                 <Input
                   id="accessInstructions"
                   name="accessInstructions"
@@ -709,6 +695,55 @@ export const SiteFormPage: React.FC = () => {
                   onChange={handleChange}
                 />
 
+                <ChipGroup
+                  multiple
+                  label="Superviseurs associés"
+                  options={supervisors.map((s) => ({ value: s.id, label: s.name }))}
+                  value={selectedSupervisors}
+                  onChange={setSelectedSupervisors}
+                  helperText={supervisors.length === 0 ? 'Aucun superviseur disponible' : undefined}
+                />
+
+                {isEdit && siteId && (
+                  <div className="form-field">
+                    <span>Envoyer le planning au client</span>
+                    <small className="form-helper">
+                      Envoie par email (avec pièce jointe .ics) les interventions déjà planifiées des prochaines
+                      semaines. Seules les interventions réelles sont envoyées, jamais une proposition en attente
+                      de validation.
+                    </small>
+                    <div className="form-row" style={{ marginTop: '0.5rem' }}>
+                      <Select
+                        id="planningPeriodWeeks"
+                        name="planningPeriodWeeks"
+                        label="Période"
+                        options={[
+                          { value: '2', label: '2 semaines' },
+                          { value: '4', label: '4 semaines' },
+                          { value: '8', label: '8 semaines' },
+                        ]}
+                        value={planningPeriodWeeks}
+                        onChange={(e) => setPlanningPeriodWeeks(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleSendPlanning}
+                        loading={sendingPlanning}
+                        disabled={!form.contactEmail}
+                      >
+                        Envoyer le planning
+                      </Button>
+                    </div>
+                    {!form.contactEmail && (
+                      <small className="form-helper">
+                        Ajoutez un email de contact ci-dessus pour activer l'envoi.
+                      </small>
+                    )}
+                  </div>
+                )}
+              </TabPanel>
+
+              <TabPanel active={activeTab === 'gps'}>
                 <div className="form-field">
                   <span>Règles de pointage — surcharge pour ce site (facultatif, sinon réglage global)</span>
                 </div>
@@ -739,78 +774,17 @@ export const SiteFormPage: React.FC = () => {
                   value={form.minimumDurationMinutes}
                   onChange={handleChange}
                 />
+              </TabPanel>
 
-                <div className="form-field">
-                  <span>Superviseurs associés</span>
-                  <div className="chips">
-                    {supervisors.length ? (
-                      supervisors.map((supervisor) => (
-                        <button
-                          key={supervisor.id}
-                          type="button"
-                          className={`chip ${
-                            selectedSupervisors.includes(supervisor.id) ? 'chip--selected' : ''
-                          }`}
-                          onClick={() => toggleSupervisor(supervisor.id)}
-                        >
-                          {supervisor.name}
-                        </button>
-                      ))
-                    ) : (
-                      <span className="tag tag--muted">Aucun superviseur disponible</span>
+              {isEdit && siteId && (
+                <TabPanel active={activeTab === 'categories'}>
+                  <div className="ui-field-array">
+                    {siteCategories.length === 0 && (
+                      <p className="ui-field-array__empty">Aucune catégorie associée à ce site pour l'instant.</p>
                     )}
-                  </div>
-                </div>
-
-                {isEdit && siteId && (
-                  <div className="form-field">
-                    <span>Envoyer le planning au client</span>
-                    <small className="form-helper">
-                      Envoie par email (avec pièce jointe .ics) les interventions déjà planifiées des prochaines
-                      semaines. Seules les interventions réelles sont envoyées, jamais une proposition en attente
-                      de validation.
-                    </small>
-                    <div className="form-row" style={{ marginTop: '0.5rem' }}>
-                      <Select
-                        id="planningPeriodWeeks"
-                        name="planningPeriodWeeks"
-                        label="Période"
-                        options={[
-                          { value: '2', label: '2 semaines' },
-                          { value: '4', label: '4 semaines' },
-                          { value: '8', label: '8 semaines' },
-                        ]}
-                        value={planningPeriodWeeks}
-                        onChange={(e) => setPlanningPeriodWeeks(e.target.value)}
-                      />
-                      <Button
-                        type="button"
-                        onClick={handleSendPlanning}
-                        disabled={sendingPlanning || !form.contactEmail}
-                      >
-                        {sendingPlanning ? 'Envoi...' : 'Envoyer le planning'}
-                      </Button>
-                    </div>
-                    {!form.contactEmail && (
-                      <small className="form-helper">
-                        Ajoutez un email de contact ci-dessus pour activer l'envoi.
-                      </small>
-                    )}
-                  </div>
-                )}
-
-                {isEdit && siteId && (
-                  <div className="form-field">
-                    <span>Catégories d'intervention pratiquées sur ce site</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
-                      {siteCategories.length === 0 && (
-                        <small className="form-helper">Aucune catégorie associée à ce site pour l'instant.</small>
-                      )}
-                      {siteCategories.map((sc) => (
-                        <div
-                          key={sc.id}
-                          style={{ border: '1px solid #eef1f4', borderRadius: '10px', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}
-                        >
+                    {siteCategories.map((sc) => (
+                      <div key={sc.id} className="ui-field-array__row">
+                        <div className="ui-field-array__row-content">
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <strong>{sc.category.label}</strong>
                             <span className="card__meta">
@@ -848,86 +822,88 @@ export const SiteFormPage: React.FC = () => {
                               </Button>
                             </div>
                           </div>
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleRemoveSiteCategory(sc.id)}>
-                            Retirer cette catégorie du site
-                          </Button>
                         </div>
-                      ))}
-                      <div className="form-row">
-                        <Select
-                          label="Catégorie"
-                          options={[
-                            { value: '', label: 'Sélectionner une catégorie' },
-                            ...categoryCatalog
-                              .filter((c) => !siteCategories.some((sc) => sc.categoryId === c.id))
-                              .map((c) => ({ value: c.id, label: c.label })),
-                          ]}
-                          value={newSiteCategory.categoryId}
-                          onChange={(e) => setNewSiteCategory((prev) => ({ ...prev, categoryId: e.target.value }))}
-                        />
-                        <Input
-                          label="Début"
-                          type="time"
-                          value={newSiteCategory.startTime}
-                          onChange={(e) => setNewSiteCategory((prev) => ({ ...prev, startTime: e.target.value }))}
-                        />
-                        <Input
-                          label="Fin"
-                          type="time"
-                          value={newSiteCategory.endTime}
-                          onChange={(e) => setNewSiteCategory((prev) => ({ ...prev, endTime: e.target.value }))}
-                        />
-                        <Button
-                          type="button"
-                          onClick={handleAddSiteCategory}
-                          disabled={categoryBusy || !newSiteCategory.categoryId}
-                        >
-                          Ajouter
+                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleRemoveSiteCategory(sc.id)}>
+                          Retirer
                         </Button>
                       </div>
+                    ))}
+                    <div className="form-row">
+                      <Select
+                        label="Catégorie"
+                        options={[
+                          { value: '', label: 'Sélectionner une catégorie' },
+                          ...categoryCatalog
+                            .filter((c) => !siteCategories.some((sc) => sc.categoryId === c.id))
+                            .map((c) => ({ value: c.id, label: c.label })),
+                        ]}
+                        value={newSiteCategory.categoryId}
+                        onChange={(e) => setNewSiteCategory((prev) => ({ ...prev, categoryId: e.target.value }))}
+                      />
+                      <Input
+                        label="Début"
+                        type="time"
+                        value={newSiteCategory.startTime}
+                        onChange={(e) => setNewSiteCategory((prev) => ({ ...prev, startTime: e.target.value }))}
+                      />
+                      <Input
+                        label="Fin"
+                        type="time"
+                        value={newSiteCategory.endTime}
+                        onChange={(e) => setNewSiteCategory((prev) => ({ ...prev, endTime: e.target.value }))}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleAddSiteCategory}
+                        loading={categoryBusy}
+                        disabled={!newSiteCategory.categoryId}
+                      >
+                        Ajouter
+                      </Button>
                     </div>
                   </div>
-                )}
+                </TabPanel>
+              )}
 
-                {isEdit && siteId && (
-                  <div className="form-field">
-                    <span>Équipe (dérivée des gabarits actifs sur ce site)</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
-                      {roster &&
-                        [1, 2, 3, 4, 5, 6, 0].map((day) => {
-                          const entries = roster[String(day)] ?? [];
-                          if (!entries.length) return null;
-                          return (
-                            <div key={day} style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
-                              <strong style={{ minWidth: '90px' }}>{DAY_LABELS[day]}</strong>
-                              <span className="card__meta">
-                                {entries.map((e) => `${e.agentName} (${e.startTime}–${e.endTime}, ${e.templateLabel})`).join(', ')}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      {roster && Object.values(roster).every((entries) => entries.length === 0) && (
-                        <small className="form-helper">
-                          Aucun gabarit actif ne couvre ce site — l'équipe apparaîtra ici une fois un gabarit créé pour ce site.
-                        </small>
-                      )}
-                    </div>
+              {isEdit && siteId && (
+                <TabPanel active={activeTab === 'roster'}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {roster &&
+                      [1, 2, 3, 4, 5, 6, 0].map((day) => {
+                        const entries = roster[String(day)] ?? [];
+                        if (!entries.length) return null;
+                        return (
+                          <div key={day} style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                            <strong style={{ minWidth: '90px' }}>{DAY_LABELS[day]}</strong>
+                            <span className="card__meta">
+                              {entries.map((e) => `${e.agentName} (${e.startTime}–${e.endTime}, ${e.templateLabel})`).join(', ')}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    {roster && Object.values(roster).every((entries) => entries.length === 0) && (
+                      <small className="form-helper">
+                        Aucun gabarit actif ne couvre ce site — l'équipe apparaîtra ici une fois un gabarit créé pour ce site.
+                      </small>
+                    )}
                   </div>
-                )}
+                </TabPanel>
+              )}
 
-                {isEdit && siteId && (
+              {isEdit && siteId && (
+                <TabPanel active={activeTab === 'contracts'}>
                   <div className="form-field">
                     <span>Contrats / SLA</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {contracts.length === 0 && <small className="form-helper">Aucun contrat enregistré.</small>}
+                    <div className="ui-field-array" style={{ marginTop: '0.5rem' }}>
+                      {contracts.length === 0 && <p className="ui-field-array__empty">Aucun contrat enregistré.</p>}
                       {contracts.map((contract) => {
                         const expiringSoon = new Date(contract.endDate).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
                         return (
-                          <div key={contract.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={expiringSoon ? { color: '#dc2626' } : undefined}>
+                          <div key={contract.id} className="ui-field-array__row">
+                            <span style={expiringSoon ? { color: 'var(--color-danger)' } : undefined}>
                               {contract.label} · {contract.startDate.slice(0, 10)} → {contract.endDate.slice(0, 10)}
                             </span>
-                            <Button type="button" variant="ghost" onClick={() => removeContract(contract.id)}>
+                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeContract(contract.id)}>
                               Retirer
                             </Button>
                           </div>
@@ -957,206 +933,206 @@ export const SiteFormPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                )}
 
-                {isEdit && siteId && (
-                  <div className="form-field">
-                    <span>Zones & plan des locaux</span>
-                    {planImageUrl && (
-                      <img src={planImageUrl} alt="Plan des locaux" style={{ maxWidth: '100%', borderRadius: '8px', marginBottom: '0.5rem' }} />
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) handlePlanUpload(file);
-                      }}
-                    />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                      {zones.length === 0 && <small className="form-helper">Aucune zone définie.</small>}
-                      {zones.map((zone) => (
-                        <div key={zone.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <input type="checkbox" checked={zone.completed} onChange={() => toggleZoneCompleted(zone)} />
-                            <span>
-                              {zone.label} {zone.floor ? `(${zone.floor})` : ''}
-                            </span>
-                          </label>
-                          <Button type="button" variant="ghost" onClick={() => removeZone(zone.id)}>
-                            Retirer
-                          </Button>
+                  {qualityScore && (
+                    <div className="form-field">
+                      <span>Qualité (90 derniers jours)</span>
+                      <div className="detail-grid" style={{ marginTop: '0.5rem' }}>
+                        <div className="detail-grid__item">
+                          <span>Score</span>
+                          <strong>{qualityScore.score} / 100</strong>
                         </div>
-                      ))}
-                      <div className="form-row">
-                        <Input
-                          label="Zone"
-                          placeholder="Bâtiment A"
-                          value={newZone.label}
-                          onChange={(event) => setNewZone((prev) => ({ ...prev, label: event.target.value }))}
+                        <div className="detail-grid__item">
+                          <span>Interventions</span>
+                          <strong>
+                            {qualityScore.interventionsCompleted} / {qualityScore.interventionsTotal}
+                          </strong>
+                        </div>
+                        <div className="detail-grid__item">
+                          <span>No-show</span>
+                          <strong>{qualityScore.noShowCount}</strong>
+                        </div>
+                        <div className="detail-grid__item">
+                          <span>Anomalies</span>
+                          <strong>{qualityScore.anomalyCount}</strong>
+                        </div>
+                      </div>
+                      {incidents.length > 0 && (
+                        <ul className="list-line" style={{ marginTop: '0.5rem' }}>
+                          {incidents.slice(0, 5).map((incident) => (
+                            <li key={incident.id}>
+                              {incident.interventionDate.slice(0, 10)} · {incident.type} — {incident.description}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </TabPanel>
+              )}
+
+              {isEdit && siteId && (
+                <TabPanel active={activeTab === 'zones'}>
+                  {planImageUrl && (
+                    <img src={planImageUrl} alt="Plan des locaux" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) handlePlanUpload(file);
+                    }}
+                  />
+                  <div className="ui-field-array">
+                    {zones.length === 0 && <p className="ui-field-array__empty">Aucune zone définie.</p>}
+                    {zones.map((zone) => (
+                      <div key={zone.id} className="ui-field-array__row">
+                        <Checkbox
+                          checked={zone.completed}
+                          onChange={() => toggleZoneCompleted(zone)}
+                          label={`${zone.label}${zone.floor ? ` (${zone.floor})` : ''}`}
                         />
-                        <Input
-                          label="Étage"
-                          placeholder="RDC"
-                          value={newZone.floor}
-                          onChange={(event) => setNewZone((prev) => ({ ...prev, floor: event.target.value }))}
-                        />
-                        <Button type="button" onClick={submitZone}>
-                          Ajouter
+                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeZone(zone.id)}>
+                          Retirer
                         </Button>
                       </div>
-                    </div>
-                  </div>
-                )}
-
-                {isEdit && siteId && qualityScore && (
-                  <div className="form-field">
-                    <span>Qualité (90 derniers jours)</span>
-                    <div className="detail-grid" style={{ marginTop: '0.5rem' }}>
-                      <div className="detail-grid__item">
-                        <span>Score</span>
-                        <strong>{qualityScore.score} / 100</strong>
-                      </div>
-                      <div className="detail-grid__item">
-                        <span>Interventions</span>
-                        <strong>
-                          {qualityScore.interventionsCompleted} / {qualityScore.interventionsTotal}
-                        </strong>
-                      </div>
-                      <div className="detail-grid__item">
-                        <span>No-show</span>
-                        <strong>{qualityScore.noShowCount}</strong>
-                      </div>
-                      <div className="detail-grid__item">
-                        <span>Anomalies</span>
-                        <strong>{qualityScore.anomalyCount}</strong>
-                      </div>
-                    </div>
-                    {incidents.length > 0 && (
-                      <ul className="list-line" style={{ marginTop: '0.5rem' }}>
-                        {incidents.slice(0, 5).map((incident) => (
-                          <li key={incident.id}>
-                            {incident.interventionDate.slice(0, 10)} · {incident.type} — {incident.description}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-
-                {isEdit && siteId && (
-                  <div className="form-field">
-                    <span>Inventaire</span>
-                    <div className="table-wrapper" style={{ marginTop: '0.5rem' }}>
-                      <table className="table">
-                        <thead>
-                          <tr>
-                            <th>Article</th>
-                            <th>Code-barres</th>
-                            <th>Quantité</th>
-                            <th>Seuil</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {inventory.map((item) => {
-                            const low = item.quantity <= item.minThreshold;
-                            return (
-                              <tr key={item.id}>
-                                <td>{item.name}</td>
-                                <td>{item.barcode || '—'}</td>
-                                <td style={low ? { color: '#dc2626', fontWeight: 600 } : undefined}>
-                                  {item.quantity} {item.unit}
-                                </td>
-                                <td>{item.minThreshold}</td>
-                                <td>
-                                  <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                    <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, -1)}>
-                                      -1
-                                    </Button>
-                                    <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, 1)}>
-                                      +1
-                                    </Button>
-                                    <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeInventoryItem(item.id)}>
-                                      Retirer
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          {inventory.length === 0 && (
-                            <tr>
-                              <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
-                                Aucun article enregistré.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="form-row" style={{ marginTop: '0.5rem' }}>
+                    ))}
+                    <div className="form-row">
                       <Input
-                        label="Article"
-                        placeholder="Sacs poubelle"
-                        value={newInventoryItem.name}
-                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, name: event.target.value }))}
+                        label="Zone"
+                        placeholder="Bâtiment A"
+                        value={newZone.label}
+                        onChange={(event) => setNewZone((prev) => ({ ...prev, label: event.target.value }))}
                       />
                       <Input
-                        label="Code-barres"
-                        value={newInventoryItem.barcode}
-                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, barcode: event.target.value }))}
+                        label="Étage"
+                        placeholder="RDC"
+                        value={newZone.floor}
+                        onChange={(event) => setNewZone((prev) => ({ ...prev, floor: event.target.value }))}
                       />
-                      <Input
-                        label="Unité"
-                        placeholder="unité"
-                        value={newInventoryItem.unit}
-                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, unit: event.target.value }))}
-                      />
-                      <Input
-                        label="Quantité"
-                        type="number"
-                        value={newInventoryItem.quantity}
-                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, quantity: event.target.value }))}
-                      />
-                      <Input
-                        label="Seuil min."
-                        type="number"
-                        value={newInventoryItem.minThreshold}
-                        onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, minThreshold: event.target.value }))}
-                      />
-                      <Button type="button" onClick={submitInventoryItem}>
+                      <Button type="button" onClick={submitZone}>
                         Ajouter
                       </Button>
                     </div>
                   </div>
-                )}
+                </TabPanel>
+              )}
 
-                {isEdit && siteId && qrCode && (
-                  <div className="form-field">
-                    <span>QR code de pointage</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+              {isEdit && siteId && (
+                <TabPanel active={activeTab === 'inventory'}>
+                  <div className="table-wrapper">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Article</th>
+                          <th>Code-barres</th>
+                          <th>Quantité</th>
+                          <th>Seuil</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {inventory.map((item) => {
+                          const low = item.quantity <= item.minThreshold;
+                          return (
+                            <tr key={item.id}>
+                              <td>{item.name}</td>
+                              <td>{item.barcode || '—'}</td>
+                              <td style={low ? { color: 'var(--color-danger)', fontWeight: 600 } : undefined}>
+                                {item.quantity} {item.unit}
+                              </td>
+                              <td>{item.minThreshold}</td>
+                              <td>
+                                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                  <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, -1)}>
+                                    -1
+                                  </Button>
+                                  <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, 1)}>
+                                    +1
+                                  </Button>
+                                  <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeInventoryItem(item.id)}>
+                                    Retirer
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {inventory.length === 0 && (
+                          <tr>
+                            <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                              Aucun article enregistré.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="form-row">
+                    <Input
+                      label="Article"
+                      placeholder="Sacs poubelle"
+                      value={newInventoryItem.name}
+                      onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, name: event.target.value }))}
+                    />
+                    <Input
+                      label="Code-barres"
+                      value={newInventoryItem.barcode}
+                      onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, barcode: event.target.value }))}
+                    />
+                    <Input
+                      label="Unité"
+                      placeholder="unité"
+                      value={newInventoryItem.unit}
+                      onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, unit: event.target.value }))}
+                    />
+                    <Input
+                      label="Quantité"
+                      type="number"
+                      value={newInventoryItem.quantity}
+                      onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, quantity: event.target.value }))}
+                    />
+                    <Input
+                      label="Seuil min."
+                      type="number"
+                      value={newInventoryItem.minThreshold}
+                      onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, minThreshold: event.target.value }))}
+                    />
+                    <Button type="button" onClick={submitInventoryItem}>
+                      Ajouter
+                    </Button>
+                  </div>
+                </TabPanel>
+              )}
+
+              {isEdit && siteId && (
+                <TabPanel active={activeTab === 'qr'}>
+                  {qrCode ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                       <img src={qrCode.qrCodeDataUrl} alt="QR code de pointage" style={{ width: '140px', height: '140px' }} />
                       <Button type="button" variant="ghost" onClick={printQrCode}>
                         Imprimer
                       </Button>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="ui-field-array__empty">QR code non disponible pour ce site.</p>
+                  )}
+                </TabPanel>
+              )}
 
-                <div className="form-actions">
-                  <Button type="submit" disabled={isInvalid || submitting}>
-                    {submitting ? 'Enregistrement...' : isEdit ? 'Mettre à jour' : 'Enregistrer'}
-                  </Button>
-                  <Button type="button" variant="ghost" onClick={() => navigate('/sites')}>
-                    Annuler
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )
+              <div className="form-actions">
+                <Button type="submit" loading={submitting} disabled={isInvalid}>
+                  {isEdit ? 'Mettre à jour' : 'Enregistrer'}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => navigate('/sites')}>
+                  Annuler
+                </Button>
+              </div>
+            </form>
+          </ModalBody>
+        </Modal>
       )}
     </div>
   );
-}
+};

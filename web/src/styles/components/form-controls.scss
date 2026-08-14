@@ -401,3 +401,42 @@
   flex-direction: column;
   gap: var(--space-3);
 }
+
+// ---------- Tabs ----------
+
+.ui-tabs {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-5);
+}
+
+.ui-tabs__tab {
+  border: none;
+  background: transparent;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.ui-tabs__tab:hover {
+  color: var(--color-ink);
+}
+
+.ui-tabs__tab--active {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-accent);
+}
+
+.ui-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
