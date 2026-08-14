@@ -18,6 +18,10 @@ import { SiteCategory } from '../../types/category';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
+import { ChipGroup } from '../../components/ui/ChipGroup';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
+import { RepeatableFieldArray } from '../../components/ui/RepeatableFieldArray';
 
 const DAYS = [
   { value: 1, label: 'Lundi' },
@@ -197,44 +201,18 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
     }));
   };
 
-  const toggleStopDay = (index: number, day: number) => {
-    setForm((prev) => ({
-      ...prev,
-      stops: prev.stops.map((stop, i) =>
-        i === index
-          ? {
-              ...stop,
-              daysOfWeek: stop.daysOfWeek.includes(day)
-                ? stop.daysOfWeek.filter((d) => d !== day)
-                : [...stop.daysOfWeek, day],
-            }
-          : stop,
-      ),
-    }));
-  };
-
-  const toggleStopAgent = (index: number, agentId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      stops: prev.stops.map((stop, i) =>
-        i === index
-          ? {
-              ...stop,
-              agentIds: stop.agentIds.includes(agentId)
-                ? stop.agentIds.filter((a) => a !== agentId)
-                : [...stop.agentIds, agentId],
-            }
-          : stop,
-      ),
-    }));
-  };
-
   const addStop = () => {
     setForm((prev) => ({ ...prev, stops: [...prev.stops, { ...EMPTY_STOP }] }));
   };
 
   const removeStop = (index: number) => {
-    setForm((prev) => ({ ...prev, stops: prev.stops.filter((_, i) => i !== index) }));
+    setForm((prev) => {
+      if (prev.stops.length <= 1) {
+        notify('Un gabarit doit conserver au moins un arrêt', 'error');
+        return prev;
+      }
+      return { ...prev, stops: prev.stops.filter((_, i) => i !== index) };
+    });
   };
 
   const isInvalid =
@@ -491,48 +469,18 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
         </div>
       </div>
 
-      {formOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '1.75rem',
-              maxWidth: '760px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
-              border: '1px solid #eef1f4',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <span className="pill">Gabarit</span>
-                <h3 style={{ margin: 0, letterSpacing: '-0.01em' }}>
-                  {editingId ? 'Modifier le gabarit' : 'Nouveau gabarit'}
-                </h3>
-              </div>
-              <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>
-                Fermer
-              </Button>
-            </div>
-
+      <Modal open={formOpen} onClose={() => setFormOpen(false)} maxWidth={760} labelledBy="gabarit-form-title">
+        <ModalHeader
+          eyebrow="Gabarit"
+          title={editingId ? 'Modifier le gabarit' : 'Nouveau gabarit'}
+          titleId="gabarit-form-title"
+          onClose={() => setFormOpen(false)}
+        />
+        <ModalBody>
             <form
               className="form-card"
               onSubmit={handleSubmit}
-              style={{ boxShadow: 'none', padding: '0.75rem', marginTop: '1rem', display: 'grid', gap: '1rem' }}
+              style={{ boxShadow: 'none', padding: 0, display: 'grid', gap: '1rem' }}
             >
               <Input
                 id="label"
@@ -575,192 +523,112 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                 />
               </div>
 
-              <label className="form-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                <input
-                  type="checkbox"
-                  checked={form.autoGenerate}
-                  onChange={(e) => setForm((prev) => ({ ...prev, autoGenerate: e.target.checked }))}
-                />
-                <span>Génération automatique (propose un nouveau lot toutes les 8 semaines, à valider par un admin)</span>
-              </label>
+              <Checkbox
+                checked={form.autoGenerate}
+                onChange={(checked) => setForm((prev) => ({ ...prev, autoGenerate: checked }))}
+                label="Génération automatique (propose un nouveau lot toutes les 8 semaines, à valider par un admin)"
+              />
 
               <div className="form-field">
                 <span>Arrêts (un agent peut avoir plusieurs arrêts le même jour)</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
-                  {form.stops.map((stop, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        border: '1px solid #eef1f4',
-                        borderRadius: '10px',
-                        padding: '0.75rem',
-                        display: 'grid',
-                        gap: '0.5rem',
-                      }}
-                    >
-                      <div className="form-row">
-                        <Select
-                          label="Site"
-                          options={[{ value: '', label: 'Sélectionner un site' }, ...siteOptions]}
-                          value={stop.siteId}
-                          onChange={(e) => {
-                            const siteId = e.target.value;
-                            updateStop(index, { siteId, categoryId: '' });
-                            ensureSiteCategoriesLoaded(siteId);
-                          }}
-                        />
-                        <Select
-                          label="Catégorie (facultatif)"
-                          options={[
-                            { value: '', label: 'Aucune / personnalisé' },
-                            ...(siteCategoriesBySite[stop.siteId] ?? []).map((sc) => ({
-                              value: sc.categoryId,
-                              label: sc.category.label,
-                            })),
-                          ]}
-                          value={stop.categoryId}
-                          onChange={(e) => {
-                            const categoryId = e.target.value;
-                            const sc = (siteCategoriesBySite[stop.siteId] ?? []).find((c) => c.categoryId === categoryId);
-                            updateStop(index, {
-                              categoryId,
-                              ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
-                            });
-                          }}
-                        />
-                        <Input
-                          label="Début"
-                          type="time"
-                          value={stop.startTime}
-                          onChange={(e) => updateStop(index, { startTime: e.target.value })}
-                        />
-                        <Input
-                          label="Fin"
-                          type="time"
-                          value={stop.endTime}
-                          onChange={(e) => updateStop(index, { endTime: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--color-muted)' }}>Jours</span>
-                        <div className="chips">
-                          {DAYS.map((day) => (
-                            <button
-                              key={day.value}
-                              type="button"
-                              className={`chip ${stop.daysOfWeek.includes(day.value) ? 'chip--selected' : ''}`}
-                              onClick={() => toggleStopDay(index, day.value)}
-                            >
-                              {day.label}
-                            </button>
-                          ))}
+                <div style={{ marginTop: '0.5rem' }}>
+                  <RepeatableFieldArray
+                    items={form.stops}
+                    onAdd={addStop}
+                    onRemove={removeStop}
+                    addLabel="+ Ajouter un site"
+                    removeLabel="Retirer cet arrêt"
+                    renderItem={(stop, index) => (
+                      <>
+                        <div className="form-row">
+                          <Select
+                            label="Site"
+                            options={[{ value: '', label: 'Sélectionner un site' }, ...siteOptions]}
+                            value={stop.siteId}
+                            onChange={(e) => {
+                              const siteId = e.target.value;
+                              updateStop(index, { siteId, categoryId: '' });
+                              ensureSiteCategoriesLoaded(siteId);
+                            }}
+                          />
+                          <Select
+                            label="Catégorie (facultatif)"
+                            options={[
+                              { value: '', label: 'Aucune / personnalisé' },
+                              ...(siteCategoriesBySite[stop.siteId] ?? []).map((sc) => ({
+                                value: sc.categoryId,
+                                label: sc.category.label,
+                              })),
+                            ]}
+                            value={stop.categoryId}
+                            onChange={(e) => {
+                              const categoryId = e.target.value;
+                              const sc = (siteCategoriesBySite[stop.siteId] ?? []).find((c) => c.categoryId === categoryId);
+                              updateStop(index, {
+                                categoryId,
+                                ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
+                              });
+                            }}
+                          />
+                          <Input
+                            label="Début"
+                            type="time"
+                            value={stop.startTime}
+                            onChange={(e) => updateStop(index, { startTime: e.target.value })}
+                          />
+                          <Input
+                            label="Fin"
+                            type="time"
+                            value={stop.endTime}
+                            onChange={(e) => updateStop(index, { endTime: e.target.value })}
+                          />
                         </div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--color-muted)' }}>Agents</span>
-                        <div className="chips">
-                          {agentOptions.length ? (
-                            agentOptions.map((agent) => (
-                              <button
-                                key={agent.id}
-                                type="button"
-                                className={`chip ${stop.agentIds.includes(agent.id) ? 'chip--selected' : ''}`}
-                                onClick={() => toggleStopAgent(index, agent.id)}
-                              >
-                                {agent.name}
-                              </button>
-                            ))
-                          ) : (
-                            <span className="tag tag--muted">Aucun agent disponible</span>
-                          )}
-                        </div>
-                      </div>
-                      {form.stops.length > 1 && (
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeStop(index)}>
-                          Retirer cet arrêt
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button type="button" variant="ghost" onClick={addStop}>
-                    + Ajouter un site
-                  </Button>
+                        <ChipGroup
+                          multiple
+                          label="Jours"
+                          options={DAYS.map((day) => ({ value: String(day.value), label: day.label }))}
+                          value={stop.daysOfWeek.map(String)}
+                          onChange={(values) => updateStop(index, { daysOfWeek: values.map(Number) })}
+                        />
+                        <ChipGroup
+                          multiple
+                          label="Agents"
+                          options={agentOptions.map((agent) => ({ value: agent.id, label: agent.name }))}
+                          value={stop.agentIds}
+                          onChange={(agentIds) => updateStop(index, { agentIds })}
+                          helperText={agentOptions.length === 0 ? 'Aucun agent disponible' : undefined}
+                        />
+                      </>
+                    )}
+                  />
                 </div>
               </div>
 
               <div className="form-actions">
-                <Button type="submit" disabled={isInvalid || submitting}>
-                  {submitting ? 'Enregistrement...' : editingId ? 'Mettre à jour' : 'Créer le gabarit'}
+                <Button type="submit" loading={submitting} disabled={isInvalid}>
+                  {editingId ? 'Mettre à jour' : 'Créer le gabarit'}
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>
                   Annuler
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
-      {generateTemplateId && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '1.75rem',
-              maxWidth: '600px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
-              border: '1px solid #eef1f4',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <span className="pill">Génération</span>
-                <h3 style={{ margin: 0, letterSpacing: '-0.01em' }}>{generatingTemplate?.label}</h3>
-              </div>
-              <Button type="button" variant="ghost" onClick={() => setGenerateTemplateId(null)}>
-                Fermer
-              </Button>
-            </div>
-
-            <div style={{ marginTop: '1rem', display: 'grid', gap: '0.75rem' }}>
-              <div className="chips">
-                <button
-                  type="button"
-                  className={`chip ${generatePeriod === 'day' ? 'chip--selected' : ''}`}
-                  onClick={() => applyPeriodPreset('day')}
-                >
-                  Aujourd'hui
-                </button>
-                <button
-                  type="button"
-                  className={`chip ${generatePeriod === 'week' ? 'chip--selected' : ''}`}
-                  onClick={() => applyPeriodPreset('week')}
-                >
-                  Cette semaine
-                </button>
-                <button
-                  type="button"
-                  className={`chip ${generatePeriod === 'custom' ? 'chip--selected' : ''}`}
-                  onClick={() => applyPeriodPreset('custom')}
-                >
-                  Période personnalisée (jusqu'à 1 mois)
-                </button>
-              </div>
+      <Modal open={Boolean(generateTemplateId)} onClose={() => setGenerateTemplateId(null)} maxWidth={600} labelledBy="gabarit-generate-title">
+        <ModalHeader eyebrow="Génération" title={generatingTemplate?.label ?? ''} titleId="gabarit-generate-title" onClose={() => setGenerateTemplateId(null)} />
+        <ModalBody>
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <ChipGroup
+                options={[
+                  { value: 'day', label: "Aujourd'hui" },
+                  { value: 'week', label: 'Cette semaine' },
+                  { value: 'custom', label: "Période personnalisée (jusqu'à 1 mois)" },
+                ]}
+                value={generatePeriod}
+                onChange={(value) => applyPeriodPreset(value as 'day' | 'week' | 'custom')}
+              />
 
               <div className="form-row">
                 <Input
@@ -873,9 +741,8 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
     </div>
   );
 };
