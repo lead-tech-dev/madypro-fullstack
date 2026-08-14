@@ -7,6 +7,7 @@ import { Checkbox } from '../../components/ui/Checkbox';
 import { ChipGroup } from '../../components/ui/ChipGroup';
 import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { Tabs, TabPanel } from '../../components/ui/Tabs';
+import { SitesTable } from './SitesTable';
 import { useAuthContext } from '../../context/AuthContext';
 import {
   createSite,
@@ -50,15 +51,15 @@ const STATUS_OPTIONS = [
 const CREATE_TABS = [
   { id: 'general', label: 'Informations générales' },
   { id: 'access', label: 'Accès & contacts' },
-  { id: 'gps', label: 'Règles GPS' },
+  { id: 'gps', label: 'Règles de pointage' },
+  { id: 'categories', label: 'Catégories & tâches' },
+  { id: 'contracts', label: 'Contrats' },
+  { id: 'zones', label: 'Zones du site' },
+  { id: 'inventory', label: 'Inventaire' },
 ];
 
 const EDIT_ONLY_TABS = [
-  { id: 'categories', label: 'Catégories & checklist' },
   { id: 'roster', label: 'Équipe' },
-  { id: 'contracts', label: 'Contrats & qualité' },
-  { id: 'zones', label: 'Zones & plan' },
-  { id: 'inventory', label: 'Inventaire' },
   { id: 'qr', label: 'QR code' },
 ];
 
@@ -146,6 +147,17 @@ export const SiteFormPage: React.FC = () => {
   const [qrCode, setQrCode] = useState<SiteQrCode | null>(null);
   const [planningPeriodWeeks, setPlanningPeriodWeeks] = useState('4');
   const [sendingPlanning, setSendingPlanning] = useState(false);
+
+  // Étapes "Catégories/Contrats/Zones/Inventaire" en création : rien n'existe encore
+  // en base (pas de siteId), on garde donc les saisies en mémoire et on les
+  // enregistre juste après la création réelle du site (voir handleSubmit).
+  type StagedCategory = { categoryId: string; label: string; startTime: string; endTime: string; checklist: string[] };
+  const [stagedCategories, setStagedCategories] = useState<StagedCategory[]>([]);
+  const [stagedContracts, setStagedContracts] = useState<{ label: string; startDate: string; endDate: string; slaDetails?: string }[]>([]);
+  const [stagedZones, setStagedZones] = useState<{ label: string; floor?: string }[]>([]);
+  const [stagedInventory, setStagedInventory] = useState<{ name: string; barcode?: string; unit?: string; quantity: number; minThreshold: number }[]>([]);
+  const [stagedPlanImage, setStagedPlanImage] = useState<string | null>(null);
+  const [stagedChecklistDraft, setStagedChecklistDraft] = useState<Record<number, string>>({});
 
   const loadSiteExtras = (currentSiteId: string) => {
     if (!token) return;
@@ -319,6 +331,54 @@ export const SiteFormPage: React.FC = () => {
     return true;
   };
 
+  const persistStagedExtras = async (newSiteId: string): Promise<string[]> => {
+    if (!token) return [];
+    const failures: string[] = [];
+    for (const cat of stagedCategories) {
+      try {
+        const sc = await addSiteCategory(token, newSiteId, {
+          categoryId: cat.categoryId,
+          startTime: cat.startTime,
+          endTime: cat.endTime,
+        });
+        for (const label of cat.checklist) {
+          await createSiteCategoryChecklistItem(token, newSiteId, sc.id, { label });
+        }
+      } catch {
+        failures.push(`catégorie ${cat.label}`);
+      }
+    }
+    for (const contract of stagedContracts) {
+      try {
+        await createSiteContract(token, newSiteId, contract);
+      } catch {
+        failures.push(`contrat ${contract.label}`);
+      }
+    }
+    for (const zone of stagedZones) {
+      try {
+        await createSiteZone(token, newSiteId, zone);
+      } catch {
+        failures.push(`zone ${zone.label}`);
+      }
+    }
+    for (const item of stagedInventory) {
+      try {
+        await createInventoryItem(token, { siteId: newSiteId, ...item });
+      } catch {
+        failures.push(`article ${item.name}`);
+      }
+    }
+    if (stagedPlanImage) {
+      try {
+        await setSitePlanImage(token, newSiteId, stagedPlanImage);
+      } catch {
+        failures.push('plan des locaux');
+      }
+    }
+    return failures;
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!token || isInvalid) return;
@@ -348,11 +408,18 @@ export const SiteFormPage: React.FC = () => {
       if (isEdit && siteId) {
         await updateSite(token, siteId, payload);
         notify('Site mis à jour avec succès');
+        navigate('/sites');
       } else {
-        await createSite(token, payload);
-        notify('Site enregistré avec succès');
+        const created = await createSite(token, payload);
+        const failures = await persistStagedExtras(created.id);
+        notify(
+          failures.length
+            ? `Site créé. Éléments non enregistrés (à ajouter depuis la fiche) : ${failures.join(', ')}`
+            : 'Site créé avec succès',
+          failures.length ? 'error' : undefined,
+        );
+        navigate(`/sites/${created.id}/edit`);
       }
-      navigate('/sites');
     } catch (err) {
       const message =
         err instanceof Error
@@ -371,7 +438,17 @@ export const SiteFormPage: React.FC = () => {
   };
 
   const handleAddSiteCategory = async () => {
-    if (!token || !siteId || !newSiteCategory.categoryId) return;
+    if (!newSiteCategory.categoryId) return;
+    if (!isEdit) {
+      const catalogEntry = categoryCatalog.find((c) => c.id === newSiteCategory.categoryId);
+      setStagedCategories((prev) => [
+        ...prev,
+        { ...newSiteCategory, label: catalogEntry?.label ?? '', checklist: [] },
+      ]);
+      setNewSiteCategory({ categoryId: '', startTime: '08:00', endTime: '10:00' });
+      return;
+    }
+    if (!token || !siteId) return;
     setCategoryBusy(true);
     try {
       await addSiteCategory(token, siteId, newSiteCategory);
@@ -392,6 +469,15 @@ export const SiteFormPage: React.FC = () => {
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Impossible de retirer cette catégorie.', 'error');
     }
+  };
+
+  const removeStagedCategory = (index: number) => {
+    setStagedCategories((prev) => prev.filter((_, i) => i !== index));
+    setStagedChecklistDraft((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
   };
 
   const handleAddCategoryChecklistItem = async (siteCategoryId: string) => {
@@ -417,9 +503,36 @@ export const SiteFormPage: React.FC = () => {
     }
   };
 
+  const addStagedChecklistItem = (index: number) => {
+    const label = (stagedChecklistDraft[index] ?? '').trim();
+    if (!label) return;
+    setStagedCategories((prev) => prev.map((cat, i) => (i === index ? { ...cat, checklist: [...cat.checklist, label] } : cat)));
+    setStagedChecklistDraft((prev) => ({ ...prev, [index]: '' }));
+  };
+
+  const removeStagedChecklistItem = (index: number, itemIndex: number) => {
+    setStagedCategories((prev) =>
+      prev.map((cat, i) => (i === index ? { ...cat, checklist: cat.checklist.filter((_, j) => j !== itemIndex) } : cat)),
+    );
+  };
+
   const submitContract = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!token || !siteId || !newContract.label.trim() || !newContract.startDate || !newContract.endDate) return;
+    if (!newContract.label.trim() || !newContract.startDate || !newContract.endDate) return;
+    if (!isEdit) {
+      setStagedContracts((prev) => [
+        ...prev,
+        {
+          label: newContract.label.trim(),
+          startDate: newContract.startDate,
+          endDate: newContract.endDate,
+          slaDetails: newContract.slaDetails || undefined,
+        },
+      ]);
+      setNewContract({ label: '', startDate: '', endDate: '', slaDetails: '' });
+      return;
+    }
+    if (!token || !siteId) return;
     try {
       await createSiteContract(token, siteId, {
         label: newContract.label.trim(),
@@ -441,9 +554,19 @@ export const SiteFormPage: React.FC = () => {
     loadSiteExtras(siteId);
   };
 
+  const removeStagedContract = (index: number) => {
+    setStagedContracts((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const submitZone = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!token || !siteId || !newZone.label.trim()) return;
+    if (!newZone.label.trim()) return;
+    if (!isEdit) {
+      setStagedZones((prev) => [...prev, { label: newZone.label.trim(), floor: newZone.floor || undefined }]);
+      setNewZone({ label: '', floor: '' });
+      return;
+    }
+    if (!token || !siteId) return;
     try {
       await createSiteZone(token, siteId, { label: newZone.label.trim(), floor: newZone.floor || undefined });
       setNewZone({ label: '', floor: '' });
@@ -465,9 +588,18 @@ export const SiteFormPage: React.FC = () => {
     loadSiteExtras(siteId);
   };
 
+  const removeStagedZone = (index: number) => {
+    setStagedZones((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handlePlanUpload = async (file: File) => {
-    if (!token || !siteId) return;
     const reader = new FileReader();
+    if (!isEdit) {
+      reader.onload = () => setStagedPlanImage(reader.result as string);
+      reader.readAsDataURL(file);
+      return;
+    }
+    if (!token || !siteId) return;
     reader.onload = async () => {
       const dataUrl = reader.result as string;
       try {
@@ -483,7 +615,22 @@ export const SiteFormPage: React.FC = () => {
 
   const submitInventoryItem = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!token || !siteId || !newInventoryItem.name.trim()) return;
+    if (!newInventoryItem.name.trim()) return;
+    if (!isEdit) {
+      setStagedInventory((prev) => [
+        ...prev,
+        {
+          name: newInventoryItem.name.trim(),
+          barcode: newInventoryItem.barcode || undefined,
+          unit: newInventoryItem.unit || undefined,
+          quantity: Number(newInventoryItem.quantity) || 0,
+          minThreshold: Number(newInventoryItem.minThreshold) || 0,
+        },
+      ]);
+      setNewInventoryItem({ name: '', barcode: '', unit: '', quantity: '0', minThreshold: '0' });
+      return;
+    }
+    if (!token || !siteId) return;
     try {
       await createInventoryItem(token, {
         siteId,
@@ -511,6 +658,10 @@ export const SiteFormPage: React.FC = () => {
     if (!token || !siteId) return;
     await deleteInventoryItem(token, itemId).catch(() => {});
     loadSiteExtras(siteId);
+  };
+
+  const removeStagedInventoryItem = (index: number) => {
+    setStagedInventory((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSendPlanning = async () => {
@@ -554,11 +705,17 @@ export const SiteFormPage: React.FC = () => {
     setAddressSelected(false);
     setActiveTab('general');
     setMaxUnlockedIndex(0);
+    setStagedCategories([]);
+    setStagedContracts([]);
+    setStagedZones([]);
+    setStagedInventory([]);
+    setStagedPlanImage(null);
+    setStagedChecklistDraft({});
     setFormVisible(true);
   };
 
   const tabs = isEdit
-    ? [...CREATE_TABS, ...EDIT_ONLY_TABS]
+    ? [...CREATE_TABS, ...EDIT_ONLY_TABS].map((t) => (t.id === 'contracts' ? { ...t, label: 'Contrats & qualité' } : t))
     : CREATE_TABS.map((tab, index) => ({ ...tab, disabled: index > maxUnlockedIndex }));
   const currentStepIndex = CREATE_TABS.findIndex((t) => t.id === activeTab);
 
@@ -573,6 +730,7 @@ export const SiteFormPage: React.FC = () => {
         </Button>
       </div>
       {error && <p className="form-error">{error}</p>}
+      <SitesTable />
       {loading ? (
         <p>Chargement des informations...</p>
       ) : (
@@ -591,6 +749,12 @@ export const SiteFormPage: React.FC = () => {
                   if (!isEdit) {
                     setActiveTab('general');
                     setMaxUnlockedIndex(0);
+                    setStagedCategories([]);
+                    setStagedContracts([]);
+                    setStagedZones([]);
+                    setStagedInventory([]);
+                    setStagedPlanImage(null);
+                    setStagedChecklistDraft({});
                   }
                 }}
               >
@@ -774,7 +938,7 @@ export const SiteFormPage: React.FC = () => {
                 <Input
                   id="gpsDistanceMeters"
                   name="gpsDistanceMeters"
-                  label="Rayon GPS toléré (mètres)"
+                  label="Distance tolérée autour du site (mètres)"
                   type="number"
                   placeholder="ex. 100"
                   value={form.gpsDistanceMeters}
@@ -800,65 +964,125 @@ export const SiteFormPage: React.FC = () => {
                 />
               </TabPanel>
 
-              {isEdit && siteId && (
-                <TabPanel active={activeTab === 'categories'}>
+              <TabPanel active={activeTab === 'categories'}>
+                  {!isEdit && (
+                    <small className="form-helper">
+                      Étape facultative — vous pouvez continuer sans rien ajouter ici.
+                    </small>
+                  )}
                   <div className="ui-field-array">
-                    {siteCategories.length === 0 && (
-                      <p className="ui-field-array__empty">Aucune catégorie associée à ce site pour l'instant.</p>
-                    )}
-                    {siteCategories.map((sc) => (
-                      <div key={sc.id} className="ui-field-array__row">
-                        <div className="ui-field-array__row-content">
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <strong>{sc.category.label}</strong>
-                            <span className="card__meta">
-                              {sc.startTime}–{sc.endTime}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            {sc.checklist.length === 0 && (
-                              <small className="form-helper">Aucune tâche définie pour cette catégorie.</small>
-                            )}
-                            {sc.checklist.map((item) => (
-                              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                                <span>• {item.label}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  className="btn--compact"
-                                  onClick={() => handleRemoveCategoryChecklistItem(sc.id, item.id)}
-                                >
-                                  Retirer
-                                </Button>
+                    {isEdit ? (
+                      <>
+                        {siteCategories.length === 0 && (
+                          <p className="ui-field-array__empty">Aucune catégorie associée à ce site pour l'instant.</p>
+                        )}
+                        {siteCategories.map((sc) => (
+                          <div key={sc.id} className="ui-field-array__row">
+                            <div className="ui-field-array__row-content">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong>{sc.category.label}</strong>
+                                <span className="card__meta">
+                                  {sc.startTime}–{sc.endTime}
+                                </span>
                               </div>
-                            ))}
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                              <Input
-                                label=""
-                                placeholder="Ex. Laver les vitres extérieures"
-                                value={newChecklistLabelByCategory[sc.id] ?? ''}
-                                onChange={(event) =>
-                                  setNewChecklistLabelByCategory((prev) => ({ ...prev, [sc.id]: event.target.value }))
-                                }
-                              />
-                              <Button type="button" className="btn--compact" onClick={() => handleAddCategoryChecklistItem(sc.id)}>
-                                Ajouter
-                              </Button>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                {sc.checklist.length === 0 && (
+                                  <small className="form-helper">Aucune tâche définie pour cette catégorie.</small>
+                                )}
+                                {sc.checklist.map((item) => (
+                                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span>• {item.label}</span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      className="btn--compact"
+                                      onClick={() => handleRemoveCategoryChecklistItem(sc.id, item.id)}
+                                    >
+                                      Retirer
+                                    </Button>
+                                  </div>
+                                ))}
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                  <Input
+                                    label=""
+                                    placeholder="Ex. Laver les vitres extérieures"
+                                    value={newChecklistLabelByCategory[sc.id] ?? ''}
+                                    onChange={(event) =>
+                                      setNewChecklistLabelByCategory((prev) => ({ ...prev, [sc.id]: event.target.value }))
+                                    }
+                                  />
+                                  <Button type="button" className="btn--compact" onClick={() => handleAddCategoryChecklistItem(sc.id)}>
+                                    Ajouter
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
+                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleRemoveSiteCategory(sc.id)}>
+                              Retirer
+                            </Button>
                           </div>
-                        </div>
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleRemoveSiteCategory(sc.id)}>
-                          Retirer
-                        </Button>
-                      </div>
-                    ))}
+                        ))}
+                      </>
+                    ) : (
+                      <>
+                        {stagedCategories.length === 0 && (
+                          <p className="ui-field-array__empty">Aucune catégorie ajoutée pour l'instant.</p>
+                        )}
+                        {stagedCategories.map((cat, index) => (
+                          <div key={index} className="ui-field-array__row">
+                            <div className="ui-field-array__row-content">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong>{cat.label}</strong>
+                                <span className="card__meta">
+                                  {cat.startTime}–{cat.endTime}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                {cat.checklist.length === 0 && (
+                                  <small className="form-helper">Aucune tâche définie pour cette catégorie.</small>
+                                )}
+                                {cat.checklist.map((label, itemIndex) => (
+                                  <div key={itemIndex} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span>• {label}</span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      className="btn--compact"
+                                      onClick={() => removeStagedChecklistItem(index, itemIndex)}
+                                    >
+                                      Retirer
+                                    </Button>
+                                  </div>
+                                ))}
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                  <Input
+                                    label=""
+                                    placeholder="Ex. Laver les vitres extérieures"
+                                    value={stagedChecklistDraft[index] ?? ''}
+                                    onChange={(event) =>
+                                      setStagedChecklistDraft((prev) => ({ ...prev, [index]: event.target.value }))
+                                    }
+                                  />
+                                  <Button type="button" className="btn--compact" onClick={() => addStagedChecklistItem(index)}>
+                                    Ajouter
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeStagedCategory(index)}>
+                              Retirer
+                            </Button>
+                          </div>
+                        ))}
+                      </>
+                    )}
                     <div className="form-row">
                       <Select
                         label="Catégorie"
                         options={[
                           { value: '', label: 'Sélectionner une catégorie' },
                           ...categoryCatalog
-                            .filter((c) => !siteCategories.some((sc) => sc.categoryId === c.id))
+                            .filter((c) => !(isEdit ? siteCategories : stagedCategories).some((sc) => sc.categoryId === c.id))
                             .map((c) => ({ value: c.id, label: c.label })),
                         ]}
                         value={newSiteCategory.categoryId}
@@ -886,8 +1110,7 @@ export const SiteFormPage: React.FC = () => {
                       </Button>
                     </div>
                   </div>
-                </TabPanel>
-              )}
+              </TabPanel>
 
               {isEdit && siteId && (
                 <TabPanel active={activeTab === 'roster'}>
@@ -914,25 +1137,47 @@ export const SiteFormPage: React.FC = () => {
                 </TabPanel>
               )}
 
-              {isEdit && siteId && (
-                <TabPanel active={activeTab === 'contracts'}>
+              <TabPanel active={activeTab === 'contracts'}>
+                  {!isEdit && (
+                    <small className="form-helper">
+                      Étape facultative — vous pouvez continuer sans rien ajouter ici.
+                    </small>
+                  )}
                   <div className="form-field">
                     <span>Contrats / SLA</span>
                     <div className="ui-field-array" style={{ marginTop: '0.5rem' }}>
-                      {contracts.length === 0 && <p className="ui-field-array__empty">Aucun contrat enregistré.</p>}
-                      {contracts.map((contract) => {
-                        const expiringSoon = new Date(contract.endDate).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
-                        return (
-                          <div key={contract.id} className="ui-field-array__row">
-                            <span style={expiringSoon ? { color: 'var(--color-danger)' } : undefined}>
-                              {contract.label} · {contract.startDate.slice(0, 10)} → {contract.endDate.slice(0, 10)}
-                            </span>
-                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeContract(contract.id)}>
-                              Retirer
-                            </Button>
-                          </div>
-                        );
-                      })}
+                      {isEdit ? (
+                        <>
+                          {contracts.length === 0 && <p className="ui-field-array__empty">Aucun contrat enregistré.</p>}
+                          {contracts.map((contract) => {
+                            const expiringSoon = new Date(contract.endDate).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
+                            return (
+                              <div key={contract.id} className="ui-field-array__row">
+                                <span style={expiringSoon ? { color: 'var(--color-danger)' } : undefined}>
+                                  {contract.label} · {contract.startDate.slice(0, 10)} → {contract.endDate.slice(0, 10)}
+                                </span>
+                                <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeContract(contract.id)}>
+                                  Retirer
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        <>
+                          {stagedContracts.length === 0 && <p className="ui-field-array__empty">Aucun contrat ajouté.</p>}
+                          {stagedContracts.map((contract, index) => (
+                            <div key={index} className="ui-field-array__row">
+                              <span>
+                                {contract.label} · {contract.startDate} → {contract.endDate}
+                              </span>
+                              <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeStagedContract(index)}>
+                                Retirer
+                              </Button>
+                            </div>
+                          ))}
+                        </>
+                      )}
                       <div className="form-row">
                         <Input
                           label="Libellé"
@@ -992,13 +1237,20 @@ export const SiteFormPage: React.FC = () => {
                       )}
                     </div>
                   )}
-                </TabPanel>
-              )}
+              </TabPanel>
 
-              {isEdit && siteId && (
-                <TabPanel active={activeTab === 'zones'}>
-                  {planImageUrl && (
-                    <img src={planImageUrl} alt="Plan des locaux" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+              <TabPanel active={activeTab === 'zones'}>
+                  {!isEdit && (
+                    <small className="form-helper">
+                      Étape facultative — vous pouvez continuer sans rien ajouter ici.
+                    </small>
+                  )}
+                  {(isEdit ? planImageUrl : stagedPlanImage) && (
+                    <img
+                      src={isEdit ? planImageUrl! : stagedPlanImage!}
+                      alt="Plan des locaux"
+                      style={{ maxWidth: '100%', borderRadius: '8px' }}
+                    />
                   )}
                   <input
                     type="file"
@@ -1009,19 +1261,35 @@ export const SiteFormPage: React.FC = () => {
                     }}
                   />
                   <div className="ui-field-array">
-                    {zones.length === 0 && <p className="ui-field-array__empty">Aucune zone définie.</p>}
-                    {zones.map((zone) => (
-                      <div key={zone.id} className="ui-field-array__row">
-                        <Checkbox
-                          checked={zone.completed}
-                          onChange={() => toggleZoneCompleted(zone)}
-                          label={`${zone.label}${zone.floor ? ` (${zone.floor})` : ''}`}
-                        />
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeZone(zone.id)}>
-                          Retirer
-                        </Button>
-                      </div>
-                    ))}
+                    {isEdit ? (
+                      <>
+                        {zones.length === 0 && <p className="ui-field-array__empty">Aucune zone définie.</p>}
+                        {zones.map((zone) => (
+                          <div key={zone.id} className="ui-field-array__row">
+                            <Checkbox
+                              checked={zone.completed}
+                              onChange={() => toggleZoneCompleted(zone)}
+                              label={`${zone.label}${zone.floor ? ` (${zone.floor})` : ''}`}
+                            />
+                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeZone(zone.id)}>
+                              Retirer
+                            </Button>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <>
+                        {stagedZones.length === 0 && <p className="ui-field-array__empty">Aucune zone ajoutée.</p>}
+                        {stagedZones.map((zone, index) => (
+                          <div key={index} className="ui-field-array__row">
+                            <span>{zone.label}{zone.floor ? ` (${zone.floor})` : ''}</span>
+                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeStagedZone(index)}>
+                              Retirer
+                            </Button>
+                          </div>
+                        ))}
+                      </>
+                    )}
                     <div className="form-row">
                       <Input
                         label="Zone"
@@ -1040,11 +1308,14 @@ export const SiteFormPage: React.FC = () => {
                       </Button>
                     </div>
                   </div>
-                </TabPanel>
-              )}
+              </TabPanel>
 
-              {isEdit && siteId && (
-                <TabPanel active={activeTab === 'inventory'}>
+              <TabPanel active={activeTab === 'inventory'}>
+                  {!isEdit && (
+                    <small className="form-helper">
+                      Étape facultative — vous pouvez continuer sans rien ajouter ici.
+                    </small>
+                  )}
                   <div className="table-wrapper">
                     <table className="table">
                       <thead>
@@ -1057,38 +1328,67 @@ export const SiteFormPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {inventory.map((item) => {
-                          const low = item.quantity <= item.minThreshold;
-                          return (
-                            <tr key={item.id}>
-                              <td>{item.name}</td>
-                              <td>{item.barcode || '—'}</td>
-                              <td style={low ? { color: 'var(--color-danger)', fontWeight: 600 } : undefined}>
-                                {item.quantity} {item.unit}
-                              </td>
-                              <td>{item.minThreshold}</td>
-                              <td>
-                                <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                  <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, -1)}>
-                                    -1
-                                  </Button>
-                                  <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, 1)}>
-                                    +1
-                                  </Button>
-                                  <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeInventoryItem(item.id)}>
+                        {isEdit ? (
+                          <>
+                            {inventory.map((item) => {
+                              const low = item.quantity <= item.minThreshold;
+                              return (
+                                <tr key={item.id}>
+                                  <td>{item.name}</td>
+                                  <td>{item.barcode || '—'}</td>
+                                  <td style={low ? { color: 'var(--color-danger)', fontWeight: 600 } : undefined}>
+                                    {item.quantity} {item.unit}
+                                  </td>
+                                  <td>{item.minThreshold}</td>
+                                  <td>
+                                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, -1)}>
+                                        -1
+                                      </Button>
+                                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, 1)}>
+                                        +1
+                                      </Button>
+                                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeInventoryItem(item.id)}>
+                                        Retirer
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {inventory.length === 0 && (
+                              <tr>
+                                <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                                  Aucun article enregistré.
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {stagedInventory.map((item, index) => (
+                              <tr key={index}>
+                                <td>{item.name}</td>
+                                <td>{item.barcode || '—'}</td>
+                                <td>
+                                  {item.quantity} {item.unit}
+                                </td>
+                                <td>{item.minThreshold}</td>
+                                <td>
+                                  <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeStagedInventoryItem(index)}>
                                     Retirer
                                   </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {inventory.length === 0 && (
-                          <tr>
-                            <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
-                              Aucun article enregistré.
-                            </td>
-                          </tr>
+                                </td>
+                              </tr>
+                            ))}
+                            {stagedInventory.length === 0 && (
+                              <tr>
+                                <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                                  Aucun article ajouté.
+                                </td>
+                              </tr>
+                            )}
+                          </>
                         )}
                       </tbody>
                     </table>
@@ -1127,8 +1427,7 @@ export const SiteFormPage: React.FC = () => {
                       Ajouter
                     </Button>
                   </div>
-                </TabPanel>
-              )}
+              </TabPanel>
 
               {isEdit && siteId && (
                 <TabPanel active={activeTab === 'qr'}>
