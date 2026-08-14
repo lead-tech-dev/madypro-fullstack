@@ -250,6 +250,10 @@ export const SiteFormPage: React.FC = () => {
       setAddressError('Clé Mapbox absente : définissez VITE_MAPBOX_TOKEN dans web/.env ou .env.local');
       return;
     }
+    if (addressSelected) {
+      setAddressSuggestions([]);
+      return;
+    }
     const query = form.address.trim();
     if (query.length < 3) {
       setAddressSuggestions([]);
@@ -294,7 +298,7 @@ export const SiteFormPage: React.FC = () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [form.address, mapboxToken]);
+  }, [form.address, mapboxToken, addressSelected]);
 
   const handleAddressSelection = (suggestion: AddressSuggestion) => {
     setForm((prev) => ({
