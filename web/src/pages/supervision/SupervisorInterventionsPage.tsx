@@ -7,32 +7,23 @@ import {
   cancelIntervention,
   CreateInterventionPayload,
 } from '../../services/api/interventions.api';
-import { listSites } from '../../services/api/sites.api';
+import { listSites, listSiteCategories } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
 import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
 import { Intervention } from '../../types/intervention';
 import { isApprovalRequest } from '../../types/approval';
 import { Site } from '../../types/site';
 import { User } from '../../types/user';
+import { SiteCategory } from '../../types/category';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
+import { ChipGroup } from '../../components/ui/ChipGroup';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { ImageSlider } from '../../components/ui/ImageSlider';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { compressImageFile } from '../../utils/image';
 import { formatDateTime } from '../../utils/datetime';
-
-const PONCTUAL_SUBTYPES = [
-  'Privat',
-  'Hivernage terrasse',
-  'Enlèvement de la terrasse',
-  'Enlèvement console',
-  'Nettoyage cuisine',
-  'Débarras',
-  'Remise de la terrasse',
-  'Nettoyage de fin de chantier',
-  'Manutention',
-];
 
 const formatHour = (value?: string | null) => {
   if (!value) return '—';
@@ -78,6 +69,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
   const [agents, setAgents] = useState<User[]>([]);
   const [createFormVisible, setCreateFormVisible] = useState(false);
   const [createForm, setCreateForm] = useState<CreateInterventionPayload>(EMPTY_CREATE_FORM);
+  const [siteCategoriesBySite, setSiteCategoriesBySite] = useState<Record<string, SiteCategory[]>>({});
   const [creating, setCreating] = useState(false);
   const [agentSelection, setAgentSelection] = useState<string[]>([]);
   const [savingAgents, setSavingAgents] = useState(false);
@@ -219,6 +211,23 @@ export const SupervisorInterventionsPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [viewing, fetchAttendanceForViewing]);
 
+  const ensureSiteCategoriesLoaded = (siteId: string) => {
+    if (!token || !siteId || siteCategoriesBySite[siteId]) return;
+    listSiteCategories(token, siteId)
+      .then((cats) => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: cats })))
+      .catch(() => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: [] })));
+  };
+
+  const applyCategoryToForm = (categoryId: string) => {
+    const sc = (siteCategoriesBySite[createForm.siteId] ?? []).find((c) => c.categoryId === categoryId);
+    setCreateForm((prev) => ({
+      ...prev,
+      categoryId,
+      subType: sc?.category.label,
+      ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
+    }));
+  };
+
   const handlePhotoUpload = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const tasks = Array.from(files).map((file) => compressImageFile(file));
@@ -236,7 +245,9 @@ export const SupervisorInterventionsPage: React.FC = () => {
         <Button
           type="button"
           onClick={() => {
-            setCreateForm({ ...EMPTY_CREATE_FORM, siteId: sites[0]?.id ?? '' });
+            const siteId = sites[0]?.id ?? '';
+            setCreateForm({ ...EMPTY_CREATE_FORM, siteId });
+            ensureSiteCategoriesLoaded(siteId);
             setCreateFormVisible(true);
           }}
         >
@@ -244,21 +255,12 @@ export const SupervisorInterventionsPage: React.FC = () => {
         </Button>
       </div>
 
-      {createFormVisible && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <p className="card__meta">Intervention</p>
-                <h3 style={{ margin: 0 }}>Nouvelle intervention</h3>
-              </div>
-              <Button type="button" variant="ghost" onClick={() => setCreateFormVisible(false)}>
-                Fermer
-              </Button>
-            </div>
+      <Modal open={createFormVisible} onClose={() => setCreateFormVisible(false)} maxWidth={760} labelledBy="supervisor-intervention-create-title">
+        <ModalHeader eyebrow="Intervention" title="Nouvelle intervention" titleId="supervisor-intervention-create-title" onClose={() => setCreateFormVisible(false)} />
+        <ModalBody>
             <form
               className="form-card"
-              style={{ boxShadow: 'none', padding: '0.75rem', marginTop: '1rem', display: 'grid', gap: '1rem' }}
+              style={{ boxShadow: 'none', padding: 0, display: 'grid', gap: '1rem' }}
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!token) return;
@@ -291,7 +293,10 @@ export const SupervisorInterventionsPage: React.FC = () => {
               <Select
                 label="Site"
                 value={createForm.siteId}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, siteId: e.target.value }))}
+                onChange={(e) => {
+                  setCreateForm((prev) => ({ ...prev, siteId: e.target.value }));
+                  ensureSiteCategoriesLoaded(e.target.value);
+                }}
                 options={sites.map((site) => ({ value: site.id, label: site.name }))}
               />
               <Select
@@ -303,12 +308,20 @@ export const SupervisorInterventionsPage: React.FC = () => {
                   { value: 'PONCTUAL', label: 'Ponctuelle' },
                 ]}
               />
-              {createForm.type === 'PONCTUAL' && (
-                <Select
-                  label="Sous-type"
-                  value={createForm.subType ?? PONCTUAL_SUBTYPES[0]}
+              <Select
+                label="Catégorie"
+                options={[
+                  { value: '', label: createForm.type === 'PONCTUAL' ? 'Sélectionner (obligatoire)' : 'Aucune / personnalisé' },
+                  ...(siteCategoriesBySite[createForm.siteId] ?? []).map((sc) => ({ value: sc.categoryId, label: sc.category.label })),
+                ]}
+                value={createForm.categoryId ?? ''}
+                onChange={(e) => applyCategoryToForm(e.target.value)}
+              />
+              {createForm.type === 'PONCTUAL' && !createForm.categoryId && (
+                <Input
+                  label="Sous-type (si aucune catégorie ne convient)"
+                  value={createForm.subType ?? ''}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, subType: e.target.value }))}
-                  options={PONCTUAL_SUBTYPES.map((sub) => ({ value: sub, label: sub }))}
                 />
               )}
               <div className="form-row">
@@ -331,37 +344,24 @@ export const SupervisorInterventionsPage: React.FC = () => {
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, endTime: e.target.value }))}
                 />
               </div>
-              <label className="form-field">
-                <span>Agents</span>
-                <select
-                  multiple
-                  value={createForm.agentIds}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({
-                      ...prev,
-                      agentIds: Array.from(e.target.selectedOptions).map((o) => o.value),
-                    }))
-                  }
-                >
-                  {agents.map((a) => (
-                    <option value={a.id} key={a.id}>
-                      {a.firstName} {a.lastName}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <ChipGroup
+                multiple
+                label="Agents"
+                options={agents.map((a) => ({ value: a.id, label: `${a.firstName} ${a.lastName}` }))}
+                value={createForm.agentIds}
+                onChange={(agentIds) => setCreateForm((prev) => ({ ...prev, agentIds }))}
+              />
               <div className="form-actions">
-                <Button type="submit" disabled={creating}>
-                  {creating ? 'Enregistrement...' : 'Enregistrer'}
+                <Button type="submit" loading={creating}>
+                  Enregistrer
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setCreateFormVisible(false)}>
                   Annuler
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       <div className="filter-grid" style={{ marginBottom: '1rem' }}>
         <label className="filter-field filter-card">
@@ -664,22 +664,12 @@ export const SupervisorInterventionsPage: React.FC = () => {
             {viewing.status !== 'COMPLETED' && viewing.status !== 'CANCELLED' && (
               <div style={{ marginTop: '1.5rem' }}>
                 <h4>Agents assignés</h4>
-                <div className="chips">
-                  {agents.map((agent) => (
-                    <button
-                      key={agent.id}
-                      type="button"
-                      className={`chip ${agentSelection.includes(agent.id) ? 'chip--selected' : ''}`}
-                      onClick={() =>
-                        setAgentSelection((prev) =>
-                          prev.includes(agent.id) ? prev.filter((id) => id !== agent.id) : [...prev, agent.id],
-                        )
-                      }
-                    >
-                      {agent.firstName} {agent.lastName}
-                    </button>
-                  ))}
-                </div>
+                <ChipGroup
+                  multiple
+                  options={agents.map((agent) => ({ value: agent.id, label: `${agent.firstName} ${agent.lastName}` }))}
+                  value={agentSelection}
+                  onChange={setAgentSelection}
+                />
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
                   <Button
                     type="button"
