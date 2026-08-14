@@ -18,6 +18,7 @@ import { listUsers } from '../../services/api/users.api';
 import { Select } from '../../components/ui/Select';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { PromptModal } from '../../components/ui/PromptModal';
 import { useAuthContext } from '../../context/AuthContext';
 import { User } from '../../types/user';
 
@@ -88,6 +89,7 @@ export const AbsencesListPage: React.FC = () => {
   const [manualForm, setManualForm] = useState<ManualFormState>(EMPTY_MANUAL_FORM);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [decisionPrompt, setDecisionPrompt] = useState<{ absence: Absence; status: AbsenceStatus } | null>(null);
   const [blockedPeriods, setBlockedPeriods] = useState<BlockedPeriod[]>([]);
   const [newBlockedPeriod, setNewBlockedPeriod] = useState({ from: '', to: '', reason: '' });
 
@@ -209,14 +211,17 @@ export const AbsencesListPage: React.FC = () => {
     }
   };
 
-  const handleDecision = async (absence: Absence, status: AbsenceStatus) => {
-    if (!token) return;
-    const comment = window.prompt('Commentaire (optionnel) ?') ?? undefined;
+  const handleDecision = (absence: Absence, status: AbsenceStatus) => setDecisionPrompt({ absence, status });
+
+  const confirmDecision = async (comment: string) => {
+    if (!token || !decisionPrompt) return;
+    const { absence, status } = decisionPrompt;
+    setDecisionPrompt(null);
     try {
       await updateAbsenceStatus(token, absence.id, {
         status,
         validatedBy: 'Admin Madypro',
-        comment,
+        comment: comment || undefined,
       });
       notify(status === 'APPROVED' ? 'Demande approuvée' : 'Demande rejetée');
       fetchAbsences();
@@ -577,6 +582,14 @@ export const AbsencesListPage: React.FC = () => {
           <Button type="submit">Ajouter</Button>
         </form>
       </section>
+      <PromptModal
+        open={decisionPrompt !== null}
+        title={decisionPrompt?.status === 'APPROVED' ? "Approuver l'absence" : "Rejeter l'absence"}
+        label="Commentaire (facultatif)"
+        confirmLabel={decisionPrompt?.status === 'APPROVED' ? 'Approuver' : 'Rejeter'}
+        onConfirm={confirmDecision}
+        onCancel={() => setDecisionPrompt(null)}
+      />
     </div>
   );
 };

@@ -20,6 +20,7 @@ import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { ChipGroup } from '../../components/ui/ChipGroup';
 import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
+import { PromptModal } from '../../components/ui/PromptModal';
 import { ImageSlider } from '../../components/ui/ImageSlider';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { compressImageFile } from '../../utils/image';
@@ -71,6 +72,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
   const [createForm, setCreateForm] = useState<CreateInterventionPayload>(EMPTY_CREATE_FORM);
   const [siteCategoriesBySite, setSiteCategoriesBySite] = useState<Record<string, SiteCategory[]>>({});
   const [creating, setCreating] = useState(false);
+  const [cancelPromptFor, setCancelPromptFor] = useState<Intervention | null>(null);
   const [agentSelection, setAgentSelection] = useState<string[]>([]);
   const [savingAgents, setSavingAgents] = useState(false);
   const [filters, setFilters] = useState<{ siteId: string; date: string; status: string }>({
@@ -226,6 +228,23 @@ export const SupervisorInterventionsPage: React.FC = () => {
       subType: sc?.category.label,
       ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
     }));
+  };
+
+  const confirmCancel = async (observation: string) => {
+    if (!token || !cancelPromptFor) return;
+    const intervention = cancelPromptFor;
+    setCancelPromptFor(null);
+    try {
+      const result = await cancelIntervention(token, intervention.id, observation);
+      if (isApprovalRequest(result)) {
+        notify('Demande d’annulation envoyée pour validation admin');
+        return;
+      }
+      setInterventions((prev) => prev.map((i) => (i.id === intervention.id ? result : i)));
+      notify('Intervention annulée');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Annulation impossible', 'error');
+    }
   };
 
   const handlePhotoUpload = (files: FileList | null) => {
@@ -526,25 +545,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
                           variant="ghost"
                           className="btn--compact"
                           disabled={intervention.status === 'COMPLETED' || intervention.status === 'CANCELLED'}
-                          onClick={async () => {
-                            if (!token) return;
-                            const observation = window.prompt('Motif de l’annulation ?');
-                            if (!observation) {
-                              notify('Motif obligatoire', 'error');
-                              return;
-                            }
-                            try {
-                              const result = await cancelIntervention(token, intervention.id, observation);
-                              if (isApprovalRequest(result)) {
-                                notify('Demande d’annulation envoyée pour validation admin');
-                                return;
-                              }
-                              setInterventions((prev) => prev.map((i) => (i.id === intervention.id ? result : i)));
-                              notify('Intervention annulée');
-                            } catch (err) {
-                              notify(err instanceof Error ? err.message : 'Annulation impossible', 'error');
-                            }
-                          }}
+                          onClick={() => setCancelPromptFor(intervention)}
                         >
                           Annuler
                         </Button>
@@ -891,6 +892,15 @@ export const SupervisorInterventionsPage: React.FC = () => {
         </div>
       </div>
     )}
+      <PromptModal
+        open={cancelPromptFor !== null}
+        title="Motif d'annulation"
+        label="Motif"
+        required
+        confirmLabel="Annuler l'intervention"
+        onConfirm={confirmCancel}
+        onCancel={() => setCancelPromptFor(null)}
+      />
     </div>
   );
 };

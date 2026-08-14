@@ -12,6 +12,7 @@ import {
 import { Absence, AbsenceStatus } from '../../types/absence';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
+import { PromptModal } from '../../components/ui/PromptModal';
 
 const TYPE_LABELS: Record<Absence['type'], string> = {
   SICK: 'Arrêt maladie',
@@ -33,6 +34,7 @@ export const AbsenceDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<ReplacementSuggestion | null>(null);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
+  const [decisionPrompt, setDecisionPrompt] = useState<AbsenceStatus | null>(null);
   const navigate = useNavigate();
 
   const loadDetail = () => {
@@ -68,11 +70,14 @@ export const AbsenceDetailPage: React.FC = () => {
     loadDetail();
   }, [token, id]);
 
-  const handleDecision = async (status: AbsenceStatus) => {
-    if (!token || !id) return;
-    const comment = window.prompt('Commentaire (optionnel) ?') ?? undefined;
+  const handleDecision = (status: AbsenceStatus) => setDecisionPrompt(status);
+
+  const confirmDecision = async (comment: string) => {
+    if (!token || !id || !decisionPrompt) return;
+    const status = decisionPrompt;
+    setDecisionPrompt(null);
     try {
-      await updateAbsenceStatus(token, id, { status, validatedBy: 'Admin Madypro', comment });
+      await updateAbsenceStatus(token, id, { status, validatedBy: 'Admin Madypro', comment: comment || undefined });
       notify(status === 'APPROVED' ? 'Demande approuvée' : 'Demande rejetée');
       loadDetail();
     } catch (err) {
@@ -228,6 +233,14 @@ export const AbsenceDetailPage: React.FC = () => {
       <Button type="button" variant="ghost" style={{ marginTop: '1.5rem' }} onClick={() => navigate('/absences')}>
         Retour
       </Button>
+      <PromptModal
+        open={decisionPrompt !== null}
+        title={decisionPrompt === 'APPROVED' ? "Approuver l'absence" : "Rejeter l'absence"}
+        label="Commentaire (facultatif)"
+        confirmLabel={decisionPrompt === 'APPROVED' ? 'Approuver' : 'Rejeter'}
+        onConfirm={confirmDecision}
+        onCancel={() => setDecisionPrompt(null)}
+      />
     </div>
   );
 };

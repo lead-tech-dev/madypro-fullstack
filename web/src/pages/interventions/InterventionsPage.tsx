@@ -30,6 +30,7 @@ import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { RepeatableFieldArray } from '../../components/ui/RepeatableFieldArray';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { ImageSlider } from '../../components/ui/ImageSlider';
+import { PromptModal } from '../../components/ui/PromptModal';
 import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
 import { compressImageFile } from '../../utils/image';
@@ -117,6 +118,8 @@ export const InterventionsPage: React.FC = () => {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [durationEstimate, setDurationEstimate] = useState<DurationEstimate | null>(null);
   const [signatureUploading, setSignatureUploading] = useState(false);
+  const [duplicatePromptFor, setDuplicatePromptFor] = useState<Intervention | null>(null);
+  const [cancelPromptFor, setCancelPromptFor] = useState<Intervention | null>(null);
   const needsReviewCount = useMemo(
     () => interventions.filter((i) => i.status === 'NEEDS_REVIEW').length,
     [interventions],
@@ -448,10 +451,12 @@ export const InterventionsPage: React.FC = () => {
     setForm((prev) => ({ ...createFormDefaults, siteId: prev.siteId, agentIds: prev.agentIds }));
   };
 
-  const duplicate = async (intervention: Intervention) => {
-    if (!token) return;
-    const date = window.prompt('Nouvelle date (YYYY-MM-DD) ?', intervention.date);
-    if (!date) return;
+  const duplicate = (intervention: Intervention) => setDuplicatePromptFor(intervention);
+
+  const confirmDuplicate = async (date: string) => {
+    if (!token || !duplicatePromptFor) return;
+    const intervention = duplicatePromptFor;
+    setDuplicatePromptFor(null);
     try {
       await duplicateIntervention(token, intervention.id, date);
       notify('Intervention dupliquée');
@@ -461,13 +466,12 @@ export const InterventionsPage: React.FC = () => {
     }
   };
 
-  const cancel = async (intervention: Intervention) => {
-    if (!token) return;
-    const observation = window.prompt('Motif annulation ?');
-    if (!observation) {
-      notify('Motif obligatoire', 'error');
-      return;
-    }
+  const cancel = (intervention: Intervention) => setCancelPromptFor(intervention);
+
+  const confirmCancel = async (observation: string) => {
+    if (!token || !cancelPromptFor) return;
+    const intervention = cancelPromptFor;
+    setCancelPromptFor(null);
     try {
       const result = await cancelIntervention(token, intervention.id, observation);
       notify(isApprovalRequest(result) ? 'Demande d’annulation envoyée pour validation admin' : 'Intervention annulée');
@@ -1277,6 +1281,26 @@ export const InterventionsPage: React.FC = () => {
       </Modal>
       </>
       )}
+      <PromptModal
+        open={duplicatePromptFor !== null}
+        title="Dupliquer l'intervention"
+        label="Nouvelle date"
+        type="date"
+        required
+        defaultValue={duplicatePromptFor?.date}
+        confirmLabel="Dupliquer"
+        onConfirm={confirmDuplicate}
+        onCancel={() => setDuplicatePromptFor(null)}
+      />
+      <PromptModal
+        open={cancelPromptFor !== null}
+        title="Motif d'annulation"
+        label="Motif"
+        required
+        confirmLabel="Annuler l'intervention"
+        onConfirm={confirmCancel}
+        onCancel={() => setCancelPromptFor(null)}
+      />
     </div>
   );
 };

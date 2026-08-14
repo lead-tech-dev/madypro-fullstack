@@ -5,6 +5,7 @@ import { listUsers } from '../../services/api/users.api';
 import { listSites } from '../../services/api/sites.api';
 import { ApprovalActionType, ApprovalRequest, TemplateBatchPayload, OneshotBatchPayload } from '../../types/approval';
 import { Button } from '../../components/ui/Button';
+import { PromptModal } from '../../components/ui/PromptModal';
 
 const ACTION_LABELS: Record<ApprovalActionType, string> = {
   CREATE_INTERVENTION: 'Création d’intervention',
@@ -31,6 +32,7 @@ export const ApprovalsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [rejectPromptId, setRejectPromptId] = useState<string | null>(null);
 
   const load = () => {
     if (!token) return;
@@ -121,13 +123,12 @@ export const ApprovalsPage: React.FC = () => {
     }
   };
 
-  const handleReject = async (id: string) => {
-    if (!token) return;
-    const comment = window.prompt('Motif du refus ?');
-    if (!comment) {
-      notify('Motif obligatoire', 'error');
-      return;
-    }
+  const handleReject = (id: string) => setRejectPromptId(id);
+
+  const confirmReject = async (comment: string) => {
+    if (!token || !rejectPromptId) return;
+    const id = rejectPromptId;
+    setRejectPromptId(null);
     setBusyId(id);
     try {
       await rejectRequest(token, id, comment);
@@ -276,6 +277,15 @@ export const ApprovalsPage: React.FC = () => {
           </table>
         </div>
       </div>
+      <PromptModal
+        open={rejectPromptId !== null}
+        title="Motif du refus"
+        label="Motif"
+        required
+        confirmLabel="Refuser"
+        onConfirm={confirmReject}
+        onCancel={() => setRejectPromptId(null)}
+      />
     </div>
   );
 };

@@ -14,6 +14,7 @@ import { Table } from '../../components/ui/Table';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PromptModal } from '../../components/ui/PromptModal';
 import { useAuthContext } from '../../context/AuthContext';
 import { listUsers } from '../../services/api/users.api';
 import { listSites } from '../../services/api/sites.api';
@@ -84,6 +85,7 @@ export const AttendanceListPage: React.FC = () => {
     { checkInTime: '', checkOutTime: '', note: '' }
   );
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [cancelPromptFor, setCancelPromptFor] = useState<Attendance | null>(null);
   const [anomalies, setAnomalies] = useState<AttendanceAnomaly[]>([]);
 
   useEffect(() => {
@@ -258,10 +260,12 @@ export const AttendanceListPage: React.FC = () => {
     }
   };
 
-  const cancelRecord = async (record: Attendance) => {
-    if (!token) return;
-    const reason = window.prompt("Motif de l'annulation ?");
-    if (reason === null) return;
+  const cancelRecord = (record: Attendance) => setCancelPromptFor(record);
+
+  const confirmCancelRecord = async (reason: string) => {
+    if (!token || !cancelPromptFor) return;
+    const record = cancelPromptFor;
+    setCancelPromptFor(null);
     try {
       await cancelAttendance(token, record.id, reason || undefined);
       notify('Pointage annulé');
@@ -805,6 +809,14 @@ export const AttendanceListPage: React.FC = () => {
           </div>
         </div>
       )}
+      <PromptModal
+        open={cancelPromptFor !== null}
+        title="Motif de l'annulation"
+        label="Motif (facultatif)"
+        confirmLabel="Annuler le pointage"
+        onConfirm={confirmCancelRecord}
+        onCancel={() => setCancelPromptFor(null)}
+      />
     </div>
   );
 };
