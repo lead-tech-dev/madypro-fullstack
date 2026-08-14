@@ -24,6 +24,10 @@ import { User } from '../../types/user';
 import { Select } from '../../components/ui/Select';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
+import { ChipGroup } from '../../components/ui/ChipGroup';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
+import { RepeatableFieldArray } from '../../components/ui/RepeatableFieldArray';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { ImageSlider } from '../../components/ui/ImageSlider';
 import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
@@ -182,21 +186,6 @@ export const InterventionsPage: React.FC = () => {
 
   const updateExtraStop = (index: number, patch: Partial<OneshotOccurrence>) => {
     setExtraStops((prev) => prev.map((stop, i) => (i === index ? { ...stop, ...patch } : stop)));
-  };
-
-  const toggleExtraStopAgent = (index: number, agentId: string) => {
-    setExtraStops((prev) =>
-      prev.map((stop, i) =>
-        i === index
-          ? {
-              ...stop,
-              agentIds: stop.agentIds.includes(agentId)
-                ? stop.agentIds.filter((a) => a !== agentId)
-                : [...stop.agentIds, agentId],
-            }
-          : stop,
-      ),
-    );
   };
 
   const removeExtraStop = (index: number) => {
@@ -369,15 +358,7 @@ export const InterventionsPage: React.FC = () => {
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = event.target;
-    if (name === 'agentIds') {
-      const selected = Array.from((event.target as HTMLSelectElement).selectedOptions).map((option) => option.value);
-      setForm((prev) => ({ ...prev, agentIds: selected }));
-    } else if (name === 'truckLabels') {
-      const selected = Array.from((event.target as HTMLSelectElement).selectedOptions).map((option) => option.value);
-      setForm((prev) => ({ ...prev, truckLabels: selected }));
-    } else {
-      setForm((prev) => ({ ...prev, [name]: value }));
-    }
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handlePhotoUpload = (files: FileList | null) => {
@@ -621,56 +602,25 @@ export const InterventionsPage: React.FC = () => {
         </div>
       </div>
 
-      {formVisible && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'radial-gradient(circle at 20% 20%, rgba(68,174,248,0.08), transparent 25%), rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '1.75rem',
-              maxWidth: '960px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
-              border: '1px solid #eef1f4',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <span className="pill">Intervention</span>
-                <h3 style={{ margin: 0, letterSpacing: '-0.01em' }}>
-                  {editingId ? 'Modifier une intervention' : 'Nouvelle intervention'}
-                </h3>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button type="button" variant="ghost" onClick={cancelEditing}>
-                  Réinitialiser
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => { cancelEditing(); setFormVisible(false); }}>
-                  Fermer
-                </Button>
-              </div>
-            </div>
-
+      <Modal open={formVisible} onClose={() => { cancelEditing(); setFormVisible(false); }} maxWidth={960} labelledBy="intervention-form-title">
+        <ModalHeader
+          eyebrow="Intervention"
+          title={editingId ? 'Modifier une intervention' : 'Nouvelle intervention'}
+          titleId="intervention-form-title"
+          onClose={() => { cancelEditing(); setFormVisible(false); }}
+          actions={
+            <Button type="button" variant="ghost" onClick={cancelEditing}>
+              Réinitialiser
+            </Button>
+          }
+        />
+        <ModalBody>
             <form
               className="form-card"
               onSubmit={submitForm}
               style={{
                 boxShadow: 'none',
-                padding: '0.5rem 0.75rem',
-                marginTop: '1rem',
+                padding: 0,
                 display: 'grid',
                 gap: '1rem',
               }}
@@ -768,107 +718,81 @@ export const InterventionsPage: React.FC = () => {
                   Durée moyenne historique sur ce site : {durationEstimate.estimatedMinutes} min (sur {durationEstimate.sampleSize} interventions)
                 </small>
               )}
-              <label className="form-field">
-                <span>Agents</span>
-                <select
-                  name="agentIds"
-                  multiple
-                  value={form.agentIds}
-                  onChange={handleFormChange}
-                  disabled={observationOnly}
-                >
-                  {users.map((user) => (
-                    <option value={user.id} key={user.id}>
-                      {user.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <ChipGroup
+                multiple
+                label="Agents"
+                options={users.map((user) => ({ value: user.id, label: user.name, disabled: observationOnly }))}
+                value={form.agentIds}
+                onChange={(agentIds) => setForm((prev) => ({ ...prev, agentIds }))}
+              />
               {!editingId && (
                 <div className="form-field">
                   <span>Autres sites (une seule fois, même jour ou non)</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    {extraStops.map((stop, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          border: '1px solid #eef1f4',
-                          borderRadius: '10px',
-                          padding: '0.75rem',
-                          display: 'grid',
-                          gap: '0.5rem',
-                        }}
-                      >
-                        <div className="form-row">
-                          <select
-                            value={stop.siteId}
-                            onChange={(e) => {
-                              const siteId = e.target.value;
-                              updateExtraStop(index, { siteId, categoryId: undefined });
-                              ensureSiteCategoriesLoaded(siteId);
-                            }}
-                          >
-                            <option value="">Sélectionner un site</option>
-                            {sites.map((site) => (
-                              <option key={site.id} value={site.id}>
-                                {site.name}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            value={stop.categoryId ?? ''}
-                            onChange={(e) => {
-                              const categoryId = e.target.value;
-                              const sc = (siteCategoriesBySite[stop.siteId] ?? []).find((c) => c.categoryId === categoryId);
-                              updateExtraStop(index, {
-                                categoryId: categoryId || undefined,
-                                ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
-                              });
-                            }}
-                          >
-                            <option value="">Aucune / personnalisé</option>
-                            {(siteCategoriesBySite[stop.siteId] ?? []).map((sc) => (
-                              <option key={sc.categoryId} value={sc.categoryId}>
-                                {sc.category.label}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type="date"
-                            value={stop.date}
-                            onChange={(e) => updateExtraStop(index, { date: e.target.value })}
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <RepeatableFieldArray
+                      items={extraStops}
+                      onAdd={addExtraStop}
+                      onRemove={removeExtraStop}
+                      addLabel="+ Ajouter un site"
+                      removeLabel="Retirer ce site"
+                      renderItem={(stop, index) => (
+                        <>
+                          <div className="form-row">
+                            <Select
+                              label="Site"
+                              options={[{ value: '', label: 'Sélectionner un site' }, ...sites.map((site) => ({ value: site.id, label: site.name }))]}
+                              value={stop.siteId}
+                              onChange={(e) => {
+                                const siteId = e.target.value;
+                                updateExtraStop(index, { siteId, categoryId: undefined });
+                                ensureSiteCategoriesLoaded(siteId);
+                              }}
+                            />
+                            <Select
+                              label="Catégorie"
+                              options={[
+                                { value: '', label: 'Aucune / personnalisé' },
+                                ...(siteCategoriesBySite[stop.siteId] ?? []).map((sc) => ({ value: sc.categoryId, label: sc.category.label })),
+                              ]}
+                              value={stop.categoryId ?? ''}
+                              onChange={(e) => {
+                                const categoryId = e.target.value;
+                                const sc = (siteCategoriesBySite[stop.siteId] ?? []).find((c) => c.categoryId === categoryId);
+                                updateExtraStop(index, {
+                                  categoryId: categoryId || undefined,
+                                  ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
+                                });
+                              }}
+                            />
+                            <Input
+                              label="Date"
+                              type="date"
+                              value={stop.date}
+                              onChange={(e) => updateExtraStop(index, { date: e.target.value })}
+                            />
+                            <Input
+                              label="Début"
+                              type="time"
+                              value={stop.startTime}
+                              onChange={(e) => updateExtraStop(index, { startTime: e.target.value })}
+                            />
+                            <Input
+                              label="Fin"
+                              type="time"
+                              value={stop.endTime}
+                              onChange={(e) => updateExtraStop(index, { endTime: e.target.value })}
+                            />
+                          </div>
+                          <ChipGroup
+                            multiple
+                            label="Agents"
+                            options={users.map((user) => ({ value: user.id, label: user.name }))}
+                            value={stop.agentIds}
+                            onChange={(agentIds) => updateExtraStop(index, { agentIds })}
                           />
-                          <input
-                            type="time"
-                            value={stop.startTime}
-                            onChange={(e) => updateExtraStop(index, { startTime: e.target.value })}
-                          />
-                          <input
-                            type="time"
-                            value={stop.endTime}
-                            onChange={(e) => updateExtraStop(index, { endTime: e.target.value })}
-                          />
-                        </div>
-                        <div className="chips">
-                          {users.map((user) => (
-                            <button
-                              key={user.id}
-                              type="button"
-                              className={`chip ${stop.agentIds.includes(user.id) ? 'chip--selected' : ''}`}
-                              onClick={() => toggleExtraStopAgent(index, user.id)}
-                            >
-                              {user.name}
-                            </button>
-                          ))}
-                        </div>
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeExtraStop(index)}>
-                          Retirer ce site
-                        </Button>
-                      </div>
-                    ))}
-                    <Button type="button" variant="ghost" onClick={addExtraStop}>
-                      + Ajouter un site
-                    </Button>
+                        </>
+                      )}
+                    />
                   </div>
                 </div>
               )}
@@ -896,23 +820,13 @@ export const InterventionsPage: React.FC = () => {
                 </div>
               )}
               {form.type === 'PONCTUAL' && (
-                <label className="form-field" htmlFor="truckLabels">
-                  <span>Camions</span>
-                  <select
-                    id="truckLabels"
-                    name="truckLabels"
-                    multiple
-                    value={form.truckLabels ?? []}
-                    onChange={handleFormChange}
-                    disabled={observationOnly}
-                  >
-                    {TRUCK_OPTIONS.map((truck) => (
-                      <option key={truck} value={truck}>
-                        {truck}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <ChipGroup
+                  multiple
+                  label="Camions"
+                  options={TRUCK_OPTIONS.map((truck) => ({ value: truck, label: truck, disabled: observationOnly }))}
+                  value={form.truckLabels ?? []}
+                  onChange={(truckLabels) => setForm((prev) => ({ ...prev, truckLabels }))}
+                />
               )}
               <label className="form-field" htmlFor="observation">
                 <span>Observation admin / superviseur</span>
@@ -932,9 +846,8 @@ export const InterventionsPage: React.FC = () => {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       <section className="panel">
         <h3>Interventions planifiées</h3>
@@ -1062,42 +975,25 @@ export const InterventionsPage: React.FC = () => {
         <span className="card__meta">{total} résultats</span>
       </div>
 
-      {viewing && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1.5rem',
-            zIndex: 999,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '12px',
-              padding: '1.5rem',
-              maxWidth: '800px',
-              width: '100%',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <span className="pill">Intervention</span>
-                <h3 style={{ marginBottom: 0 }}>{viewing.siteName}</h3>
-                <p style={{ margin: 0, color: 'var(--color-muted)' }}>
-                  {viewing.date} · {viewing.startTime} - {viewing.endTime}
-                </p>
-              </div>
-              <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                Fermer
-              </Button>
-            </div>
-            <div className="detail-grid" style={{ marginTop: '1rem' }}>
+      <Modal open={Boolean(viewing)} onClose={() => setViewing(null)} maxWidth={800} labelledBy="intervention-view-title">
+        {viewing && (
+          <>
+            <ModalHeader
+              eyebrow="Intervention"
+              title={
+                <>
+                  {viewing.siteName}
+                  <br />
+                  <small style={{ color: 'var(--color-muted)', textTransform: 'none', letterSpacing: 'normal' }}>
+                    {viewing.date} · {viewing.startTime} - {viewing.endTime}
+                  </small>
+                </>
+              }
+              titleId="intervention-view-title"
+              onClose={() => setViewing(null)}
+            />
+            <ModalBody>
+            <div className="detail-grid" style={{ marginTop: 0 }}>
               <div>
                 <strong>Site</strong>
                 <p>{viewing.siteName}</p>
@@ -1129,29 +1025,24 @@ export const InterventionsPage: React.FC = () => {
               </div>
               <div>
                 <strong>Facturable</strong>
-                <p>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={viewing.billable}
-                      onChange={async () => {
-                        if (!token) return;
-                        try {
-                          const updated = await updateIntervention(token, viewing.id, { billable: !viewing.billable });
-                          if (isApprovalRequest(updated)) {
-                            notify('Demande envoyée pour validation admin');
-                            return;
-                          }
-                          setViewing(updated);
-                          setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-                        } catch (err) {
-                          notify(err instanceof Error ? err.message : 'Mise à jour impossible', 'error');
-                        }
-                      }}
-                    />
-                    {viewing.billable ? 'Oui' : 'Non (interne)'}
-                  </label>
-                </p>
+                <Checkbox
+                  checked={viewing.billable}
+                  label={viewing.billable ? 'Oui' : 'Non (interne)'}
+                  onChange={async () => {
+                    if (!token) return;
+                    try {
+                      const updated = await updateIntervention(token, viewing.id, { billable: !viewing.billable });
+                      if (isApprovalRequest(updated)) {
+                        notify('Demande envoyée pour validation admin');
+                        return;
+                      }
+                      setViewing(updated);
+                      setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+                    } catch (err) {
+                      notify(err instanceof Error ? err.message : 'Mise à jour impossible', 'error');
+                    }
+                  }}
+                />
               </div>
               <div>
                 <strong>Observation</strong>
@@ -1380,9 +1271,10 @@ export const InterventionsPage: React.FC = () => {
               )}
 
             </div>
-          </div>
-        </div>
-      )}
+            </ModalBody>
+          </>
+        )}
+      </Modal>
       </>
       )}
     </div>
