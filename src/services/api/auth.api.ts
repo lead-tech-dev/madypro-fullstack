@@ -37,7 +37,7 @@ export async function changePassword(token: string, payload: ChangePasswordPaylo
 }
 
 export async function forgotPassword(email: string) {
-  return apiFetch<{ message: string; password?: string }>({
+  return apiFetch<{ message: string }>({
     path: '/auth/forgot-password',
     options: {
       method: 'POST',

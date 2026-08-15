@@ -17,6 +17,12 @@ export class ApiError extends Error {
   }
 }
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
 const normalizeBaseUrl = () => {
   if (!env.apiUrl) {
     throw new Error('Missing EXPO_PUBLIC_API_URL');
@@ -69,6 +75,9 @@ export async function apiFetch<T>({ path, token, options = {} }: FetchArgs): Pro
       message = Array.isArray(data.message) ? data.message.join(', ') : data.message || message;
     } catch {
       if (raw) message = raw;
+    }
+    if (response.status === 401 && token) {
+      unauthorizedHandler?.();
     }
     throw new ApiError(message || 'API error', response.status);
   }

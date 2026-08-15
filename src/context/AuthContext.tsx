@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthUser } from '../types/auth';
 import { AUTH_STORAGE_KEY } from '../config/storage';
+import { secureStorage } from '../services/secureStorage';
+import { setUnauthorizedHandler } from '../services/api/client';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -19,14 +21,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(AUTH_STORAGE_KEY)
-      .then((raw) => {
-        if (raw) {
-          const parsed = JSON.parse(raw) as { user: AuthUser; token: string };
-          setUser(parsed.user);
-          setToken(parsed.token);
+    setUnauthorizedHandler(() => logout());
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  useEffect(() => {
+    const restore = async () => {
+      let raw = await secureStorage.getItem(AUTH_STORAGE_KEY);
+      if (!raw) {
+        // Migration depuis l'ancien stockage AsyncStorage (non chiffré) : à supprimer une fois
+        // que les utilisateurs auront tous mis à jour vers la version avec expo-secure-store.
+        const legacy = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+        if (legacy) {
+          await secureStorage.setItem(AUTH_STORAGE_KEY, legacy);
+          await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+          raw = legacy;
         }
-      })
+      }
+      if (raw) {
+        const parsed = JSON.parse(raw) as { user: AuthUser; token: string };
+        setUser(parsed.user);
+        setToken(parsed.token);
+      }
+    };
+    restore()
       .catch(() => {})
       .finally(() => setIsReady(true));
   }, []);
@@ -34,18 +52,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = (nextUser: AuthUser, nextToken: string) => {
     setUser(nextUser);
     setToken(nextToken);
-    AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: nextUser, token: nextToken })).catch(() => {});
+    secureStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: nextUser, token: nextToken })).catch(() => {});
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
+    secureStorage.removeItem(AUTH_STORAGE_KEY).catch(() => {});
     // purge les données locales liées à l'utilisateur précédent
     AsyncStorage.getAllKeys()
       .then((keys) => {
-        const keysToRemove = keys.filter(
-          (key) => key === 'syncQueue' || key === AUTH_STORAGE_KEY || key.startsWith('intervention:start:'),
-        );
+        const keysToRemove = keys.filter((key) => key === 'syncQueue' || key.startsWith('intervention:start:'));
         if (keysToRemove.length) {
           AsyncStorage.multiRemove(keysToRemove).catch(() => {});
         }

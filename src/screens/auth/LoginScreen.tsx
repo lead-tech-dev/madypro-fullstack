@@ -3,6 +3,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Header } from '@/components/ui/Header';
 import { useAuth } from '@/hooks/useAuth';
 import { theme } from '@/config/theme';
 import { AuthStackParamList } from '@/navigation/types';
@@ -27,22 +29,22 @@ export default function LoginScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.pill}>Madypro Clean</Text>
-        <Text style={styles.title}>Connexion</Text>
+      <Header title="Connexion" subtitle="Accédez à vos missions et pointages du jour." />
+      <Card style={styles.card}>
         {error && <Text style={styles.error}>{error}</Text>}
         <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" />
-        <Input
-          label="Mot de passe"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
+        <Input label="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry />
+        <Button
+          fullWidth
+          variant="primary"
+          title={loading ? 'Connexion...' : 'Se connecter'}
+          onPress={handleSubmit}
+          disabled={loading || !email || !password}
         />
-        <Button title={loading ? 'Connexion...' : 'Se connecter'} onPress={handleSubmit} />
         <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
           <Text style={styles.link}>Mot de passe oublié</Text>
         </TouchableOpacity>
-      </View>
+      </Card>
     </View>
   );
 }
@@ -53,25 +55,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: theme.spacing.xl,
     backgroundColor: theme.colors.cream,
+    gap: theme.spacing.lg,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing.xxl,
     gap: theme.spacing.md,
-  },
-  pill: {
-    textTransform: 'uppercase',
-    letterSpacing: 2,
-    color: theme.colors.muted,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
   },
   link: {
     marginTop: theme.spacing.sm,
     color: theme.colors.muted,
+    textAlign: 'center',
   },
   error: {
     color: theme.colors.danger,

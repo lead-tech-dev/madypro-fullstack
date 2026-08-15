@@ -3,6 +3,8 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Header } from '@/components/ui/Header';
 import { theme } from '@/config/theme';
 import { AuthStackParamList } from '@/navigation/types';
 import { forgotPassword } from '@/services/api/auth.api';
@@ -12,34 +14,50 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'ForgotPassword'>;
 export default function ForgotPasswordScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!email) return;
+    setLoading(true);
+    try {
+      await forgotPassword(email);
+      setSubmitted(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur lors de la demande';
+      Alert.alert('Erreur', message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Réinitialiser</Text>
-        <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" />
-        <Button
-          title={loading ? 'Envoi...' : 'Envoyer'}
-          onPress={async () => {
-            if (!email) return;
-            setLoading(true);
-            try {
-              const res = await forgotPassword(email);
-              const pwd = res.password ? ` Nouveau mot de passe provisoire : ${res.password}` : '';
-              Alert.alert('Réinitialisation', `Si le compte existe, un reset a été effectué.${pwd}`);
-            } catch (err) {
-              const message = err instanceof Error ? err.message : 'Erreur lors de la demande';
-              Alert.alert('Erreur', message);
-            } finally {
-              setLoading(false);
-            }
-          }}
-          disabled={loading}
-        />
-        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.link}>Retour connexion</Text>
-        </TouchableOpacity>
-      </View>
+      <Header title="Mot de passe oublié" subtitle="Recevez un lien pour réinitialiser votre mot de passe." />
+      <Card style={styles.card}>
+        {submitted ? (
+          <>
+            <Text style={styles.success}>
+              Vérifiez vos emails. Si un compte existe avec cette adresse, vous recevrez un lien pour
+              réinitialiser votre mot de passe.
+            </Text>
+            <Button fullWidth variant="primary" title="Retour connexion" onPress={() => navigation.navigate('Login')} />
+          </>
+        ) : (
+          <>
+            <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" />
+            <Button
+              fullWidth
+              variant="primary"
+              title={loading ? 'Envoi...' : 'Envoyer'}
+              onPress={handleSubmit}
+              disabled={loading || !email}
+            />
+            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.link}>Retour connexion</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </Card>
     </View>
   );
 }
@@ -50,19 +68,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: theme.spacing.xl,
     backgroundColor: theme.colors.cream,
+    gap: theme.spacing.lg,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing.xxl,
     gap: theme.spacing.md,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
   },
   link: {
     marginTop: theme.spacing.sm,
     color: theme.colors.muted,
+    textAlign: 'center',
+  },
+  success: {
+    color: theme.colors.ink,
+    fontFamily: theme.fonts.body,
+    lineHeight: 20,
   },
 });
