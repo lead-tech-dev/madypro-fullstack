@@ -78,6 +78,9 @@ enum AuditAction {
   UPDATE_INTERVENTION_STATUS
   CANCEL_INTERVENTION
   DUPLICATE_INTERVENTION
+  CREATE_TEMPLATE_STOP
+  UPDATE_TEMPLATE_STOP_AGENTS
+  DELETE_TEMPLATE_STOP
   CREATE_APPROVAL_REQUEST
   APPROVE_REQUEST
   REJECT_REQUEST
@@ -296,19 +299,19 @@ model Webhook {
 }
 
 model Site {
-  id                     String              @id @default(cuid())
+  id                     String                @id @default(cuid())
   name                   String
   address                String
   latitude               Float?
   longitude              Float?
   timeWindow             String?
-  active                 Boolean             @default(true)
+  active                 Boolean               @default(true)
   accessInstructions     String?
   accessCode             String?
   contactName            String?
   contactPhone           String?
   contactEmail           String?
-  photos                 String[]            @default([])
+  photos                 String[]              @default([])
   gpsDistanceMeters      Int?
   toleranceMinutes       Int?
   minimumDurationMinutes Int?
@@ -317,7 +320,7 @@ model Site {
   supervisors            SiteSupervisor[]
   interventions          Intervention[]
   absences               Absence[]
-  templateStops          TemplateStop[]
+  interventionTemplate   InterventionTemplate?
   categories             SiteCategory[]
   contracts              SiteContract[]
   zones                  SiteZone[]
@@ -475,7 +478,8 @@ model InterventionTruck {
 model InterventionTemplate {
   id            String         @id @default(cuid())
   label         String
-  intervalWeeks Int            @default(1)
+  siteId        String         @unique
+  site          Site           @relation(fields: [siteId], references: [id])
   startDate     DateTime       @default(now())
   endDate       DateTime?
   autoGenerate  Boolean        @default(false)
@@ -487,20 +491,19 @@ model InterventionTemplate {
 }
 
 model TemplateStop {
-  id         String                @id @default(cuid())
-  templateId String
-  template   InterventionTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  daysOfWeek Int[]
-  siteId     String
-  site       Site                  @relation(fields: [siteId], references: [id])
-  categoryId String?
-  category   InterventionCategory? @relation(fields: [categoryId], references: [id])
-  startTime  String
-  endTime    String
-  agentIds   String[]
-  order      Int                   @default(0)
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
+  id            String                @id @default(cuid())
+  templateId    String
+  template      InterventionTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  daysOfWeek    Int[]
+  intervalWeeks Int                   @default(1)
+  categoryId    String?
+  category      InterventionCategory? @relation(fields: [categoryId], references: [id])
+  startTime     String
+  endTime       String
+  agentIds      String[]
+  order         Int                   @default(0)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   @@index([templateId])
 }

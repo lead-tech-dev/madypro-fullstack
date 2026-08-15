@@ -26,7 +26,7 @@ export class InterventionEntity {
 export class TemplateStopEntity {
   id!: string;
   daysOfWeek!: number[];
-  siteId!: string;
+  intervalWeeks: number = 1;
   categoryId?: string | null;
   startTime!: string;
   endTime!: string;
@@ -37,7 +37,7 @@ export class TemplateStopEntity {
 export class InterventionTemplateEntity {
   id!: string;
   label!: string;
-  intervalWeeks: number = 1;
+  siteId!: string;
   startDate!: Date;
   endDate?: Date | null;
   autoGenerate: boolean = false;

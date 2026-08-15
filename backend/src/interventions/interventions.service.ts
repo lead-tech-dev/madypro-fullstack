@@ -1138,19 +1138,19 @@ export class InterventionsService implements OnModuleInit {
   private presentTemplate(template: {
     id: string;
     label: string;
-    intervalWeeks: number;
+    siteId: string;
     startDate: Date;
     endDate: Date | null;
     autoGenerate: boolean;
     active: boolean;
     createdAt: Date;
     updatedAt: Date;
-    stops: { id: string; daysOfWeek: number[]; siteId: string; categoryId: string | null; startTime: string; endTime: string; agentIds: string[]; order: number }[];
+    stops: { id: string; daysOfWeek: number[]; intervalWeeks: number; categoryId: string | null; startTime: string; endTime: string; agentIds: string[]; order: number }[];
   }): InterventionTemplateEntity {
     return {
       id: template.id,
       label: template.label,
-      intervalWeeks: template.intervalWeeks,
+      siteId: template.siteId,
       startDate: template.startDate,
       endDate: template.endDate,
       autoGenerate: template.autoGenerate,
@@ -1163,7 +1163,7 @@ export class InterventionsService implements OnModuleInit {
         .map((s) => ({
           id: s.id,
           daysOfWeek: s.daysOfWeek,
-          siteId: s.siteId,
+          intervalWeeks: s.intervalWeeks,
           categoryId: s.categoryId,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -1194,11 +1194,15 @@ export class InterventionsService implements OnModuleInit {
   }
 
   async createTemplate(dto: CreateTemplateDto) {
+    const existing = await this.prisma.interventionTemplate.findUnique({ where: { siteId: dto.siteId } });
+    if (existing) {
+      throw new BadRequestException('Un gabarit existe déjà pour ce site');
+    }
     this.assertNoTemplateStopConflicts(
       dto.stops.map((s, index) => ({
         id: `new-${index}`,
         daysOfWeek: s.daysOfWeek,
-        siteId: s.siteId,
+        intervalWeeks: s.intervalWeeks ?? 1,
         startTime: s.startTime,
         endTime: s.endTime,
         agentIds: s.agentIds ?? [],
@@ -1207,7 +1211,7 @@ export class InterventionsService implements OnModuleInit {
     const template = await this.prisma.interventionTemplate.create({
       data: {
         label: dto.label,
-        intervalWeeks: dto.intervalWeeks ?? 1,
+        siteId: dto.siteId,
         startDate: dto.startDate ? new Date(dto.startDate) : new Date(),
         endDate: dto.endDate ? new Date(dto.endDate) : null,
         autoGenerate: dto.autoGenerate ?? false,
@@ -1215,7 +1219,7 @@ export class InterventionsService implements OnModuleInit {
         stops: {
           create: dto.stops.map((s, index) => ({
             daysOfWeek: s.daysOfWeek,
-            siteId: s.siteId,
+            intervalWeeks: s.intervalWeeks ?? 1,
             categoryId: s.categoryId ?? null,
             startTime: s.startTime,
             endTime: s.endTime,
@@ -1229,17 +1233,30 @@ export class InterventionsService implements OnModuleInit {
     return this.presentTemplate(template);
   }
 
-  async updateTemplate(id: string, dto: UpdateTemplateDto) {
-    const existing = await this.prisma.interventionTemplate.findUnique({ where: { id } });
+  private describeTemplateStop(siteName: string, stop: { startTime: string; endTime: string }): string {
+    return `${siteName} — ${stop.startTime}-${stop.endTime}`;
+  }
+
+  async updateTemplate(id: string, dto: UpdateTemplateDto, actorId: string) {
+    const existing = await this.prisma.interventionTemplate.findUnique({
+      where: { id },
+      include: { stops: true, site: { select: { name: true } } },
+    });
     if (!existing) {
       throw new NotFoundException('Gabarit introuvable');
+    }
+    if (dto.siteId !== undefined && dto.siteId !== existing.siteId) {
+      const conflict = await this.prisma.interventionTemplate.findUnique({ where: { siteId: dto.siteId } });
+      if (conflict) {
+        throw new BadRequestException('Un gabarit existe déjà pour ce site');
+      }
     }
     if (dto.stops) {
       this.assertNoTemplateStopConflicts(
         dto.stops.map((s, index) => ({
-          id: `new-${index}`,
+          id: s.id ?? `new-${index}`,
           daysOfWeek: s.daysOfWeek,
-          siteId: s.siteId,
+          intervalWeeks: s.intervalWeeks ?? 1,
           startTime: s.startTime,
           endTime: s.endTime,
           agentIds: s.agentIds ?? [],
@@ -1249,34 +1266,89 @@ export class InterventionsService implements OnModuleInit {
 
     const data: Prisma.InterventionTemplateUpdateInput = {};
     if (dto.label !== undefined) data.label = dto.label;
-    if (dto.intervalWeeks !== undefined) data.intervalWeeks = dto.intervalWeeks;
+    if (dto.siteId !== undefined) data.site = { connect: { id: dto.siteId } };
     if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
     if (dto.endDate !== undefined) data.endDate = dto.endDate ? new Date(dto.endDate) : null;
     if (dto.autoGenerate !== undefined) data.autoGenerate = dto.autoGenerate;
     if (dto.active !== undefined) data.active = dto.active;
 
+    const siteName = existing.site.name;
+
     const template = await this.prisma.$transaction(async (tx) => {
       if (dto.stops) {
-        await tx.templateStop.deleteMany({ where: { templateId: id } });
+        const existingStopById = new Map(existing.stops.map((s) => [s.id, s]));
+        const incomingIds = new Set(dto.stops.filter((s) => s.id).map((s) => s.id as string));
+
+        for (const oldStop of existing.stops) {
+          if (!incomingIds.has(oldStop.id)) {
+            await tx.templateStop.delete({ where: { id: oldStop.id } });
+            this.auditService.record({
+              actorId,
+              action: 'DELETE_TEMPLATE_STOP',
+              entityType: 'TemplateStop',
+              entityId: oldStop.id,
+              before: {
+                daysOfWeek: oldStop.daysOfWeek,
+                startTime: oldStop.startTime,
+                endTime: oldStop.endTime,
+                categoryId: oldStop.categoryId,
+                agentIds: oldStop.agentIds,
+              },
+              details: this.describeTemplateStop(siteName, oldStop),
+            });
+          }
+        }
+
+        for (const [index, s] of dto.stops.entries()) {
+          const stopData = {
+            daysOfWeek: s.daysOfWeek,
+            intervalWeeks: s.intervalWeeks ?? 1,
+            categoryId: s.categoryId ?? null,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            agentIds: s.agentIds ?? [],
+            order: s.order ?? index,
+          };
+          const oldStop = s.id ? existingStopById.get(s.id) : undefined;
+          if (s.id && oldStop) {
+            await tx.templateStop.update({ where: { id: s.id }, data: stopData });
+            const oldAgents = new Set(oldStop.agentIds);
+            const newAgents = new Set(stopData.agentIds);
+            const agentsChanged =
+              oldAgents.size !== newAgents.size || [...oldAgents].some((agentId) => !newAgents.has(agentId));
+            if (agentsChanged) {
+              this.auditService.record({
+                actorId,
+                action: 'UPDATE_TEMPLATE_STOP_AGENTS',
+                entityType: 'TemplateStop',
+                entityId: s.id,
+                before: { agentIds: oldStop.agentIds },
+                after: { agentIds: stopData.agentIds },
+                details: this.describeTemplateStop(siteName, stopData),
+              });
+            }
+          } else {
+            const created = await tx.templateStop.create({ data: { ...stopData, templateId: id } });
+            this.auditService.record({
+              actorId,
+              action: 'CREATE_TEMPLATE_STOP',
+              entityType: 'TemplateStop',
+              entityId: created.id,
+              after: {
+                daysOfWeek: stopData.daysOfWeek,
+                startTime: stopData.startTime,
+                endTime: stopData.endTime,
+                categoryId: stopData.categoryId,
+                agentIds: stopData.agentIds,
+              },
+              details: this.describeTemplateStop(siteName, stopData),
+            });
+          }
+        }
       }
       return tx.interventionTemplate.update({
         where: { id },
-        data: {
-          ...data,
-          stops: dto.stops
-            ? {
-                create: dto.stops.map((s, index) => ({
-                  daysOfWeek: s.daysOfWeek,
-                  siteId: s.siteId,
-                  categoryId: s.categoryId ?? null,
-                  startTime: s.startTime,
-                  endTime: s.endTime,
-                  agentIds: s.agentIds ?? [],
-                  order: s.order ?? index,
-                })),
-              }
-            : undefined,
-        },
+        data,
         include: { stops: true },
       });
     });
@@ -1304,14 +1376,14 @@ export class InterventionsService implements OnModuleInit {
     const stops: TemplateStopLike[] = template.stops.map((s) => ({
       id: s.id,
       daysOfWeek: s.daysOfWeek,
-      siteId: s.siteId,
+      intervalWeeks: s.intervalWeeks,
       categoryId: s.categoryId,
       startTime: s.startTime,
       endTime: s.endTime,
       agentIds: s.agentIds,
     }));
     const occurrences = computeTemplateOccurrences(
-      { intervalWeeks: template.intervalWeeks, startDate: template.startDate, endDate: template.endDate },
+      { siteId: template.siteId, startDate: template.startDate, endDate: template.endDate },
       stops,
       this.toDateOnly(startDate),
       this.toDateOnly(endDate),
@@ -1350,13 +1422,13 @@ export class InterventionsService implements OnModuleInit {
         const stops: TemplateStopLike[] = template.stops.map((s) => ({
           id: s.id,
           daysOfWeek: s.daysOfWeek,
-          siteId: s.siteId,
+          intervalWeeks: s.intervalWeeks,
           startTime: s.startTime,
           endTime: s.endTime,
           agentIds: s.agentIds,
         }));
         const occurrences = computeTemplateOccurrences(
-          { intervalWeeks: template.intervalWeeks, startDate: template.startDate, endDate: template.endDate },
+          { siteId: template.siteId, startDate: template.startDate, endDate: template.endDate },
           stops,
           horizonStart,
           horizonEnd,
@@ -1695,7 +1767,7 @@ export class InterventionsService implements OnModuleInit {
    */
   async getSiteRoster(siteId: string) {
     const stops = await this.prisma.templateStop.findMany({
-      where: { siteId, template: { active: true } },
+      where: { template: { siteId, active: true } },
       include: { template: { select: { id: true, label: true } } },
     });
     const agentIds = Array.from(new Set(stops.flatMap((s) => s.agentIds)));

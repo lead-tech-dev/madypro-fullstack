@@ -227,8 +227,9 @@ export class InterventionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Patch('templates/:id')
-  updateTemplate(@Param('id') id: string, @Body() dto: UpdateTemplateDto) {
-    return this.service.updateTemplate(id, dto);
+  updateTemplate(@Param('id') id: string, @Body() dto: UpdateTemplateDto, @Req() req: Request) {
+    const user = req.user as any;
+    return this.service.updateTemplate(id, dto, user.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

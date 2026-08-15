@@ -11,13 +11,19 @@ import {
 } from 'class-validator';
 
 export class TemplateStopInputDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @IsIn([0, 1, 2, 3, 4, 5, 6], { each: true })
   daysOfWeek!: number[];
 
-  @IsString()
-  siteId!: string;
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  intervalWeeks?: number;
 
   @IsOptional()
   @IsString()
@@ -41,14 +47,12 @@ export class CreateTemplateDto {
   @IsString()
   label!: string;
 
+  @IsString()
+  siteId!: string;
+
   @IsArray()
   @ArrayMinSize(1)
   stops!: TemplateStopInputDto[];
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  intervalWeeks?: number;
 
   @IsOptional()
   @IsDateString()

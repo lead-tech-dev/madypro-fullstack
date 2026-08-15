@@ -11,7 +11,7 @@ function startOfWeekUTC(date: Date): Date {
 }
 
 export type TemplateLike = {
-  intervalWeeks: number;
+  siteId: string;
   startDate: Date;
   endDate?: Date | null;
 };
@@ -19,7 +19,7 @@ export type TemplateLike = {
 export type TemplateStopLike = {
   id: string;
   daysOfWeek: number[];
-  siteId: string;
+  intervalWeeks: number;
   categoryId?: string | null;
   startTime: string;
   endTime: string;
@@ -37,11 +37,11 @@ export type TemplateOccurrence = {
 };
 
 /**
- * Calcule les occurrences d'un gabarit d'intervention (un ou plusieurs arrêts, chacun avec ses
- * propres jours de la semaine, site, horaire, agents) à l'intérieur d'une fenêtre
- * [horizonStart, horizonEnd] (bornes incluses, UTC, minuit). Un arrêt peut couvrir plusieurs
- * jours de la semaine (ex. "Lun/Mer/Ven sur le site A") ; plusieurs arrêts peuvent tomber le
- * même jour (ex. tournée multi-sites).
+ * Calcule les occurrences d'un gabarit d'intervention (un seul site, un ou plusieurs arrêts,
+ * chacun avec ses propres jours de la semaine, horaire, fréquence, agents) à l'intérieur d'une
+ * fenêtre [horizonStart, horizonEnd] (bornes incluses, UTC, minuit). Un arrêt peut couvrir
+ * plusieurs jours de la semaine (ex. "Lun/Mer/Ven") avec sa propre cadence (ex. chaque semaine
+ * pour un arrêt, une semaine sur deux pour un autre du même gabarit).
  */
 export function computeTemplateOccurrences(
   template: TemplateLike,
@@ -49,7 +49,6 @@ export function computeTemplateOccurrences(
   horizonStart: Date,
   horizonEnd: Date,
 ): TemplateOccurrence[] {
-  const intervalWeeks = Math.max(1, template.intervalWeeks || 1);
   const effectiveStart = template.startDate > horizonStart ? template.startDate : horizonStart;
   const effectiveEnd = template.endDate && template.endDate < horizonEnd ? template.endDate : horizonEnd;
   if (effectiveStart > effectiveEnd || !stops.length) {
@@ -65,20 +64,19 @@ export function computeTemplateOccurrences(
   while (cursor <= end) {
     const cursorWeekStart = startOfWeekUTC(cursor);
     const weeksDiff = Math.round((cursorWeekStart.getTime() - templateWeekStart.getTime()) / MS_PER_WEEK);
-    if (weeksDiff >= 0 && weeksDiff % intervalWeeks === 0) {
-      const date = cursor.toISOString().slice(0, 10);
-      for (const stop of stops) {
-        if (stop.daysOfWeek.includes(cursor.getUTCDay())) {
-          occurrences.push({
-            date,
-            stopId: stop.id,
-            siteId: stop.siteId,
-            categoryId: stop.categoryId,
-            startTime: stop.startTime,
-            endTime: stop.endTime,
-            agentIds: stop.agentIds,
-          });
-        }
+    const date = cursor.toISOString().slice(0, 10);
+    for (const stop of stops) {
+      const intervalWeeks = Math.max(1, stop.intervalWeeks || 1);
+      if (weeksDiff >= 0 && weeksDiff % intervalWeeks === 0 && stop.daysOfWeek.includes(cursor.getUTCDay())) {
+        occurrences.push({
+          date,
+          stopId: stop.id,
+          siteId: template.siteId,
+          categoryId: stop.categoryId,
+          startTime: stop.startTime,
+          endTime: stop.endTime,
+          agentIds: stop.agentIds,
+        });
       }
     }
     cursor = new Date(cursor.getTime() + MS_PER_DAY);
