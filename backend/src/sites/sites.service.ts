@@ -88,12 +88,28 @@ export class SitesService implements OnModuleInit {
     };
   }
 
-  findAll(filters: SiteFilters = { page: 1, pageSize: 20 }) {
+  /**
+   * Contrairement aux autres méthodes de lecture de ce service (findOne, ensureExists),
+   * la liste paginée interroge Prisma directement à chaque appel plutôt que le tableau
+   * `this.sites` en mémoire. Ce tableau n'est tenu à jour que par les mutations qui
+   * passent par ce service (create/update/remove) ; toute écriture faite en dehors
+   * (script de migration, accès direct à la base) le laisse périmé jusqu'au prochain
+   * redémarrage. `findAll` est le seul appelant externe (aucun autre service ne le
+   * consomme de façon synchrone), donc le rendre asynchrone ici est sans risque.
+   */
+  async findAll(filters: SiteFilters = { page: 1, pageSize: 20 }) {
     const page = filters.page ?? 1;
     const pageSize = filters.pageSize ?? 20;
-    const total = this.sites.length;
-    const start = (page - 1) * pageSize;
-    const items = this.sites.slice(start, start + pageSize).map((site) => this.present(site));
+    const [records, total] = await Promise.all([
+      this.prisma.site.findMany({
+        include: { supervisors: true },
+        orderBy: { name: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.site.count(),
+    ]);
+    const items = records.map((record) => this.present(this.mapRecord(record)));
     return { items, total, page, pageSize };
   }
 
