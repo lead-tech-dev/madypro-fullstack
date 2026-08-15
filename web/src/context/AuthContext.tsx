@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '../types/user';
+import { setUnauthorizedHandler } from '../services/api/client';
 
 type Toast = {
   id: number;
@@ -40,6 +41,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = (user: User, token: string) => setState({ user, token });
   const logout = () => setState({ user: null, token: null });
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setState({ user: null, token: null }));
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const notify = (message: string, type: 'success' | 'error' | 'info' = 'success') => {

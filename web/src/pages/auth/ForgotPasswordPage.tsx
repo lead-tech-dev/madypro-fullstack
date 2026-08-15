@@ -8,16 +8,15 @@ export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
-    setNewPassword(null);
     try {
-      const response = await requestPasswordReset(email);
-      setNewPassword(response.password);
+      await requestPasswordReset(email);
+      setSubmitted(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Impossible de réinitialiser le mot de passe';
       setError(message);
@@ -37,31 +36,40 @@ export const ForgotPasswordPage: React.FC = () => {
         </p>
       </div>
 
-      <form className="form-card" onSubmit={handleSubmit}>
-        <Input
-          id="reset-email"
-          type="email"
-          label="Email professionnel"
-          placeholder="vous@madyproclean.com"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          required
-        />
-        {error && <p className="form-error">{error}</p>}
-        {newPassword && (
-          <p className="form-success">
-            Nouveau mot de passe généré : <strong>{newPassword}</strong>
+      {submitted ? (
+        <div className="form-card">
+          <p>
+            Si un compte existe avec cette adresse, un email contenant un lien de réinitialisation
+            vient d'être envoyé.
           </p>
-        )}
-        <div className="form-actions">
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Envoi…' : 'Réinitialiser'}
-          </Button>
-          <Link to="/login" className="btn btn--ghost">
-            Retour connexion
-          </Link>
+          <div className="form-actions">
+            <Link to="/login" className="btn btn--ghost">
+              Retour connexion
+            </Link>
+          </div>
         </div>
-      </form>
+      ) : (
+        <form className="form-card" onSubmit={handleSubmit}>
+          <Input
+            id="reset-email"
+            type="email"
+            label="Email professionnel"
+            placeholder="vous@madyproclean.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+          {error && <p className="form-error">{error}</p>}
+          <div className="form-actions">
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Envoi…' : 'Réinitialiser'}
+            </Button>
+            <Link to="/login" className="btn btn--ghost">
+              Retour connexion
+            </Link>
+          </div>
+        </form>
+      )}
     </div>
   );
 };

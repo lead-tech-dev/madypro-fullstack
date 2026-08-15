@@ -31,11 +31,21 @@ export async function loginTwoFactor(userId: string, code: string) {
 }
 
 export async function requestPasswordReset(email: string) {
-  return apiFetch<{ message: string; password: string }>({
+  return apiFetch<{ message: string }>({
     path: 'auth/forgot-password',
     options: {
       method: 'POST',
       body: JSON.stringify({ email }),
+    },
+  });
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+  return apiFetch<{ message: string }>({
+    path: 'auth/reset-password',
+    options: {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
     },
   });
 }

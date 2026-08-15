@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthContext } from '../../context/AuthContext';
+import { User } from '../../types/user';
+
+const roleFallbackRoute = (role?: string) => {
+  const upper = role?.toUpperCase();
+  return upper === 'SUPERVISOR' ? '/supervision/dashboard' : '/dashboard';
+};
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
   const { user } = useAuthContext();
   const {
     login: authenticate,
@@ -20,27 +28,24 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
 
-  const targetRoute = React.useMemo(() => {
-    const role = user?.role?.toUpperCase();
-    if (role === 'SUPERVISOR') return '/supervision/dashboard';
-    if (role === 'ADMIN') return '/dashboard';
-    return '/dashboard';
-  }, [user?.role]);
+  const targetRoute = React.useMemo(() => from ?? roleFallbackRoute(user?.role), [from, user?.role]);
+
+  const redirectAfterLogin = (loggedInUser: User) => {
+    navigate(from ?? roleFallbackRoute(loggedInUser.role), { replace: true });
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const result = await authenticate(email, password);
     if (!result) return; // 2FA requise, on reste sur la page
-    const role = result.user.role?.toUpperCase();
-    navigate(role === 'SUPERVISOR' ? '/supervision/dashboard' : '/dashboard');
+    redirectAfterLogin(result.user);
   };
 
   const handleTwoFactorSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const result = await completeTwoFactor(code);
     if (!result) return;
-    const role = result.user.role?.toUpperCase();
-    navigate(role === 'SUPERVISOR' ? '/supervision/dashboard' : '/dashboard');
+    redirectAfterLogin(result.user);
   };
 
   if (user) {

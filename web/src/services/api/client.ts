@@ -17,6 +17,12 @@ const buildUrl = (path: string) => {
   return `${base}${normalizedPath}`;
 };
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
 export async function apiFetch<T>({ path, options = {}, token }: FetchArgs): Promise<T> {
   const response = await fetch(buildUrl(path), {
     ...options,
@@ -34,6 +40,9 @@ export async function apiFetch<T>({ path, options = {}, token }: FetchArgs): Pro
       message = Array.isArray(data.message) ? data.message.join(', ') : data.message || message;
     } catch {
       message = await response.text();
+    }
+    if (response.status === 401 && token) {
+      unauthorizedHandler?.();
     }
     throw new Error(message || 'Erreur serveur');
   }
