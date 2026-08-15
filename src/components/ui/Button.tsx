@@ -10,9 +10,18 @@ type Props = {
   variant?: 'primary' | 'ghost';
   disabled?: boolean;
   size?: 'md' | 'sm';
+  fullWidth?: boolean;
 };
 
-export const Button: React.FC<Props> = ({ title, label, onPress, variant = 'primary', disabled, size = 'md' }) => {
+export const Button: React.FC<Props> = ({
+  title,
+  label,
+  onPress,
+  variant = 'primary',
+  disabled,
+  size = 'md',
+  fullWidth,
+}) => {
   const scale = useRef(new Animated.Value(1)).current;
 
   const animateTo = (value: number) => {
@@ -29,6 +38,7 @@ export const Button: React.FC<Props> = ({ title, label, onPress, variant = 'prim
       style={({ pressed }) => [
         styles.base,
         size === 'sm' && styles.baseSm,
+        fullWidth && styles.fullWidth,
         variant === 'ghost' && styles.ghost,
         disabled && styles.disabled,
         disabled && variant === 'ghost' && styles.ghostDisabled,
@@ -67,6 +77,9 @@ const styles = StyleSheet.create({
   baseSm: {
     paddingVertical: theme.spacing.xs,
     paddingHorizontal: theme.spacing.lg,
+  },
+  fullWidth: {
+    alignSelf: 'stretch',
   },
   ghost: {
     backgroundColor: 'transparent',
