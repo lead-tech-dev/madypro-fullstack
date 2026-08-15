@@ -120,40 +120,42 @@ enum ApprovalStatus {
 }
 
 model User {
-  id                       String                   @id @default(cuid())
-  firstName                String
-  lastName                 String
-  email                    String                   @unique
-  phone                    String?
-  role                     Role
-  password                 String
-  active                   Boolean                  @default(true)
-  twoFactorSecret          String?
-  twoFactorEnabled         Boolean                  @default(false)
-  permissions              String[]                 @default([])
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime                 @updatedAt
-  supervising              SiteSupervisor[]
-  interventions            InterventionAssignment[]
-  attendance               Attendance[]
-  absences                 Absence[]
-  pushTokens               PushToken[]
-  anomalies                Anomaly[]
-  loginEvents              LoginEvent[]
-  certifications           Certification[]
-  employeeDocuments        EmployeeDocument[]
-  shiftSwapRequestsMade    ShiftSwapRequest[]       @relation("ShiftSwapRequester")
-  shiftSwapRequestsIn      ShiftSwapRequest[]       @relation("ShiftSwapTarget")
-  teamPosts                TeamPost[]
-  badges                   UserBadge[]
-  onboardingItems          UserOnboardingItem[]
-  availabilities           Availability[]
-  leaveAllocations         LeaveAllocation[]
-  chatThread               ChatMessage[]            @relation("ChatThread")
-  chatMessagesSent         ChatMessage[]            @relation("ChatSender")
-  dashboardLayout          UserDashboardLayout?
-  approvalRequestsMade     ApprovalRequest[]        @relation("ApprovalRequester")
-  approvalRequestsReviewed ApprovalRequest[]        @relation("ApprovalReviewer")
+  id                          String                   @id @default(cuid())
+  firstName                   String
+  lastName                    String
+  email                       String                   @unique
+  phone                       String?
+  role                        Role
+  password                    String
+  active                      Boolean                  @default(true)
+  twoFactorSecret             String?
+  twoFactorEnabled            Boolean                  @default(false)
+  passwordResetTokenHash      String?
+  passwordResetTokenExpiresAt DateTime?
+  permissions                 String[]                 @default([])
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
+  supervising                 SiteSupervisor[]
+  interventions               InterventionAssignment[]
+  attendance                  Attendance[]
+  absences                    Absence[]
+  pushTokens                  PushToken[]
+  anomalies                   Anomaly[]
+  loginEvents                 LoginEvent[]
+  certifications              Certification[]
+  employeeDocuments           EmployeeDocument[]
+  shiftSwapRequestsMade       ShiftSwapRequest[]       @relation("ShiftSwapRequester")
+  shiftSwapRequestsIn         ShiftSwapRequest[]       @relation("ShiftSwapTarget")
+  teamPosts                   TeamPost[]
+  badges                      UserBadge[]
+  onboardingItems             UserOnboardingItem[]
+  availabilities              Availability[]
+  leaveAllocations            LeaveAllocation[]
+  chatThread                  ChatMessage[]            @relation("ChatThread")
+  chatMessagesSent            ChatMessage[]            @relation("ChatSender")
+  dashboardLayout             UserDashboardLayout?
+  approvalRequestsMade        ApprovalRequest[]        @relation("ApprovalRequester")
+  approvalRequestsReviewed    ApprovalRequest[]        @relation("ApprovalReviewer")
 }
 
 model ApprovalRequest {

@@ -3,9 +3,11 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as otplib from 'otplib';
 import * as QRCode from 'qrcode';
+import { randomBytes, createHash } from 'crypto';
 import { LoginDto } from './dto/login.dto';
 import { UsersService } from '../users/users.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { MailerService } from '../notifications/mailer.service';
 import { PrismaService } from '../database/prisma.service';
@@ -144,24 +146,42 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
+    const genericResult = {
+      message: 'Si un compte existe avec cette adresse, un email de réinitialisation a été envoyé.',
+    };
     const user = this.usersService.findByEmail(dto.email);
     if (!user) {
-      throw new NotFoundException('Utilisateur introuvable');
+      return genericResult;
     }
-    const { password } = await this.usersService.resetPassword(user.id);
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    await this.usersService.setPasswordResetToken(user.id, tokenHash, expiresAt);
+    const resetUrl = `${process.env.WEB_APP_URL}/reset-password?token=${rawToken}`;
     try {
       await this.mailer.send(
         user.email,
         'Réinitialisation de mot de passe',
         `<p>Bonjour ${user.firstName ?? ''} ${user.lastName ?? ''},</p>
-        <p>Votre mot de passe a été réinitialisé. Mot de passe provisoire :</p>
-        <p><strong>${password}</strong></p>
-        <p>Pensez à le changer après connexion.</p>`,
+        <p>Vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le lien ci-dessous (valable 1 heure) :</p>
+        <p><a href="${resetUrl}">${resetUrl}</a></p>
+        <p>Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>`,
       );
     } catch (error) {
-      // Le mot de passe est déjà réinitialisé ; un échec d'envoi d'email ne doit pas bloquer la demande.
+      // Le token est déjà enregistré ; un échec d'envoi d'email ne doit pas bloquer la demande.
     }
-    return { message: 'Mot de passe réinitialisé', password };
+    return genericResult;
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tokenHash = createHash('sha256').update(dto.token).digest('hex');
+    const user = await this.usersService.consumePasswordResetToken(tokenHash);
+    if (!user) {
+      throw new BadRequestException('Lien invalide ou expiré');
+    }
+    await this.usersService.updatePassword(user.id, dto.newPassword);
+    await this.usersService.setPasswordResetToken(user.id, null, null);
+    return { message: 'Mot de passe mis à jour' };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {

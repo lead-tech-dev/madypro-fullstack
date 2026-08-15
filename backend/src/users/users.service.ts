@@ -231,6 +231,21 @@ export class UsersService implements OnModuleInit {
     return this.users.find((user) => user.email === email);
   }
 
+  async setPasswordResetToken(id: string, tokenHash: string | null, expiresAt: Date | null) {
+    const record = await this.prisma.user.update({
+      where: { id },
+      data: { passwordResetTokenHash: tokenHash, passwordResetTokenExpiresAt: expiresAt },
+    });
+    this.upsertCache(this.mapRecord(record));
+  }
+
+  async consumePasswordResetToken(tokenHash: string): Promise<UserEntity | null> {
+    const record = await this.prisma.user.findFirst({
+      where: { passwordResetTokenHash: tokenHash, passwordResetTokenExpiresAt: { gt: new Date() } },
+    });
+    return record ? this.mapRecord(record) : null;
+  }
+
   async setPendingTwoFactorSecret(id: string, secret: string) {
     this.ensureExists(id);
     const record = await this.prisma.user.update({ where: { id }, data: { twoFactorSecret: secret } });
