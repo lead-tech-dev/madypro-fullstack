@@ -27,6 +27,9 @@ const ACTION_OPTIONS: { value: AuditAction | 'all'; label: string }[] = [
   { value: 'UPDATE_INTERVENTION_STATUS', label: 'Changement statut intervention' },
   { value: 'CANCEL_INTERVENTION', label: 'Annulation intervention' },
   { value: 'DUPLICATE_INTERVENTION', label: 'Duplication intervention' },
+  { value: 'CREATE_TEMPLATE_STOP', label: "Ajout d'un arrêt de gabarit" },
+  { value: 'UPDATE_TEMPLATE_STOP_AGENTS', label: "Changement d'agent sur un arrêt" },
+  { value: 'DELETE_TEMPLATE_STOP', label: "Suppression d'un arrêt de gabarit" },
 ];
 
 const formatDate = (date: Date) => date.toISOString().slice(0, 10);

@@ -170,8 +170,9 @@ export async function createOneshotBatch(
 }
 
 export type TemplateStopPayload = {
+  id?: string;
   daysOfWeek: number[];
-  siteId: string;
+  intervalWeeks?: number;
   categoryId?: string;
   startTime: string;
   endTime: string;
@@ -181,8 +182,8 @@ export type TemplateStopPayload = {
 
 export type CreateTemplatePayload = {
   label: string;
+  siteId: string;
   stops: TemplateStopPayload[];
-  intervalWeeks?: number;
   startDate?: string;
   endDate?: string;
   autoGenerate?: boolean;

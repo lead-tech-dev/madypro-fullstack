@@ -44,7 +44,7 @@ export type DurationEstimate = {
 export type TemplateStop = {
   id: string;
   daysOfWeek: number[];
-  siteId: string;
+  intervalWeeks: number;
   categoryId?: string | null;
   startTime: string;
   endTime: string;
@@ -55,7 +55,7 @@ export type TemplateStop = {
 export type InterventionTemplate = {
   id: string;
   label: string;
-  intervalWeeks: number;
+  siteId: string;
   startDate: string;
   endDate: string | null;
   autoGenerate: boolean;
