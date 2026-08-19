@@ -3,6 +3,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { CreateUserPayload } from '../../services/api/users.api';
+import { Save, X } from 'lucide-react';
 
 const ROLE_OPTIONS = [
   { value: 'ADMIN', label: 'Admin' },
@@ -40,10 +41,10 @@ export const UserForm: React.FC<UserFormProps> = ({ value, onChange, onSubmit, o
       placeholder={isEdit ? 'Laisser vide pour conserver l’actuel' : 'Au moins 6 caractères'}
     />
     <div className="form-actions">
-      <Button type="submit" loading={submitting}>
+      <Button type="submit" icon={Save} loading={submitting}>
         Enregistrer
       </Button>
-      <Button type="button" variant="ghost" onClick={onCancel}>
+      <Button type="button" variant="ghost" icon={X} onClick={onCancel}>
         Annuler
       </Button>
     </div>

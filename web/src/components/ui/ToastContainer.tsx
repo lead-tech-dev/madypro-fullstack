@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { X } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 
 export const ToastContainer: React.FC = () => {
@@ -21,7 +22,7 @@ export const ToastContainer: React.FC = () => {
         <div key={toast.id} className={`toast toast--${toast.type ?? 'success'}`}>
           {toast.message}
           <button type="button" onClick={() => removeToast(toast.id)} aria-label="Fermer">
-            ×
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
       ))}

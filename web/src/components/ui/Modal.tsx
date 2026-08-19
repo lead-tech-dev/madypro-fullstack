@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
@@ -16,7 +17,7 @@ type ModalProps = {
  * Remplace les ~10 overlays `position: fixed` copiés-collés à la main dans
  * les pages (Absences, Attendance, Gabarits, Interventions, Users, Sites, ...).
  */
-export const Modal: React.FC<ModalProps> = ({ open, onClose, children, maxWidth = 760, labelledBy }) => {
+export const Modal: React.FC<ModalProps> = ({ open, onClose, children, maxWidth = 900, labelledBy }) => {
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export const ModalHeader: React.FC<{
       {actions}
       {onClose && (
         <button type="button" className="ui-modal-close" onClick={onClose} aria-label="Fermer">
-          ×
+          <X size={18} aria-hidden="true" />
         </button>
       )}
     </div>

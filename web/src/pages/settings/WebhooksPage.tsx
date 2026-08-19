@@ -12,6 +12,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { formatDateTime } from '../../utils/datetime';
+import { Check, Plus, Power, KeyRound, Trash2 } from 'lucide-react';
 
 export const WebhooksPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -107,7 +108,7 @@ export const WebhooksPage: React.FC = () => {
         <div className="settings-card" style={{ marginBottom: '1rem', borderColor: '#16a34a' }}>
           <span className="card__meta">Secret (affiché une seule fois)</span>
           <p style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{revealedSecret.secret}</p>
-          <Button type="button" variant="ghost" onClick={() => setRevealedSecret(null)}>
+          <Button type="button" variant="ghost" icon={Check} onClick={() => setRevealedSecret(null)}>
             J’ai copié le secret
           </Button>
         </div>
@@ -137,7 +138,7 @@ export const WebhooksPage: React.FC = () => {
             </div>
           </div>
           <div className="form-actions">
-            <Button type="submit" loading={creating}>
+            <Button type="submit" icon={Plus} loading={creating}>
               Créer le webhook
             </Button>
           </div>
@@ -180,13 +181,13 @@ export const WebhooksPage: React.FC = () => {
                     <td>{webhook.active ? 'Actif' : 'Désactivé'}</td>
                     <td>{formatDateTime(webhook.createdAt)}</td>
                     <td style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <Button type="button" variant="ghost" onClick={() => handleToggleActive(webhook)}>
+                      <Button type="button" variant="ghost" icon={Power} onClick={() => handleToggleActive(webhook)}>
                         {webhook.active ? 'Désactiver' : 'Activer'}
                       </Button>
-                      <Button type="button" variant="ghost" onClick={() => handleRotate(webhook)}>
+                      <Button type="button" variant="ghost" icon={KeyRound} onClick={() => handleRotate(webhook)}>
                         Régénérer le secret
                       </Button>
-                      <Button type="button" variant="ghost" onClick={() => handleDelete(webhook)}>
+                      <Button type="button" variant="ghost" icon={Trash2} onClick={() => handleDelete(webhook)}>
                         Supprimer
                       </Button>
                     </td>

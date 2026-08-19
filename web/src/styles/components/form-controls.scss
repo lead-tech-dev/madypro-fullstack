@@ -308,6 +308,16 @@
   place-items: center;
   padding: var(--space-6);
   z-index: 1200;
+  animation: modalOverlayEnter 0.15s ease;
+}
+
+@keyframes modalOverlayEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .ui-modal-card {
@@ -322,6 +332,18 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  animation: modalEnter 0.18s ease;
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .ui-modal-header {
@@ -342,15 +364,17 @@
 }
 
 .ui-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--color-border);
   background: transparent;
   border-radius: 50%;
   width: 32px;
   height: 32px;
-  font-size: 1.1rem;
-  line-height: 1;
   cursor: pointer;
   color: var(--color-muted);
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 .ui-modal-close:hover {

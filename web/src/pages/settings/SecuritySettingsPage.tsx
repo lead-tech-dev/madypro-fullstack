@@ -3,6 +3,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useAuthContext } from '../../context/AuthContext';
 import { setupTwoFactor, confirmTwoFactor, disableTwoFactor } from '../../services/api/auth.api';
+import { Shield, Check, X, Power } from 'lucide-react';
 
 export const SecuritySettingsPage: React.FC = () => {
   const { token, user, notify, login } = useAuthContext();
@@ -75,7 +76,7 @@ export const SecuritySettingsPage: React.FC = () => {
 
           {!enabled && !setupData && (
             <div className="form-actions" style={{ marginTop: '1rem' }}>
-              <Button type="button" onClick={startSetup} disabled={loading}>
+              <Button type="button" icon={Shield} onClick={startSetup} disabled={loading}>
                 {loading ? 'Génération...' : 'Activer la 2FA'}
               </Button>
             </div>
@@ -100,10 +101,10 @@ export const SecuritySettingsPage: React.FC = () => {
                 required
               />
               <div className="form-actions">
-                <Button type="submit" disabled={loading || confirmCode.length !== 6}>
+                <Button type="submit" icon={Check} disabled={loading || confirmCode.length !== 6}>
                   {loading ? 'Vérification...' : 'Confirmer l’activation'}
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setSetupData(null)}>
+                <Button type="button" variant="ghost" icon={X} onClick={() => setSetupData(null)}>
                   Annuler
                 </Button>
               </div>
@@ -122,7 +123,7 @@ export const SecuritySettingsPage: React.FC = () => {
                 required
               />
               <div className="form-actions">
-                <Button type="submit" variant="ghost" disabled={loading}>
+                <Button type="submit" variant="ghost" icon={Power} disabled={loading}>
                   {loading ? 'Désactivation...' : 'Désactiver la 2FA'}
                 </Button>
               </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Bold, Italic, Underline, List } from 'lucide-react';
 
 type RichTextEditorProps = {
   value: string;
@@ -31,16 +32,16 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
     <div className="rte">
       <div className="rte__toolbar">
         <button type="button" onClick={() => exec('bold')} disabled={disabled} aria-label="Gras">
-          G
+          <Bold size={14} aria-hidden="true" />
         </button>
         <button type="button" onClick={() => exec('italic')} disabled={disabled} aria-label="Italique">
-          I
+          <Italic size={14} aria-hidden="true" />
         </button>
         <button type="button" onClick={() => exec('underline')} disabled={disabled} aria-label="Souligné">
-          U
+          <Underline size={14} aria-hidden="true" />
         </button>
         <button type="button" onClick={() => exec('insertUnorderedList')} disabled={disabled} aria-label="Liste">
-          •
+          <List size={14} aria-hidden="true" />
         </button>
       </div>
       <div

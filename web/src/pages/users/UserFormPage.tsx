@@ -23,6 +23,7 @@ import {
 } from '../../services/api/team.api';
 import { Certification, EmployeeDocument } from '../../types/team';
 import { useAuthContext } from '../../context/AuthContext';
+import { Save, Trash2, Plus } from 'lucide-react';
 
 const PERMISSION_OPTIONS = [
   { value: 'settings:manage', label: 'Gérer les paramètres' },
@@ -215,7 +216,7 @@ export const UserFormPage: React.FC = () => {
             ))}
           </div>
           <div className="form-actions" style={{ marginTop: '1rem' }}>
-            <Button type="button" onClick={savePermissions} loading={savingPermissions}>
+            <Button type="button" icon={Save} onClick={savePermissions} loading={savingPermissions}>
               Enregistrer les permissions
             </Button>
           </div>
@@ -246,7 +247,7 @@ export const UserFormPage: React.FC = () => {
                         {cert.expiresAt ? cert.expiresAt.slice(0, 10) : '—'}
                       </td>
                       <td>
-                        <Button type="button" variant="ghost" onClick={() => removeCertification(cert.id)}>
+                        <Button type="button" variant="ghost" icon={Trash2} onClick={() => removeCertification(cert.id)}>
                           Supprimer
                         </Button>
                       </td>
@@ -269,7 +270,7 @@ export const UserFormPage: React.FC = () => {
               value={newCert.expiresAt}
               onChange={(event) => setNewCert((prev) => ({ ...prev, expiresAt: event.target.value }))}
             />
-            <Button type="submit">Ajouter</Button>
+            <Button type="submit" icon={Plus}>Ajouter</Button>
           </form>
         </article>
       )}
@@ -295,7 +296,7 @@ export const UserFormPage: React.FC = () => {
                     </td>
                     <td>{doc.label}</td>
                     <td>
-                      <Button type="button" variant="ghost" onClick={() => removeDocument(doc.id)}>
+                      <Button type="button" variant="ghost" icon={Trash2} onClick={() => removeDocument(doc.id)}>
                         Supprimer
                       </Button>
                     </td>
@@ -328,7 +329,7 @@ export const UserFormPage: React.FC = () => {
                 onChange={(event) => setNewDoc((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
               />
             </label>
-            <Button type="submit">Ajouter</Button>
+            <Button type="submit" icon={Plus}>Ajouter</Button>
           </form>
         </article>
       )}

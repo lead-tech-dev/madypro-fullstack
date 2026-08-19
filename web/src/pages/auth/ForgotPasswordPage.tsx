@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { requestPasswordReset } from '../../services/api/auth.api';
+import { RotateCcw } from 'lucide-react';
 
 export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -61,7 +62,7 @@ export const ForgotPasswordPage: React.FC = () => {
           />
           {error && <p className="form-error">{error}</p>}
           <div className="form-actions">
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" icon={RotateCcw} disabled={loading}>
               {loading ? 'Envoi…' : 'Réinitialiser'}
             </Button>
             <Link to="/login" className="btn btn--ghost">

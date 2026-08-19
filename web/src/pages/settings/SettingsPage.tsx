@@ -10,6 +10,7 @@ import {
   createAbsenceType,
   updateAbsenceType,
 } from '../../services/api/settings.api';
+import { Save, Plus } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
@@ -189,7 +190,7 @@ export const SettingsPage: React.FC = () => {
             />
           </div>
           <div className="form-actions" style={{ marginTop: '1rem' }}>
-            <Button type="button" onClick={saveAttendanceRules} disabled={savingRules}>
+            <Button type="button" icon={Save} onClick={saveAttendanceRules} disabled={savingRules}>
               {savingRules ? 'Enregistrement...' : 'Mettre à jour'}
             </Button>
           </div>
@@ -225,7 +226,7 @@ export const SettingsPage: React.FC = () => {
               value={newType.name}
               onChange={(event) => setNewType((prev) => ({ ...prev, name: event.target.value }))}
             />
-            <Button type="submit" disabled={creatingType}>
+            <Button type="submit" icon={Plus} disabled={creatingType}>
               {creatingType ? 'Ajout...' : 'Ajouter'}
             </Button>
           </form>

@@ -15,6 +15,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { UserForm } from './UserForm';
 import { listAttendance } from '../../services/api/attendance.api';
 import { Attendance } from '../../types/attendance';
+import { Plus, RotateCcw, Power, KeyRound, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const EMPTY_CREATE_FORM: CreateUserPayload = {
   firstName: '',
@@ -159,7 +160,7 @@ export const UsersListPage: React.FC = () => {
             Chaque fiche valorise les responsables de sites et agents de nettoyage : zones
             d’intervention, statuts en temps réel et contacts directs.
           </p>
-          <Button type="button" onClick={openCreateModal}>
+          <Button type="button" icon={Plus} onClick={openCreateModal}>
             Créer un utilisateur
           </Button>
         </div>
@@ -174,14 +175,14 @@ export const UsersListPage: React.FC = () => {
         </div>
       </div>
 
-      <Modal open={formVisible} onClose={() => setFormVisible(false)} maxWidth={720} labelledBy="user-create-title">
+      <Modal open={formVisible} onClose={() => setFormVisible(false)} maxWidth={900} labelledBy="user-create-title">
         <ModalHeader
           eyebrow="Utilisateur"
           title="Nouvel utilisateur"
           titleId="user-create-title"
           onClose={() => setFormVisible(false)}
           actions={
-            <Button type="button" variant="ghost" onClick={() => setCreateForm(EMPTY_CREATE_FORM)}>
+            <Button type="button" variant="ghost" icon={RotateCcw} onClick={() => setCreateForm(EMPTY_CREATE_FORM)}>
               Réinitialiser
             </Button>
           }
@@ -255,10 +256,10 @@ export const UsersListPage: React.FC = () => {
               <Link to={`/users/${employee.id}/edit`} className="btn btn--ghost">
                 Modifier
               </Link>
-              <Button type="button" variant="ghost" onClick={() => handleStatusToggle(employee)}>
+              <Button type="button" variant="ghost" icon={Power} onClick={() => handleStatusToggle(employee)}>
                 {employee.active ? 'Désactiver' : 'Activer'}
               </Button>
-              <Button type="button" variant="ghost" onClick={() => handleResetPassword(employee)}>
+              <Button type="button" variant="ghost" icon={KeyRound} onClick={() => handleResetPassword(employee)}>
                 Réinitialiser
               </Button>
             </div>
@@ -267,13 +268,15 @@ export const UsersListPage: React.FC = () => {
       </div>
 
       <div className="pagination" style={{ marginTop: '1.5rem' }}>
-        <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+        <Button type="button" variant="ghost" icon={ChevronLeft} onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
           Précédent
         </Button>
         <span className="card__meta">Page {page}</span>
         <Button
           type="button"
           variant="ghost"
+          icon={ChevronRight}
+          iconPosition="right"
           onClick={() => {
             const maxPage = Math.ceil(total / pageSize) || 1;
             setPage((p) => (p < maxPage ? p + 1 : p));

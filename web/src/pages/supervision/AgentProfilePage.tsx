@@ -14,6 +14,7 @@ import { Absence } from '../../types/absence';
 import { Site } from '../../types/site';
 import { Certification, EmployeeDocument, UserBadge } from '../../types/team';
 import { Button } from '../../components/ui/Button';
+import { List, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDateTime } from '../../utils/datetime';
 
 const ROLE_LABELS: Record<string, string> = { ADMIN: 'Admin', SUPERVISOR: 'Superviseur', AGENT: 'Agent' };
@@ -208,12 +209,13 @@ export const AgentProfilePage: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3>Planning</h3>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <Button type="button" variant={planningView === 'liste' ? 'primary' : 'ghost'} onClick={() => setPlanningView('liste')}>
+            <Button type="button" variant={planningView === 'liste' ? 'primary' : 'ghost'} icon={List} onClick={() => setPlanningView('liste')}>
               Liste
             </Button>
             <Button
               type="button"
               variant={planningView === 'calendrier' ? 'primary' : 'ghost'}
+              icon={Calendar}
               onClick={() => setPlanningView('calendrier')}
             >
               Calendrier
@@ -261,6 +263,7 @@ export const AgentProfilePage: React.FC = () => {
               <Button
                 type="button"
                 variant="ghost"
+                icon={ChevronLeft}
                 onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
               >
                 ‹ Précédent
@@ -269,6 +272,8 @@ export const AgentProfilePage: React.FC = () => {
               <Button
                 type="button"
                 variant="ghost"
+                icon={ChevronRight}
+                iconPosition="right"
                 onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
               >
                 Suivant ›

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Site } from '../../types/site';
 import { Button } from '../../components/ui/Button';
 import { SitesTable } from './SitesTable';
+import { Plus } from 'lucide-react';
 
 export const SitesListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ export const SitesListPage: React.FC = () => {
           <span className="pill">Gestion des sites</span>
           <h2>Cartographie terrain</h2>
           <p>Centralisez les implantations à nettoyer, les responsables locaux et les fenêtres horaires.</p>
-          <Button type="button" onClick={() => navigate('/sites/new')}>
+          <Button type="button" icon={Plus} onClick={() => navigate('/sites/new')}>
             Créer un site
           </Button>
         </div>

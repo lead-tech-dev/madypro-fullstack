@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { LogIn, Check, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthContext } from '../../context/AuthContext';
 import { User } from '../../types/user';
@@ -56,7 +57,7 @@ export const LoginPage: React.FC = () => {
     return (
       <div className="auth-page">
         <div className="auth-page__intro">
-          <span className="pill">Madypro Clean</span>
+          <img src="/logo-full.png" alt="Madypro Clean" className="auth-page__logo" />
           <h1>Vérification en deux étapes</h1>
           <p>Saisissez le code à 6 chiffres généré par votre application d’authentification.</p>
         </div>
@@ -76,10 +77,10 @@ export const LoginPage: React.FC = () => {
           />
           <div className="form-actions">
             {error && <p className="form-error">{error}</p>}
-            <Button type="submit" disabled={loading || code.length !== 6}>
+            <Button type="submit" icon={Check} disabled={loading || code.length !== 6}>
               {loading ? 'Vérification...' : 'Valider'}
             </Button>
-            <Button type="button" variant="ghost" onClick={cancelTwoFactor}>
+            <Button type="button" variant="ghost" icon={ArrowLeft} onClick={cancelTwoFactor}>
               Retour
             </Button>
           </div>
@@ -91,7 +92,7 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="auth-page">
       <div className="auth-page__intro">
-        <span className="pill">Madypro Clean</span>
+        <img src="/logo-full.png" alt="Madypro Clean" className="auth-page__logo" />
         <h1>Connexion superviseur</h1>
         <p>
           Accédez aux modules Admin / Superviseur pour piloter les équipes de nettoyage, les sites
@@ -120,7 +121,7 @@ export const LoginPage: React.FC = () => {
         />
         <div className="form-actions">
           {error && <p className="form-error">{error}</p>}
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" icon={LogIn} disabled={loading}>
             {loading ? 'Connexion...' : 'Se connecter'}
           </Button>
           <Link className="btn btn--ghost" to="/forgot-password">

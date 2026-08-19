@@ -13,6 +13,7 @@ import { Absence, AbsenceStatus } from '../../types/absence';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { PromptModal } from '../../components/ui/PromptModal';
+import { Check, X, ArrowLeft } from 'lucide-react';
 
 const TYPE_LABELS: Record<Absence['type'], string> = {
   SICK: 'Arrêt maladie',
@@ -216,21 +217,21 @@ export const AbsenceDetailPage: React.FC = () => {
       {absence.status === 'PENDING' && (
         <div className="form-actions" style={{ marginTop: '1.5rem' }}>
           {absence.requiresSecondApproval && !absence.level1ApprovedBy ? (
-            <Button type="button" onClick={handleApproveLevel1}>
+            <Button type="button" icon={Check} onClick={handleApproveLevel1}>
               Valider (niveau 1)
             </Button>
           ) : (
-            <Button type="button" onClick={() => handleDecision('APPROVED')}>
+            <Button type="button" icon={Check} onClick={() => handleDecision('APPROVED')}>
               Approuver
             </Button>
           )}
-          <Button type="button" variant="ghost" onClick={() => handleDecision('REJECTED')}>
+          <Button type="button" variant="ghost" icon={X} onClick={() => handleDecision('REJECTED')}>
             Rejeter
           </Button>
         </div>
       )}
 
-      <Button type="button" variant="ghost" style={{ marginTop: '1.5rem' }} onClick={() => navigate('/absences')}>
+      <Button type="button" variant="ghost" icon={ArrowLeft} style={{ marginTop: '1.5rem' }} onClick={() => navigate('/absences')}>
         Retour
       </Button>
       <PromptModal

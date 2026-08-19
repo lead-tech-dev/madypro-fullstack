@@ -5,6 +5,7 @@ import { listAuditLogs, exportAuditCsv, AuditPage as AuditPageType } from '../..
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
+import { Download } from 'lucide-react';
 
 const ACTION_OPTIONS: { value: AuditAction | 'all'; label: string }[] = [
   { value: 'all', label: 'Toutes les actions' },
@@ -99,7 +100,7 @@ export const AuditPage: React.FC = () => {
         <span className="pill">Audit</span>
         <h2>Historique des actions sensibles</h2>
         <p>Suivez qui a modifié quoi dans l’écosystème Madypro Clean.</p>
-        <Button type="button" variant="ghost" onClick={handleExportCsv} disabled={exporting}>
+        <Button type="button" variant="ghost" icon={Download} onClick={handleExportCsv} disabled={exporting}>
           {exporting ? 'Export...' : 'Export RGPD (CSV)'}
         </Button>
       </div>

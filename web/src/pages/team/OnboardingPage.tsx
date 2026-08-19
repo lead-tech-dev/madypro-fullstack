@@ -15,6 +15,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { Checkbox } from '../../components/ui/Checkbox';
+import { Trash2, Plus, Play } from 'lucide-react';
 
 export const OnboardingPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -98,7 +99,7 @@ export const OnboardingPage: React.FC = () => {
             {template.map((item) => (
               <li key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 {item.label}
-                <Button type="button" variant="ghost" onClick={() => handleRemoveTemplateItem(item.id)}>
+                <Button type="button" variant="ghost" icon={Trash2} onClick={() => handleRemoveTemplateItem(item.id)}>
                   Retirer
                 </Button>
               </li>
@@ -111,7 +112,7 @@ export const OnboardingPage: React.FC = () => {
               onChange={(event) => setNewLabel(event.target.value)}
               placeholder="Signer le contrat"
             />
-            <Button type="submit">Ajouter</Button>
+            <Button type="submit" icon={Plus}>Ajouter</Button>
           </form>
         </article>
 
@@ -128,7 +129,7 @@ export const OnboardingPage: React.FC = () => {
             options={[{ value: '', label: 'Sélectionner' }, ...users.map((u) => ({ value: u.id, label: u.name }))]}
           />
           {selectedUserId && userItems.length === 0 && (
-            <Button type="button" onClick={handleSeed} style={{ marginTop: '1rem' }}>
+            <Button type="button" icon={Play} onClick={handleSeed} style={{ marginTop: '1rem' }}>
               Lancer l’onboarding
             </Button>
           )}

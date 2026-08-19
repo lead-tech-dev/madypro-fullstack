@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { resetPassword } from '../../services/api/auth.api';
+import { RotateCcw } from 'lucide-react';
 
 export const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -93,7 +94,7 @@ export const ResetPasswordPage: React.FC = () => {
             </>
           )}
           <div className="form-actions">
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" icon={RotateCcw} disabled={loading}>
               {loading ? 'Mise à jour...' : 'Réinitialiser'}
             </Button>
             <Link to="/login" className="btn btn--ghost">

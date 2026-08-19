@@ -1,10 +1,12 @@
 import React, { useId } from 'react';
+import { LucideIcon } from 'lucide-react';
 import { Chip } from './Chip';
 
 type ChipOption = {
   value: string;
   label: React.ReactNode;
   disabled?: boolean;
+  icon?: LucideIcon;
 };
 
 type ChipGroupCommonProps = {
@@ -55,7 +57,13 @@ export const ChipGroup: React.FC<ChipGroupProps> = (props) => {
       )}
       <div className="chips">
         {options.map((option) => (
-          <Chip key={option.value} selected={isSelected(option.value)} onClick={() => toggle(option.value)} disabled={option.disabled}>
+          <Chip
+            key={option.value}
+            selected={isSelected(option.value)}
+            onClick={() => toggle(option.value)}
+            disabled={option.disabled}
+            icon={option.icon}
+          >
             {option.label}
           </Chip>
         ))}

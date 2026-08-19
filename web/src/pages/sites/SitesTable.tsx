@@ -4,6 +4,7 @@ import { deleteSite, listSites } from '../../services/api/sites.api';
 import { Site } from '../../types/site';
 import { Button } from '../../components/ui/Button';
 import { useAuthContext } from '../../context/AuthContext';
+import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 
 type SitesTableProps = {
   /** Notifie le parent à chaque chargement — utile pour des stats agrégées (ex. portefeuille). */
@@ -76,13 +77,15 @@ export const SitesTable: React.FC<SitesTableProps> = ({ onLoaded }) => {
     <div>
       {error && <p className="form-error">{error}</p>}
       <div className="pagination">
-        <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+        <Button type="button" variant="ghost" icon={ChevronLeft} onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
           Précédent
         </Button>
         <span className="card__meta">Page {page}</span>
         <Button
           type="button"
           variant="ghost"
+          icon={ChevronRight}
+          iconPosition="right"
           onClick={() => {
             const maxPage = Math.ceil(total / pageSize) || 1;
             setPage((p) => (p < maxPage ? p + 1 : p));
@@ -122,12 +125,14 @@ export const SitesTable: React.FC<SitesTableProps> = ({ onLoaded }) => {
                       type="button"
                       variant="ghost"
                       className="btn--compact"
+                      icon={Pencil}
                       onClick={() => navigate(`/sites/${site.id}/edit`)}
                     >
                       Éditer
                     </Button>
                     <Button
                       className="btn--ghost btn--compact"
+                      icon={Trash2}
                       onClick={() => handleDelete(site)}
                       type="button"
                     >

@@ -4,6 +4,7 @@ import { ChatMessage, ChatThreadSummary } from '../../types/chat';
 import { listThreads, getThread, sendMessage, markThreadRead } from '../../services/api/chat.api';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
+import { Send } from 'lucide-react';
 
 export const ChatPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -118,7 +119,7 @@ export const ChatPage: React.FC = () => {
                       key={message.id}
                       style={{
                         alignSelf: isMine ? 'flex-end' : 'flex-start',
-                        background: isMine ? 'var(--color-primary, #0E8E7C)' : 'var(--color-bg)',
+                        background: isMine ? 'var(--color-accent)' : 'var(--color-mist)',
                         color: isMine ? '#fff' : 'inherit',
                         borderRadius: '12px',
                         padding: '0.5rem 0.75rem',
@@ -140,7 +141,7 @@ export const ChatPage: React.FC = () => {
                   rows={2}
                   style={{ flex: 1 }}
                 />
-                <Button type="submit" disabled={sending || !draft.trim()}>
+                <Button type="submit" icon={Send} disabled={sending || !draft.trim()}>
                   Envoyer
                 </Button>
               </form>

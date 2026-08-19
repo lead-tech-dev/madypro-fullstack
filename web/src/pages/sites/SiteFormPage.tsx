@@ -40,6 +40,19 @@ import { InventoryItem } from '../../types/inventory';
 import { InterventionCategory, SiteCategory, SiteRoster } from '../../types/category';
 import { listUsers } from '../../services/api/users.api';
 import { env } from '../../config/env';
+import {
+  Pencil,
+  Plus,
+  Minus,
+  RotateCcw,
+  Send,
+  Trash2,
+  Printer,
+  Save,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 
 const DAY_LABELS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
@@ -725,7 +738,7 @@ export const SiteFormPage: React.FC = () => {
         <span className="pill">Sites</span>
         <h2>{isEdit ? 'Modifier un site' : 'Nouveau site'}</h2>
         <p>Ajustez les informations, superviseurs et moyens logistiques d’un site.</p>
-        <Button type="button" onClick={openCreateForm}>
+        <Button type="button" icon={isEdit ? Pencil : Plus} onClick={openCreateForm}>
           {isEdit ? 'Modifier' : 'Créer un site'}
         </Button>
       </div>
@@ -744,6 +757,7 @@ export const SiteFormPage: React.FC = () => {
               <Button
                 type="button"
                 variant="ghost"
+                icon={RotateCcw}
                 onClick={() => {
                   setForm(INITIAL_FORM);
                   if (!isEdit) {
@@ -915,6 +929,7 @@ export const SiteFormPage: React.FC = () => {
                       />
                       <Button
                         type="button"
+                        icon={Send}
                         onClick={handleSendPlanning}
                         loading={sendingPlanning}
                         disabled={!form.contactEmail}
@@ -996,6 +1011,7 @@ export const SiteFormPage: React.FC = () => {
                                       type="button"
                                       variant="ghost"
                                       className="btn--compact"
+                                      icon={Trash2}
                                       onClick={() => handleRemoveCategoryChecklistItem(sc.id, item.id)}
                                     >
                                       Retirer
@@ -1011,13 +1027,13 @@ export const SiteFormPage: React.FC = () => {
                                       setNewChecklistLabelByCategory((prev) => ({ ...prev, [sc.id]: event.target.value }))
                                     }
                                   />
-                                  <Button type="button" className="btn--compact" onClick={() => handleAddCategoryChecklistItem(sc.id)}>
+                                  <Button type="button" className="btn--compact" icon={Plus} onClick={() => handleAddCategoryChecklistItem(sc.id)}>
                                     Ajouter
                                   </Button>
                                 </div>
                               </div>
                             </div>
-                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleRemoveSiteCategory(sc.id)}>
+                            <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => handleRemoveSiteCategory(sc.id)}>
                               Retirer
                             </Button>
                           </div>
@@ -1048,6 +1064,7 @@ export const SiteFormPage: React.FC = () => {
                                       type="button"
                                       variant="ghost"
                                       className="btn--compact"
+                                      icon={Trash2}
                                       onClick={() => removeStagedChecklistItem(index, itemIndex)}
                                     >
                                       Retirer
@@ -1063,13 +1080,13 @@ export const SiteFormPage: React.FC = () => {
                                       setStagedChecklistDraft((prev) => ({ ...prev, [index]: event.target.value }))
                                     }
                                   />
-                                  <Button type="button" className="btn--compact" onClick={() => addStagedChecklistItem(index)}>
+                                  <Button type="button" className="btn--compact" icon={Plus} onClick={() => addStagedChecklistItem(index)}>
                                     Ajouter
                                   </Button>
                                 </div>
                               </div>
                             </div>
-                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeStagedCategory(index)}>
+                            <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => removeStagedCategory(index)}>
                               Retirer
                             </Button>
                           </div>
@@ -1102,6 +1119,7 @@ export const SiteFormPage: React.FC = () => {
                       />
                       <Button
                         type="button"
+                        icon={Plus}
                         onClick={handleAddSiteCategory}
                         loading={categoryBusy}
                         disabled={!newSiteCategory.categoryId}
@@ -1156,7 +1174,7 @@ export const SiteFormPage: React.FC = () => {
                                 <span style={expiringSoon ? { color: 'var(--color-danger)' } : undefined}>
                                   {contract.label} · {contract.startDate.slice(0, 10)} → {contract.endDate.slice(0, 10)}
                                 </span>
-                                <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeContract(contract.id)}>
+                                <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => removeContract(contract.id)}>
                                   Retirer
                                 </Button>
                               </div>
@@ -1171,7 +1189,7 @@ export const SiteFormPage: React.FC = () => {
                               <span>
                                 {contract.label} · {contract.startDate} → {contract.endDate}
                               </span>
-                              <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeStagedContract(index)}>
+                              <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => removeStagedContract(index)}>
                                 Retirer
                               </Button>
                             </div>
@@ -1196,7 +1214,7 @@ export const SiteFormPage: React.FC = () => {
                           value={newContract.endDate}
                           onChange={(event) => setNewContract((prev) => ({ ...prev, endDate: event.target.value }))}
                         />
-                        <Button type="button" onClick={submitContract}>
+                        <Button type="button" icon={Plus} onClick={submitContract}>
                           Ajouter
                         </Button>
                       </div>
@@ -1271,7 +1289,7 @@ export const SiteFormPage: React.FC = () => {
                               onChange={() => toggleZoneCompleted(zone)}
                               label={`${zone.label}${zone.floor ? ` (${zone.floor})` : ''}`}
                             />
-                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeZone(zone.id)}>
+                            <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => removeZone(zone.id)}>
                               Retirer
                             </Button>
                           </div>
@@ -1283,7 +1301,7 @@ export const SiteFormPage: React.FC = () => {
                         {stagedZones.map((zone, index) => (
                           <div key={index} className="ui-field-array__row">
                             <span>{zone.label}{zone.floor ? ` (${zone.floor})` : ''}</span>
-                            <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeStagedZone(index)}>
+                            <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => removeStagedZone(index)}>
                               Retirer
                             </Button>
                           </div>
@@ -1303,7 +1321,7 @@ export const SiteFormPage: React.FC = () => {
                         value={newZone.floor}
                         onChange={(event) => setNewZone((prev) => ({ ...prev, floor: event.target.value }))}
                       />
-                      <Button type="button" onClick={submitZone}>
+                      <Button type="button" icon={Plus} onClick={submitZone}>
                         Ajouter
                       </Button>
                     </div>
@@ -1342,13 +1360,13 @@ export const SiteFormPage: React.FC = () => {
                                   <td>{item.minThreshold}</td>
                                   <td>
                                     <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, -1)}>
+                                      <Button type="button" variant="ghost" className="btn--compact" icon={Minus} onClick={() => adjustInventory(item.id, -1)}>
                                         -1
                                       </Button>
-                                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => adjustInventory(item.id, 1)}>
+                                      <Button type="button" variant="ghost" className="btn--compact" icon={Plus} onClick={() => adjustInventory(item.id, 1)}>
                                         +1
                                       </Button>
-                                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeInventoryItem(item.id)}>
+                                      <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => removeInventoryItem(item.id)}>
                                         Retirer
                                       </Button>
                                     </div>
@@ -1375,7 +1393,7 @@ export const SiteFormPage: React.FC = () => {
                                 </td>
                                 <td>{item.minThreshold}</td>
                                 <td>
-                                  <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeStagedInventoryItem(index)}>
+                                  <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => removeStagedInventoryItem(index)}>
                                     Retirer
                                   </Button>
                                 </td>
@@ -1423,7 +1441,7 @@ export const SiteFormPage: React.FC = () => {
                       value={newInventoryItem.minThreshold}
                       onChange={(event) => setNewInventoryItem((prev) => ({ ...prev, minThreshold: event.target.value }))}
                     />
-                    <Button type="button" onClick={submitInventoryItem}>
+                    <Button type="button" icon={Plus} onClick={submitInventoryItem}>
                       Ajouter
                     </Button>
                   </div>
@@ -1434,7 +1452,7 @@ export const SiteFormPage: React.FC = () => {
                   {qrCode ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                       <img src={qrCode.qrCodeDataUrl} alt="QR code de pointage" style={{ width: '140px', height: '140px' }} />
-                      <Button type="button" variant="ghost" onClick={printQrCode}>
+                      <Button type="button" variant="ghost" icon={Printer} onClick={printQrCode}>
                         Imprimer
                       </Button>
                     </div>
@@ -1446,10 +1464,10 @@ export const SiteFormPage: React.FC = () => {
 
               {isEdit ? (
                 <div className="form-actions">
-                  <Button type="submit" loading={submitting} disabled={isInvalid}>
+                  <Button type="submit" icon={Save} loading={submitting} disabled={isInvalid}>
                     Mettre à jour
                   </Button>
-                  <Button type="button" variant="ghost" onClick={() => navigate('/sites')}>
+                  <Button type="button" variant="ghost" icon={X} onClick={() => navigate('/sites')}>
                     Annuler
                   </Button>
                 </div>
@@ -1460,6 +1478,7 @@ export const SiteFormPage: React.FC = () => {
                       <Button
                         type="button"
                         variant="ghost"
+                        icon={ChevronLeft}
                         onClick={() => setActiveTab(CREATE_TABS[currentStepIndex - 1].id)}
                       >
                         Précédent
@@ -1468,6 +1487,8 @@ export const SiteFormPage: React.FC = () => {
                     {currentStepIndex < CREATE_TABS.length - 1 ? (
                       <Button
                         type="button"
+                        icon={ChevronRight}
+                        iconPosition="right"
                         disabled={!isStepValid(activeTab)}
                         onClick={() => {
                           const nextIndex = currentStepIndex + 1;
@@ -1478,11 +1499,11 @@ export const SiteFormPage: React.FC = () => {
                         Continuer
                       </Button>
                     ) : (
-                      <Button type="submit" loading={submitting} disabled={isInvalid}>
+                      <Button type="submit" icon={Plus} loading={submitting} disabled={isInvalid}>
                         Créer le site
                       </Button>
                     )}
-                    <Button type="button" variant="ghost" onClick={() => navigate('/sites')}>
+                    <Button type="button" variant="ghost" icon={X} onClick={() => navigate('/sites')}>
                       Annuler
                     </Button>
                   </div>

@@ -5,6 +5,7 @@ import { listTeamPosts, createTeamPost, deleteTeamPost } from '../../services/ap
 import { Button } from '../../components/ui/Button';
 import { Textarea } from '../../components/ui/Textarea';
 import { formatDateTime } from '../../utils/datetime';
+import { Send, Trash2 } from 'lucide-react';
 
 export const TeamFeedPage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
@@ -67,7 +68,7 @@ export const TeamFeedPage: React.FC = () => {
           placeholder="Bravo à toute l’équipe pour la semaine !"
         />
         <div className="form-actions">
-          <Button type="submit" loading={posting} disabled={!message.trim()}>
+          <Button type="submit" icon={Send} loading={posting} disabled={!message.trim()}>
             Publier
           </Button>
         </div>
@@ -92,7 +93,7 @@ export const TeamFeedPage: React.FC = () => {
                     </span>
                   </div>
                   {(post.authorId === user?.id || user?.role === 'ADMIN') && (
-                    <Button type="button" variant="ghost" onClick={() => handleDelete(post.id)}>
+                    <Button type="button" variant="ghost" icon={Trash2} onClick={() => handleDelete(post.id)}>
                       Supprimer
                     </Button>
                   )}

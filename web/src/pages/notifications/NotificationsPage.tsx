@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Send, RotateCcw, Eye } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import { Notification, NotificationAudience, NotificationPriority, NotificationTemplate } from '../../types/notification';
 import {
@@ -217,6 +218,7 @@ export const NotificationsPage: React.FC = () => {
           <p>Consultez l’historique et envoyez des push ciblés aux agents et superviseurs.</p>
           <Button
             type="button"
+            icon={Send}
             onClick={() => {
               setForm({ title: '', message: '', audience: 'ALL_AGENTS' });
               setFormVisible(true);
@@ -227,14 +229,14 @@ export const NotificationsPage: React.FC = () => {
         </div>
       </div>
 
-      <Modal open={formVisible} onClose={() => setFormVisible(false)} maxWidth={760} labelledBy="notification-form-title">
+      <Modal open={formVisible} onClose={() => setFormVisible(false)} maxWidth={900} labelledBy="notification-form-title">
         <ModalHeader
           eyebrow="Push"
           title="Envoyer une notification"
           titleId="notification-form-title"
           onClose={() => setFormVisible(false)}
           actions={
-            <Button type="button" variant="ghost" onClick={() => setForm({ title: '', message: '', audience: 'ALL_AGENTS' })}>
+            <Button type="button" variant="ghost" icon={RotateCcw} onClick={() => setForm({ title: '', message: '', audience: 'ALL_AGENTS' })}>
               Réinitialiser
             </Button>
           }
@@ -342,7 +344,7 @@ export const NotificationsPage: React.FC = () => {
                 />
               )}
               <div className="form-actions" style={{ marginTop: '0.5rem' }}>
-                <Button type="submit" loading={sending}>
+                <Button type="submit" icon={Send} loading={sending}>
                   {form.scheduledFor ? 'Programmer' : 'Envoyer'}
                 </Button>
               </div>
@@ -404,7 +406,7 @@ export const NotificationsPage: React.FC = () => {
                             : `Agent · ${notification.targetName ?? notification.targetId}`}
                         </td>
                         <td>
-                          <Button type="button" variant="ghost" onClick={() => toggleReadStats(notification.id)}>
+                          <Button type="button" variant="ghost" icon={Eye} onClick={() => toggleReadStats(notification.id)}>
                             {stats && stats !== 'loading' ? `${stats.count} lu(s)` : stats === 'loading' ? '…' : 'Voir'}
                           </Button>
                         </td>

@@ -4,6 +4,7 @@ import { ShiftSwapRequest } from '../../types/team';
 import { listShiftSwaps, acceptShiftSwap, rejectShiftSwap } from '../../services/api/team.api';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
+import { Check, X } from 'lucide-react';
 
 const STATUS_LABELS: Record<ShiftSwapRequest['status'], string> = {
   PENDING: 'En attente',
@@ -91,10 +92,10 @@ export const ShiftSwapsPage: React.FC = () => {
                     <td style={{ display: 'flex', gap: '0.4rem' }}>
                       {swap.status === 'PENDING' && (
                         <>
-                          <Button type="button" variant="ghost" onClick={() => handleAccept(swap.id)}>
+                          <Button type="button" variant="ghost" icon={Check} onClick={() => handleAccept(swap.id)}>
                             Accepter
                           </Button>
-                          <Button type="button" variant="ghost" onClick={() => handleReject(swap.id)}>
+                          <Button type="button" variant="ghost" icon={X} onClick={() => handleReject(swap.id)}>
                             Refuser
                           </Button>
                         </>

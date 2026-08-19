@@ -8,7 +8,7 @@ body {
   margin: 0;
   font-family: var(--font-body);
   line-height: 1.5;
-  background: radial-gradient(circle at top, #fff 0%, var(--color-cream) 55%, #efe4d0 100%);
+  background: radial-gradient(circle at top, #fff 0%, var(--color-cream) 55%, #dbeaf7 100%);
   color: var(--color-ink);
 }
 
@@ -139,12 +139,22 @@ p {
   gap: 1.5rem;
   width: min(960px, 100%);
   margin: 0 auto;
-  background: radial-gradient(circle at top, #fff7ee 0%, var(--color-cream) 60%, #ede0c8 100%);
+  background: radial-gradient(circle at top, #ffffff 0%, var(--color-cream) 60%, #d9e9f7 100%);
 }
 
 .auth-page__intro {
   text-align: center;
   max-width: 420px;
+}
+
+.auth-page__logo {
+  width: min(260px, 80%);
+  height: auto;
+  border-radius: 18px;
+  object-fit: contain;
+  margin: 0 auto 0.75rem;
+  display: block;
+  box-shadow: var(--shadow-pop);
 }
 
 .form-card {
@@ -209,6 +219,7 @@ p {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.4rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 600;
@@ -218,6 +229,10 @@ p {
   cursor: pointer;
   font-family: inherit;
   transition: opacity 0.15s ease;
+}
+
+.btn__icon {
+  flex-shrink: 0;
 }
 
 .btn--primary {
@@ -312,12 +327,21 @@ p {
 .status-chip {
   display: inline-flex;
   align-items: center;
+  gap: 0.3rem;
   padding: 0.15rem 0.75rem;
   border-radius: 999px;
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   font-weight: 700;
+}
+
+.status-chip__icon {
+  flex-shrink: 0;
+}
+
+.status-chip__icon--spin {
+  animation: ui-spin 0.9s linear infinite;
 }
 
 .status-chip--success {

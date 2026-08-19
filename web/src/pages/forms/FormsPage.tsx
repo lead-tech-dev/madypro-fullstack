@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Plus, Eye, Archive } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import { CustomForm, CustomFormSubmission, FormField, FormFieldType } from '../../types/form';
 import { listForms, createForm, archiveForm, listFormSubmissions } from '../../services/api/forms.api';
@@ -106,7 +107,7 @@ export const FormsPage: React.FC = () => {
         <span className="pill">Formulaires</span>
         <h2>Formulaires personnalisables</h2>
         <p>Construisez des formulaires terrain (checklists, rapports) remplis depuis mobile ou un lien partagé.</p>
-        <Button type="button" onClick={() => setFormVisible((v) => !v)}>
+        <Button type="button" icon={Plus} onClick={() => setFormVisible((v) => !v)}>
           {formVisible ? 'Fermer' : 'Nouveau formulaire'}
         </Button>
       </div>
@@ -153,7 +154,7 @@ export const FormsPage: React.FC = () => {
             </div>
           </div>
           <div className="form-actions">
-            <Button type="submit" loading={creating}>
+            <Button type="submit" icon={Plus} loading={creating}>
               Créer le formulaire
             </Button>
           </div>
@@ -185,10 +186,10 @@ export const FormsPage: React.FC = () => {
                     <td>{formatDateTime(form.createdAt)}</td>
                     <td>
                       <div className="table-actions">
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => openSubmissions(form)}>
+                        <Button type="button" variant="ghost" className="btn--compact" icon={Eye} onClick={() => openSubmissions(form)}>
                           Soumissions
                         </Button>
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleArchive(form)}>
+                        <Button type="button" variant="ghost" className="btn--compact" icon={Archive} onClick={() => handleArchive(form)}>
                           Archiver
                         </Button>
                       </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowUp, ArrowDown, Settings } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import { getDashboardSummary, getDashboardLayout, setDashboardLayout, DashboardWidgetConfig } from '../../services/api/reports.api';
 import { listLowStockInventory } from '../../services/api/inventory.api';
@@ -212,7 +213,7 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '0.5rem 0' }}>
-        <Button type="button" variant="ghost" onClick={() => setEditMode((v) => !v)}>
+        <Button type="button" variant="ghost" icon={Settings} onClick={() => setEditMode((v) => !v)}>
           {editMode ? 'Terminer la configuration' : 'Configurer le tableau de bord'}
         </Button>
       </div>
@@ -224,12 +225,8 @@ export const DashboardPage: React.FC = () => {
         const editControls = editMode && (
           <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginBottom: '0.5rem' }}>
             <span className="pill">{WIDGET_LABELS[widget.id] ?? widget.id}</span>
-            <Button type="button" variant="ghost" className="btn--compact" onClick={() => moveWidget(widget.id, -1)}>
-              ↑
-            </Button>
-            <Button type="button" variant="ghost" className="btn--compact" onClick={() => moveWidget(widget.id, 1)}>
-              ↓
-            </Button>
+            <Button type="button" variant="ghost" className="btn--compact" icon={ArrowUp} onClick={() => moveWidget(widget.id, -1)} aria-label="Monter" />
+            <Button type="button" variant="ghost" className="btn--compact" icon={ArrowDown} onClick={() => moveWidget(widget.id, 1)} aria-label="Descendre" />
             <Checkbox checked={widget.visible} onChange={() => toggleWidgetVisible(widget.id)} label="Visible" />
           </div>
         );

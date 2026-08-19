@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Download, Send } from 'lucide-react';
 import {
   getBillingReport,
   getPayrollBreakdown,
@@ -264,13 +265,13 @@ export const ReportsPage: React.FC = () => {
                 <p>Heures travaillées, jours couverts et absences pour chaque agent.</p>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button type="button" variant="ghost" onClick={exportAgents}>
+                <Button type="button" variant="ghost" icon={Download} onClick={exportAgents}>
                   Export CSV
                 </Button>
-                <Button type="button" onClick={exportPayroll}>
+                <Button type="button" icon={Download} onClick={exportPayroll}>
                   Export paie
                 </Button>
-                <Button type="button" variant="ghost" onClick={handleSendReport} disabled={sendingReport}>
+                <Button type="button" variant="ghost" icon={Send} onClick={handleSendReport} disabled={sendingReport}>
                   {sendingReport ? 'Envoi...' : 'Envoyer par e-mail'}
                 </Button>
               </div>
@@ -309,7 +310,7 @@ export const ReportsPage: React.FC = () => {
                 <h3>Rapport par site</h3>
                 <p>Heures réalisées, agents intervenus et jours non couverts.</p>
               </div>
-              <Button type="button" variant="ghost" onClick={exportSites}>
+              <Button type="button" variant="ghost" icon={Download} onClick={exportSites}>
                 Export CSV
               </Button>
             </div>
@@ -400,7 +401,7 @@ export const ReportsPage: React.FC = () => {
                   <h3>Paie détaillée</h3>
                   <p>Heures normales, nuit, dimanche et jours fériés par agent.</p>
                 </div>
-                <Button type="button" onClick={handlePushPayroll} disabled={pushingPayroll}>
+                <Button type="button" icon={Send} onClick={handlePushPayroll} disabled={pushingPayroll}>
                   {pushingPayroll ? 'Envoi...' : 'Envoyer au prestataire de paie'}
                 </Button>
               </div>

@@ -22,6 +22,7 @@ import { Intervention } from '../../types/intervention';
 import { Attendance } from '../../types/attendance';
 import { Absence } from '../../types/absence';
 import { Button } from '../../components/ui/Button';
+import { List, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Tabs, TabPanel } from '../../components/ui/Tabs';
 import { formatDateTime } from '../../utils/datetime';
 
@@ -283,12 +284,13 @@ export const SiteProfilePage: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3>Planning</h3>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <Button type="button" variant={planningView === 'liste' ? 'primary' : 'ghost'} onClick={() => setPlanningView('liste')}>
+            <Button type="button" variant={planningView === 'liste' ? 'primary' : 'ghost'} icon={List} onClick={() => setPlanningView('liste')}>
               Liste
             </Button>
             <Button
               type="button"
               variant={planningView === 'calendrier' ? 'primary' : 'ghost'}
+              icon={Calendar}
               onClick={() => setPlanningView('calendrier')}
             >
               Calendrier
@@ -336,6 +338,7 @@ export const SiteProfilePage: React.FC = () => {
               <Button
                 type="button"
                 variant="ghost"
+                icon={ChevronLeft}
                 onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
               >
                 ‹ Précédent
@@ -344,6 +347,8 @@ export const SiteProfilePage: React.FC = () => {
               <Button
                 type="button"
                 variant="ghost"
+                icon={ChevronRight}
+                iconPosition="right"
                 onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
               >
                 Suivant ›

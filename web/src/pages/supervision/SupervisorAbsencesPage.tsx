@@ -7,6 +7,7 @@ import { Absence } from '../../types/absence';
 import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { Check, X } from 'lucide-react';
 import { formatDateTime } from '../../utils/datetime';
 
 const TYPE_LABELS: Record<Absence['type'], string> = {
@@ -157,10 +158,10 @@ export const SupervisorAbsencesPage: React.FC = () => {
                     <td>
                       {abs.status === 'PENDING' ? (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleStatus(abs.id, 'APPROVED')}>
+                          <Button type="button" variant="ghost" className="btn--compact" icon={Check} onClick={() => handleStatus(abs.id, 'APPROVED')}>
                             Valider
                           </Button>
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleStatus(abs.id, 'REJECTED')}>
+                          <Button type="button" variant="ghost" className="btn--compact" icon={X} onClick={() => handleStatus(abs.id, 'REJECTED')}>
                             Refuser
                           </Button>
                         </div>

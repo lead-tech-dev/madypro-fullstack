@@ -4,6 +4,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { listSites } from '../../services/api/sites.api';
 import { Site } from '../../types/site';
 import { Button } from '../../components/ui/Button';
+import { Eye } from 'lucide-react';
 
 export const SupervisorSitesPage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
@@ -64,6 +65,7 @@ export const SupervisorSitesPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={Eye}
                           onClick={() => navigate('/supervision/presence')}
                         >
                           Présence

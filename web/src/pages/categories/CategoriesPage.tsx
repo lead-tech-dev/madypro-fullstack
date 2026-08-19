@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Plus, Check, X, Pencil, Trash2 } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import { listCategories, createCategory, updateCategory, deleteCategory } from '../../services/api/categories.api';
 import { InterventionCategory } from '../../types/category';
@@ -116,7 +117,7 @@ export const CategoriesPage: React.FC = () => {
               if (createError) setCreateError(undefined);
             }}
           />
-          <Button type="submit" loading={creating}>
+          <Button type="submit" icon={Plus} loading={creating}>
             Ajouter
           </Button>
         </form>
@@ -157,19 +158,19 @@ export const CategoriesPage: React.FC = () => {
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                       {editingId === category.id ? (
                         <>
-                          <Button type="button" className="btn--compact" onClick={() => saveEdit(category.id)}>
+                          <Button type="button" className="btn--compact" icon={Check} onClick={() => saveEdit(category.id)}>
                             Enregistrer
                           </Button>
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => setEditingId(null)}>
+                          <Button type="button" variant="ghost" className="btn--compact" icon={X} onClick={() => setEditingId(null)}>
                             Annuler
                           </Button>
                         </>
                       ) : (
                         <>
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => startEdit(category)}>
+                          <Button type="button" variant="ghost" className="btn--compact" icon={Pencil} onClick={() => startEdit(category)}>
                             Modifier
                           </Button>
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => remove(category)}>
+                          <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => remove(category)}>
                             Supprimer
                           </Button>
                         </>

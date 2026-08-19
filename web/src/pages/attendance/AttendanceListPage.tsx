@@ -18,6 +18,7 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { PromptModal } from '../../components/ui/PromptModal';
 import { useAuthContext } from '../../context/AuthContext';
+import { Plus, ArrowLeft, ArrowRight, RotateCcw, Check, X, Eye, Pencil } from 'lucide-react';
 import { listUsers } from '../../services/api/users.api';
 import { listSites } from '../../services/api/sites.api';
 import { listInterventions } from '../../services/api/interventions.api';
@@ -320,6 +321,7 @@ export const AttendanceListPage: React.FC = () => {
           <p>Visualisez, corrigez ou créez les pointages agents / superviseurs pour sécuriser la paie.</p>
           <Button
             type="button"
+            icon={Plus}
             onClick={() => {
               setManualForm(initialManualForm);
               setManualOpen(true);
@@ -398,13 +400,15 @@ export const AttendanceListPage: React.FC = () => {
           </select>
         </label>
         <div className="pagination">
-          <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+          <Button type="button" variant="ghost" icon={ArrowLeft} onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
             Précédent
           </Button>
           <span className="card__meta">Page {page}</span>
           <Button
             type="button"
             variant="ghost"
+            icon={ArrowRight}
+            iconPosition="right"
             onClick={() => {
               const maxPage = Math.ceil(total / pageSize) || 1;
               setPage((p) => (p < maxPage ? p + 1 : p));
@@ -417,14 +421,14 @@ export const AttendanceListPage: React.FC = () => {
         </div>
       </div>
 
-      <Modal open={manualOpen} onClose={() => setManualOpen(false)} maxWidth={760} labelledBy="manual-attendance-title">
+      <Modal open={manualOpen} onClose={() => setManualOpen(false)} maxWidth={900} labelledBy="manual-attendance-title">
         <ModalHeader
           eyebrow="Pointage"
           title="Pointage manuel"
           titleId="manual-attendance-title"
           onClose={() => setManualOpen(false)}
           actions={
-            <Button type="button" variant="ghost" onClick={() => setManualForm(initialManualForm)}>
+            <Button type="button" variant="ghost" icon={RotateCcw} onClick={() => setManualForm(initialManualForm)}>
               Réinitialiser
             </Button>
           }
@@ -500,10 +504,10 @@ export const AttendanceListPage: React.FC = () => {
                 placeholder="Motif de la création manuelle"
               />
               <div className="form-actions">
-                <Button type="submit" loading={manualSubmitting}>
+                <Button type="submit" icon={Check} loading={manualSubmitting}>
                   Enregistrer
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setManualOpen(false)}>
+                <Button type="button" variant="ghost" icon={X} onClick={() => setManualOpen(false)}>
                   Annuler
                 </Button>
               </div>
@@ -554,7 +558,7 @@ export const AttendanceListPage: React.FC = () => {
                   </td>
                   <td>
                     <div className="table-actions">
-                      <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleSelectRecord(entry)}>
+                      <Button type="button" variant="ghost" className="btn--compact" icon={Eye} onClick={() => handleSelectRecord(entry)}>
                         Détails
                       </Button>
                       {entry.status !== 'CANCELLED' && (
@@ -562,6 +566,7 @@ export const AttendanceListPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={X}
                           onClick={() => cancelRecord(entry)}
                         >
                           Annuler
@@ -642,13 +647,15 @@ export const AttendanceListPage: React.FC = () => {
       )}
 
       <div className="pagination" style={{ marginTop: '1rem' }}>
-        <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+        <Button type="button" variant="ghost" icon={ArrowLeft} onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
           Précédent
         </Button>
         <span className="card__meta">Page {page}</span>
         <Button
           type="button"
           variant="ghost"
+          icon={ArrowRight}
+          iconPosition="right"
           onClick={() => {
             const maxPage = Math.ceil(total / pageSize) || 1;
             setPage((p) => (p < maxPage ? p + 1 : p));
@@ -665,7 +672,7 @@ export const AttendanceListPage: React.FC = () => {
           <div className="modal-card" style={{ width: 'min(900px, 95vw)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
               <h3 style={{ margin: 0 }}>Détail du pointage</h3>
-              <Button type="button" variant="ghost" onClick={() => setDetailOpen(false)}>
+              <Button type="button" variant="ghost" icon={X} onClick={() => setDetailOpen(false)}>
                 Fermer
               </Button>
             </div>
@@ -756,11 +763,11 @@ export const AttendanceListPage: React.FC = () => {
             </div>
 
             <div className="form-actions">
-              <Button type="button" onClick={saveEdition} disabled={editSubmitting}>
+              <Button type="button" icon={Pencil} onClick={saveEdition} disabled={editSubmitting}>
                 {editSubmitting ? 'Enregistrement...' : 'Mettre à jour'}
               </Button>
               {selected.status !== 'CANCELLED' && (
-                <Button type="button" variant="ghost" onClick={() => cancelRecord(selected)}>
+                <Button type="button" variant="ghost" icon={X} onClick={() => cancelRecord(selected)}>
                   Annuler le pointage
                 </Button>
               )}

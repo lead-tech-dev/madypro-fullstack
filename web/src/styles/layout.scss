@@ -17,6 +17,18 @@
   border-radius: 2rem;
   box-shadow: var(--shadow-soft);
   padding: 2rem 2.5rem;
+  animation: pageFadeIn 0.25s ease;
+}
+
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sidebar {
@@ -28,23 +40,24 @@
   gap: 2rem;
   transition: transform 0.3s ease;
   z-index: 1001;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .sidebar__brand {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .sidebar__logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--color-ink);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  border-radius: 14px;
+  object-fit: contain;
 }
 
 .sidebar__title {
@@ -70,6 +83,9 @@
 }
 
 .sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
   padding: 0.75rem 1rem;
   border-radius: 1rem;
   text-decoration: none;
@@ -78,6 +94,24 @@
   font-size: 0.85rem;
   color: var(--color-muted);
   border: 1px solid transparent;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sidebar__link-icon {
+  flex-shrink: 0;
+}
+
+.sidebar__link-label {
+  flex: 1;
+}
+
+.sidebar__chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.sidebar__chevron--open {
+  transform: rotate(180deg);
 }
 
 .sidebar__link--active {
@@ -92,6 +126,18 @@
   gap: 0.3rem;
   margin-top: 0.4rem;
   padding-left: 0.75rem;
+  animation: sidebarSublinksEnter 0.18s ease;
+}
+
+@keyframes sidebarSublinksEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sidebar__link--sub {

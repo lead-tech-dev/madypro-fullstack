@@ -23,6 +23,7 @@ import { PromptModal } from '../../components/ui/PromptModal';
 import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { useAuthContext } from '../../context/AuthContext';
 import { User } from '../../types/user';
+import { Plus, RotateCcw, Check, X, ArrowLeft, ArrowRight, Trash2 } from 'lucide-react';
 
 const TYPE_OPTIONS: { value: AbsenceType | 'all'; label: string }[] = [
   { value: 'all', label: 'Tous les types' },
@@ -267,6 +268,7 @@ export const AbsencesListPage: React.FC = () => {
           </p>
           <Button
             type="button"
+            icon={Plus}
             onClick={() => {
               setManualForm(EMPTY_MANUAL_FORM);
               setManualOpen(true);
@@ -332,14 +334,14 @@ export const AbsencesListPage: React.FC = () => {
         </label>
       </div>
 
-      <Modal open={manualOpen} onClose={() => setManualOpen(false)} maxWidth={760} labelledBy="manual-absence-title">
+      <Modal open={manualOpen} onClose={() => setManualOpen(false)} maxWidth={900} labelledBy="manual-absence-title">
         <ModalHeader
           eyebrow="Absence"
           title="Absence manuelle"
           titleId="manual-absence-title"
           onClose={() => setManualOpen(false)}
           actions={
-            <Button type="button" variant="ghost" onClick={() => setManualForm(EMPTY_MANUAL_FORM)}>
+            <Button type="button" variant="ghost" icon={RotateCcw} onClick={() => setManualForm(EMPTY_MANUAL_FORM)}>
               Réinitialiser
             </Button>
           }
@@ -384,10 +386,10 @@ export const AbsencesListPage: React.FC = () => {
               />
               <Textarea id="manualNote" name="note" label="Note interne" value={manualForm.note} onChange={handleManualChange} placeholder="Commentaire interne" />
               <div className="form-actions">
-                <Button type="submit" loading={manualSubmitting}>
+                <Button type="submit" icon={Check} loading={manualSubmitting}>
                   Enregistrer
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setManualOpen(false)}>
+                <Button type="button" variant="ghost" icon={X} onClick={() => setManualOpen(false)}>
                   Annuler
                 </Button>
               </div>
@@ -441,6 +443,7 @@ export const AbsencesListPage: React.FC = () => {
                                 type="button"
                                 variant="ghost"
                                 className="btn--compact"
+                                icon={Check}
                                 onClick={() => handleApproveLevel1(absence)}
                               >
                                 Valider (niveau 1)
@@ -450,6 +453,7 @@ export const AbsencesListPage: React.FC = () => {
                                 type="button"
                                 variant="ghost"
                                 className="btn--compact"
+                                icon={Check}
                                 onClick={() => handleDecision(absence, 'APPROVED')}
                               >
                                 Approuver
@@ -459,6 +463,7 @@ export const AbsencesListPage: React.FC = () => {
                               type="button"
                               variant="ghost"
                               className="btn--compact"
+                              icon={X}
                               onClick={() => handleDecision(absence, 'REJECTED')}
                             >
                               Rejeter
@@ -476,13 +481,15 @@ export const AbsencesListPage: React.FC = () => {
       </section>
 
       <div className="pagination" style={{ marginTop: '1rem' }}>
-        <Button type="button" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+        <Button type="button" variant="ghost" icon={ArrowLeft} onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
           Précédent
         </Button>
         <span className="card__meta">Page {page}</span>
         <Button
           type="button"
           variant="ghost"
+          icon={ArrowRight}
+          iconPosition="right"
           onClick={() => {
             const maxPage = Math.ceil(pageData.total / pageSize) || 1;
             setPage((p) => (p < maxPage ? p + 1 : p));
@@ -516,7 +523,7 @@ export const AbsencesListPage: React.FC = () => {
                   <td>{period.to.slice(0, 10)}</td>
                   <td>{period.reason}</td>
                   <td>
-                    <Button type="button" variant="ghost" onClick={() => removeBlockedPeriod(period.id)}>
+                    <Button type="button" variant="ghost" icon={Trash2} onClick={() => removeBlockedPeriod(period.id)}>
                       Retirer
                     </Button>
                   </td>
@@ -544,7 +551,7 @@ export const AbsencesListPage: React.FC = () => {
             onChange={(event) => setNewBlockedPeriod((prev) => ({ ...prev, reason: event.target.value }))}
             placeholder="Période de forte activité"
           />
-          <Button type="submit">Ajouter</Button>
+          <Button type="submit" icon={Plus}>Ajouter</Button>
         </form>
       </section>
       <PromptModal

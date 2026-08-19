@@ -11,6 +11,7 @@ import { Site } from '../../types/site';
 import { Intervention } from '../../types/intervention';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { List, Map as MapIcon } from 'lucide-react';
 import { formatDateTime } from '../../utils/datetime';
 import { env } from '../../config/env';
 
@@ -35,9 +36,9 @@ const PresenceListView: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchData = () => {
+    const fetchData = (silent?: boolean) => {
       if (!token) return;
-      setLoading(true);
+      if (!silent) setLoading(true);
       Promise.all([
         listAttendance(token, { startDate: filters.date, endDate: filters.date, pageSize: 200 }).catch(() => ({ items: [] as Attendance[] })),
         listSites(token, { pageSize: 200 }).catch(() => ({ items: [] as Site[] })),
@@ -66,10 +67,12 @@ const PresenceListView: React.FC = () => {
           const message = err instanceof Error ? err.message : 'Impossible de charger la présence';
           notify(message, 'error');
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (!silent) setLoading(false);
+        });
     };
     fetchData();
-    const interval = setInterval(fetchData, 20000);
+    const interval = setInterval(() => fetchData(true), 20000);
     return () => clearInterval(interval);
   }, [token, filters.date, notify]);
 
@@ -206,16 +209,18 @@ const LiveMapView: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const fetchLiveMap = () => {
+    const fetchLiveMap = (silent?: boolean) => {
       if (!token) return;
-      setLoading(true);
+      if (!silent) setLoading(true);
       getLiveMap(token)
         .then(setEntries)
         .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger la carte', 'error'))
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (!silent) setLoading(false);
+        });
     };
     fetchLiveMap();
-    const id = setInterval(fetchLiveMap, 30000);
+    const id = setInterval(() => fetchLiveMap(true), 30000);
     return () => clearInterval(id);
   }, [token, notify]);
 
@@ -229,9 +234,9 @@ const LiveMapView: React.FC = () => {
       el.style.width = '14px';
       el.style.height = '14px';
       el.style.borderRadius = '50%';
-      el.style.background = '#2764ff';
+      el.style.background = '#0f98eb';
       el.style.border = '2px solid #fff';
-      el.style.boxShadow = '0 0 0 2px rgba(39,100,255,0.35)';
+      el.style.boxShadow = '0 0 0 2px rgba(15,152,235,0.35)';
       const popup = new mapboxgl.Popup({ offset: 16 }).setHTML(
         `<strong>${entry.agentName}</strong><br/>${entry.siteName}<br/><small>${new Date(entry.lastSeenAt).toLocaleTimeString('fr-FR')}</small>`,
       );
@@ -301,10 +306,10 @@ export const RealtimeSupervisionPage: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-        <Button type="button" variant={view === 'liste' ? 'primary' : 'ghost'} onClick={() => setView('liste')}>
+        <Button type="button" variant={view === 'liste' ? 'primary' : 'ghost'} icon={List} onClick={() => setView('liste')}>
           Liste
         </Button>
-        <Button type="button" variant={view === 'carte' ? 'primary' : 'ghost'} onClick={() => setView('carte')}>
+        <Button type="button" variant={view === 'carte' ? 'primary' : 'ghost'} icon={MapIcon} onClick={() => setView('carte')}>
           Carte
         </Button>
       </div>

@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
+import { Plus, Award, Trash2 } from 'lucide-react';
 
 export const BadgesPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -88,7 +89,7 @@ export const BadgesPage: React.FC = () => {
               onChange={(event) => setNewBadge((prev) => ({ ...prev, label: event.target.value }))}
               placeholder="Agent du mois"
             />
-            <Button type="submit">Créer</Button>
+            <Button type="submit" icon={Plus}>Créer</Button>
           </form>
           <div className="chips" style={{ marginTop: '1rem' }}>
             {badges.map((badge) => (
@@ -121,7 +122,7 @@ export const BadgesPage: React.FC = () => {
               value={awardForm.period}
               onChange={(event) => setAwardForm((prev) => ({ ...prev, period: event.target.value }))}
             />
-            <Button type="submit">Attribuer</Button>
+            <Button type="submit" icon={Award}>Attribuer</Button>
           </form>
         </article>
       </div>
@@ -149,7 +150,7 @@ export const BadgesPage: React.FC = () => {
                     <td>{award.period ?? '—'}</td>
                     <td>{formatDateTime(award.awardedAt)}</td>
                     <td>
-                      <Button type="button" variant="ghost" onClick={() => handleRevoke(award.id)}>
+                      <Button type="button" variant="ghost" icon={Trash2} onClick={() => handleRevoke(award.id)}>
                         Retirer
                       </Button>
                     </td>

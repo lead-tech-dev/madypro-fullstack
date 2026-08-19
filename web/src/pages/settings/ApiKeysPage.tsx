@@ -16,6 +16,7 @@ import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/datetime';
 import { env } from '../../config/env';
+import { Check, Plus, Power, Link as LinkIcon } from 'lucide-react';
 
 export const ApiKeysPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -127,7 +128,7 @@ export const ApiKeysPage: React.FC = () => {
         <div className="settings-card" style={{ marginBottom: '1rem', borderColor: '#16a34a' }}>
           <span className="card__meta">Clé API (affichée une seule fois)</span>
           <p style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{revealedKey}</p>
-          <Button type="button" variant="ghost" onClick={() => setRevealedKey(null)}>
+          <Button type="button" variant="ghost" icon={Check} onClick={() => setRevealedKey(null)}>
             J’ai copié la clé
           </Button>
         </div>
@@ -144,7 +145,7 @@ export const ApiKeysPage: React.FC = () => {
             required
           />
           <div className="form-actions">
-            <Button type="submit" disabled={creating || !label.trim()}>
+            <Button type="submit" icon={Plus} disabled={creating || !label.trim()}>
               {creating ? 'Création...' : 'Créer la clé'}
             </Button>
           </div>
@@ -178,7 +179,7 @@ export const ApiKeysPage: React.FC = () => {
                     <td>{key.lastUsedAt ? formatDateTime(key.lastUsedAt) : 'Jamais'}</td>
                     <td>
                       {key.active && (
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleRevokeKey(key)}>
+                        <Button type="button" variant="ghost" className="btn--compact" icon={Power} onClick={() => handleRevokeKey(key)}>
                           Révoquer
                         </Button>
                       )}
@@ -203,7 +204,7 @@ export const ApiKeysPage: React.FC = () => {
             onChange={(event) => setSelectedSiteId(event.target.value)}
           />
           <div className="form-actions">
-            <Button type="button" onClick={handleCreateToken} disabled={creatingToken || !selectedSiteId}>
+            <Button type="button" icon={LinkIcon} onClick={handleCreateToken} disabled={creatingToken || !selectedSiteId}>
               {creatingToken ? 'Création...' : 'Générer un lien'}
             </Button>
           </div>
@@ -235,6 +236,7 @@ export const ApiKeysPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={Power}
                           onClick={() => handleRevokeToken(portalToken)}
                         >
                           Révoquer

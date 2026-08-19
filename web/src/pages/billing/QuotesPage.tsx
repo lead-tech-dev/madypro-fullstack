@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Plus, Check, X, Trash2 } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import { Quote, QuoteStatus } from '../../types/quote';
 import { listQuotes, createQuote, setQuoteStatus, deleteQuote, CreateQuotePayload } from '../../services/api/quotes.api';
@@ -125,7 +126,7 @@ export const QuotesPage: React.FC = () => {
         <span className="pill">Devis & facturation</span>
         <h2>Devis clients</h2>
         <p>Suivez vos devis du brouillon jusqu’au paiement.</p>
-        <Button type="button" onClick={() => setFormVisible((v) => !v)}>
+        <Button type="button" icon={Plus} onClick={() => setFormVisible((v) => !v)}>
           {formVisible ? 'Fermer' : 'Nouveau devis'}
         </Button>
       </div>
@@ -192,7 +193,7 @@ export const QuotesPage: React.FC = () => {
             />
           </div>
           <div className="form-actions">
-            <Button type="submit" loading={creating}>
+            <Button type="submit" icon={Plus} loading={creating}>
               Créer le devis
             </Button>
           </div>
@@ -243,16 +244,16 @@ export const QuotesPage: React.FC = () => {
                     <td>
                       <div className="table-actions">
                         {NEXT_STATUS[quote.status] && (
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => advanceStatus(quote)}>
+                          <Button type="button" variant="ghost" className="btn--compact" icon={Check} onClick={() => advanceStatus(quote)}>
                             {quote.status === 'DRAFT' ? 'Marquer envoyé' : 'Marquer payé'}
                           </Button>
                         )}
                         {quote.status !== 'CANCELLED' && quote.status !== 'PAID' && (
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => cancelQuote(quote)}>
+                          <Button type="button" variant="ghost" className="btn--compact" icon={X} onClick={() => cancelQuote(quote)}>
                             Annuler
                           </Button>
                         )}
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => removeQuote(quote)}>
+                        <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => removeQuote(quote)}>
                           Supprimer
                         </Button>
                       </div>
