@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Plus, Play, Pencil, Power, Check, X, Eye } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import {
   listTemplates,
@@ -7,21 +8,20 @@ import {
   toggleTemplate,
   previewTemplate,
   generateTemplate,
-  getRouteOptimization,
   CreateTemplatePayload,
   TemplateStopPayload,
 } from '../../services/api/interventions.api';
 import { listSites, listSiteCategories } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
-import { InterventionTemplate, TemplatePreview, RouteOptimizationResult } from '../../types/intervention';
+import { InterventionTemplate, TemplatePreview } from '../../types/intervention';
 import { SiteCategory } from '../../types/category';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
-import { Checkbox } from '../../components/ui/Checkbox';
 import { ChipGroup } from '../../components/ui/ChipGroup';
 import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { RepeatableFieldArray } from '../../components/ui/RepeatableFieldArray';
+import { RouteOptimizationPanel } from '../../components/interventions/RouteOptimizationPanel';
 
 const DAYS = [
   { value: 1, label: 'Lundi' },
@@ -34,22 +34,33 @@ const DAYS = [
 ];
 type StopRow = {
   id?: string;
+  /** false = arrêt sans fréquence (une seule occurrence à specificDate). */
+  recurring: boolean;
   daysOfWeek: number[];
   intervalWeeks: string;
+  specificDate: string;
   categoryId: string;
   startTime: string;
   endTime: string;
   agentIds: string[];
 };
 
-const EMPTY_STOP: StopRow = { daysOfWeek: [1], intervalWeeks: '1', categoryId: '', startTime: '08:00', endTime: '10:00', agentIds: [] };
+const EMPTY_STOP: StopRow = {
+  recurring: true,
+  daysOfWeek: [1],
+  intervalWeeks: '1',
+  specificDate: '',
+  categoryId: '',
+  startTime: '08:00',
+  endTime: '10:00',
+  agentIds: [],
+};
 
 type FormState = {
   label: string;
   siteId: string;
   startDate: string;
   endDate: string;
-  autoGenerate: boolean;
   stops: StopRow[];
 };
 
@@ -58,7 +69,6 @@ const INITIAL_FORM: FormState = {
   siteId: '',
   startDate: new Date().toISOString().slice(0, 10),
   endDate: '',
-  autoGenerate: false,
   stops: [{ ...EMPTY_STOP }],
 };
 
@@ -86,7 +96,15 @@ const buildCalendarDays = (start: string, end: string): string[] => {
   return days;
 };
 
-export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
+type GabaritsPageProps = {
+  embedded?: boolean;
+  /** Sites visibles/sélectionnables — non fourni ou `null` = aucune restriction (admin). */
+  restrictToSiteIds?: Set<string> | null;
+  /** Incrémenté par un parent pour ouvrir automatiquement le formulaire de création (ex : bouton "Nouvelle intervention"). */
+  openCreateSignal?: number;
+};
+
+export const GabaritsPage: React.FC<GabaritsPageProps> = ({ embedded, restrictToSiteIds, openCreateSignal }) => {
   const { token, notify } = useAuthContext();
   const [templates, setTemplates] = useState<InterventionTemplate[]>([]);
   const [siteNames, setSiteNames] = useState<Record<string, string>>({});
@@ -99,24 +117,6 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
-
-  const [routeAgentId, setRouteAgentId] = useState('');
-  const [routeDate, setRouteDate] = useState(new Date().toISOString().slice(0, 10));
-  const [route, setRoute] = useState<RouteOptimizationResult | null>(null);
-  const [routeLoading, setRouteLoading] = useState(false);
-
-  const fetchRoute = async () => {
-    if (!token || !routeAgentId || !routeDate) return;
-    setRouteLoading(true);
-    try {
-      const result = await getRouteOptimization(token, routeAgentId, routeDate);
-      setRoute(result);
-    } catch (err) {
-      notify(err instanceof Error ? err.message : 'Optimisation impossible', 'error');
-    } finally {
-      setRouteLoading(false);
-    }
-  };
 
   const [generateTemplateId, setGenerateTemplateId] = useState<string | null>(null);
   const [generatePeriod, setGeneratePeriod] = useState<'day' | 'week' | 'custom'>('week');
@@ -164,11 +164,19 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
       .catch(() => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: [] })));
   };
 
-  const openCreateForm = () => {
+  const openCreateForm = (defaultRecurring = true) => {
     setEditingId(null);
-    setForm(INITIAL_FORM);
+    setForm({
+      ...INITIAL_FORM,
+      stops: [{ ...EMPTY_STOP, recurring: defaultRecurring }],
+    });
     setFormOpen(true);
   };
+
+  useEffect(() => {
+    if (openCreateSignal) openCreateForm(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCreateSignal]);
 
   const openEditForm = (template: InterventionTemplate) => {
     setEditingId(template.id);
@@ -177,12 +185,13 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
       siteId: template.siteId,
       startDate: template.startDate.slice(0, 10),
       endDate: template.endDate ? template.endDate.slice(0, 10) : '',
-      autoGenerate: template.autoGenerate,
       stops: template.stops.length
         ? template.stops.map((s) => ({
             id: s.id,
+            recurring: !s.specificDate,
             daysOfWeek: s.daysOfWeek,
             intervalWeeks: String(s.intervalWeeks ?? 1),
+            specificDate: s.specificDate ? s.specificDate.slice(0, 10) : '',
             categoryId: s.categoryId ?? '',
             startTime: s.startTime,
             endTime: s.endTime,
@@ -224,44 +233,69 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
     });
   };
 
+  /** Un gabarit existe déjà pour ce site : à la création, on y ajoutera l'arrêt plutôt que d'en créer un doublon. */
+  const mergeTarget = !editingId ? templates.find((t) => t.siteId === form.siteId) ?? null : null;
+
   const isInvalid =
     !token ||
-    !form.label.trim() ||
+    (!mergeTarget && !form.label.trim()) ||
     !form.siteId ||
     !form.stops.length ||
-    form.stops.some((s) => !s.startTime || !s.endTime || !s.daysOfWeek.length);
+    form.stops.some(
+      (s) => !s.startTime || !s.endTime || (s.recurring ? !s.daysOfWeek.length : !s.specificDate),
+    );
+
+  const stopRowToPayload = (s: StopRow, index: number): TemplateStopPayload => ({
+    id: s.id,
+    daysOfWeek: s.recurring ? s.daysOfWeek : undefined,
+    intervalWeeks: s.recurring ? Number(s.intervalWeeks) || 1 : undefined,
+    specificDate: s.recurring ? undefined : s.specificDate,
+    categoryId: s.categoryId || undefined,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    agentIds: s.agentIds,
+    order: index,
+  });
+
+  const existingStopToPayload = (s: InterventionTemplate['stops'][number], index: number): TemplateStopPayload => ({
+    id: s.id,
+    daysOfWeek: s.daysOfWeek,
+    intervalWeeks: s.intervalWeeks,
+    specificDate: s.specificDate ?? undefined,
+    categoryId: s.categoryId ?? undefined,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    agentIds: s.agentIds,
+    order: index,
+  });
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!token || isInvalid) return;
     setSubmitting(true);
     try {
+      const targetId = editingId ?? mergeTarget?.id ?? null;
+      const baseStops = mergeTarget ? mergeTarget.stops.map(existingStopToPayload) : [];
       const payload: CreateTemplatePayload = {
-        label: form.label.trim(),
+        label: mergeTarget ? mergeTarget.label : form.label.trim(),
         siteId: form.siteId,
-        startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
-        endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
-        autoGenerate: form.autoGenerate,
-        stops: form.stops.map(
-          (s, index): TemplateStopPayload => ({
-            id: s.id,
-            daysOfWeek: s.daysOfWeek,
-            intervalWeeks: Number(s.intervalWeeks) || 1,
-            categoryId: s.categoryId || undefined,
-            startTime: s.startTime,
-            endTime: s.endTime,
-            agentIds: s.agentIds,
-            order: index,
-          }),
-        ),
+        startDate: mergeTarget
+          ? mergeTarget.startDate
+          : form.startDate
+          ? new Date(form.startDate).toISOString()
+          : undefined,
+        endDate: mergeTarget ? mergeTarget.endDate ?? undefined : form.endDate ? new Date(form.endDate).toISOString() : undefined,
+        stops: [
+          ...baseStops,
+          ...form.stops.map((s, index) => stopRowToPayload(s, baseStops.length + index)),
+        ],
       };
-      if (editingId) {
-        await updateTemplate(token, editingId, payload);
-        notify('Gabarit mis à jour');
-      } else {
-        await createTemplate(token, payload);
-        notify('Gabarit créé — utilisez « Générer » pour planifier les interventions');
-      }
+      const saved = targetId ? await updateTemplate(token, targetId, payload) : await createTemplate(token, payload);
+      notify(
+        saved.validatedAt
+          ? 'Gabarit enregistré et validé'
+          : 'Gabarit enregistré — en attente de validation par un admin',
+      );
       setFormOpen(false);
       load();
     } catch (err) {
@@ -340,6 +374,8 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
   };
 
   const generatingTemplate = templates.find((t) => t.id === generateTemplateId);
+  const visibleTemplates = restrictToSiteIds ? templates.filter((t) => restrictToSiteIds.has(t.siteId)) : templates;
+  const filteredSiteOptions = restrictToSiteIds ? siteOptions.filter((o) => restrictToSiteIds.has(o.value)) : siteOptions;
 
   return (
     <div className={embedded ? undefined : 'page'}>
@@ -347,11 +383,12 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
         <div style={{ marginBottom: '1rem' }}>
           <p style={{ marginTop: 0 }}>
             Un gabarit d'interventions récurrentes pour un site donné — chaque arrêt peut avoir son propre
-            horaire, sa catégorie et sa fréquence. Générez toutes les interventions d'une période (jour, semaine,
-            jusqu'à un mois) en une seule fois, ou laissez la génération automatique s'en charger — une seule
-            notification est envoyée à chaque agent, pas une par intervention.
+            horaire, sa catégorie et sa fréquence, ou être un jour unique sans fréquence. Une fois validé
+            (immédiatement si vous êtes admin, sinon après validation d'un admin), les interventions réelles
+            sont créées automatiquement peu avant leur début — inutile de les générer à l'avance sauf besoin
+            ponctuel (bouton « Générer »).
           </p>
-          <Button type="button" onClick={openCreateForm}>
+          <Button type="button" icon={Plus} onClick={() => openCreateForm(true)}>
             Nouveau gabarit
           </Button>
         </div>
@@ -361,59 +398,16 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
           <h2>Gabarits</h2>
           <p>
             Un gabarit d'interventions récurrentes pour un site donné — chaque arrêt peut avoir son propre
-            horaire, sa catégorie et sa fréquence. Générez toutes les interventions d'une période en une seule
-            fois, ou activez la génération automatique.
+            horaire, sa catégorie et sa fréquence, ou être un jour unique sans fréquence. Une fois validé, les
+            interventions réelles sont créées automatiquement peu avant leur début.
           </p>
-          <Button type="button" onClick={openCreateForm}>
+          <Button type="button" icon={Plus} onClick={() => openCreateForm(true)}>
             Nouveau gabarit
           </Button>
         </div>
       )}
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
-        <h3>Optimisation de tournée du jour</h3>
-        <div className="filter-grid">
-          <label className="filter-field filter-card">
-            Agent
-            <select value={routeAgentId} onChange={(e) => setRouteAgentId(e.target.value)}>
-              <option value="">Sélectionner</option>
-              {agentOptions.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="filter-field filter-card">
-            Date
-            <input type="date" value={routeDate} onChange={(e) => setRouteDate(e.target.value)} />
-          </label>
-          <div className="filter-card" style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <Button type="button" onClick={fetchRoute} disabled={!routeAgentId || routeLoading}>
-              {routeLoading ? 'Calcul...' : 'Optimiser'}
-            </Button>
-          </div>
-        </div>
-        {route && (
-          <div style={{ marginTop: '0.75rem' }}>
-            <p className="card__meta">
-              Distance totale estimée : {(route.totalDistanceMeters / 1000).toFixed(1)} km
-            </p>
-            {route.stops.length === 0 ? (
-              <p>Aucune intervention géolocalisée ce jour-là.</p>
-            ) : (
-              <ol className="list-line">
-                {route.stops.map((stop) => (
-                  <li key={stop.interventionId}>
-                    <span>{stop.startTime}</span>
-                    <span>{stop.siteName}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        )}
-      </div>
+      <RouteOptimizationPanel agentOptions={agentOptions} title="Optimisation de tournée du jour" />
 
       <div className="panel">
         <div className="table-wrapper">
@@ -425,35 +419,39 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                 <th>Arrêts</th>
                 <th>Fréquence</th>
                 <th>Période</th>
-                <th>Auto</th>
+                <th>Validation</th>
                 <th>Statut</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {templates.map((template) => {
-                const frequencies = Array.from(new Set(template.stops.map((s) => s.intervalWeeks)));
+              {visibleTemplates.map((template) => {
+                const recurringStops = template.stops.filter((s) => !s.specificDate);
+                const onceCount = template.stops.length - recurringStops.length;
+                const frequencies = Array.from(new Set(recurringStops.map((s) => s.intervalWeeks)));
                 const frequencyLabel =
                   frequencies.length === 0
-                    ? '—'
+                    ? ''
                     : frequencies.length > 1
                     ? 'Fréquences variables'
                     : frequencies[0] === 1
                     ? 'Chaque semaine'
                     : `Toutes les ${frequencies[0]} semaines`;
+                const onceLabel = onceCount ? `${onceCount} jour(s) unique(s)` : '';
+                const summaryLabel = [frequencyLabel, onceLabel].filter(Boolean).join(' + ') || '—';
                 return (
                   <tr key={template.id}>
                     <td>{template.label}</td>
                     <td>{siteNames[template.siteId] ?? template.siteId}</td>
                     <td>{template.stops.length} arrêt(s)</td>
-                    <td>{frequencyLabel}</td>
+                    <td>{summaryLabel}</td>
                     <td>
                       {new Date(template.startDate).toLocaleDateString('fr-FR')}
                       {template.endDate ? ` → ${new Date(template.endDate).toLocaleDateString('fr-FR')}` : ' → indéfini'}
                     </td>
                     <td>
-                      <span className={`status-chip ${template.autoGenerate ? 'status-chip--info' : ''}`}>
-                        {template.autoGenerate ? 'Auto' : 'Manuel'}
+                      <span className={`status-chip ${template.validatedAt ? 'status-chip--success' : 'status-chip--warning'}`}>
+                        {template.validatedAt ? 'Validé' : 'En attente de validation'}
                       </span>
                     </td>
                     <td>
@@ -463,13 +461,20 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <Button type="button" className="btn--compact" onClick={() => openGenerate(template)}>
+                        <Button
+                          type="button"
+                          className="btn--compact"
+                          icon={Play}
+                          onClick={() => openGenerate(template)}
+                          disabled={!template.validatedAt}
+                          title={template.validatedAt ? undefined : 'Le gabarit doit être validé avant génération'}
+                        >
                           Générer
                         </Button>
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => openEditForm(template)}>
+                        <Button type="button" variant="ghost" className="btn--compact" icon={Pencil} onClick={() => openEditForm(template)}>
                           Modifier
                         </Button>
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => handleToggleActive(template)}>
+                        <Button type="button" variant="ghost" className="btn--compact" icon={Power} onClick={() => handleToggleActive(template)}>
                           {template.active ? 'Désactiver' : 'Activer'}
                         </Button>
                       </div>
@@ -477,7 +482,7 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                   </tr>
                 );
               })}
-              {!loading && templates.length === 0 && (
+              {!loading && visibleTemplates.length === 0 && (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
                     Aucun gabarit défini.
@@ -489,10 +494,10 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
         </div>
       </div>
 
-      <Modal open={formOpen} onClose={() => setFormOpen(false)} maxWidth={760} labelledBy="gabarit-form-title">
+      <Modal open={formOpen} onClose={() => setFormOpen(false)} maxWidth={900} labelledBy="gabarit-form-title">
         <ModalHeader
           eyebrow="Gabarit"
-          title={editingId ? 'Modifier le gabarit' : 'Nouveau gabarit'}
+          title={editingId ? 'Modifier le gabarit' : mergeTarget ? 'Ajouter un arrêt' : 'Nouveau gabarit'}
           titleId="gabarit-form-title"
           onClose={() => setFormOpen(false)}
         />
@@ -502,48 +507,51 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
               onSubmit={handleSubmit}
               style={{ boxShadow: 'none', padding: 0, display: 'grid', gap: '1rem' }}
             >
-              <Input
-                id="label"
-                name="label"
-                label="Nom du gabarit"
-                placeholder="Nettoyage vitres — équipe A"
-                required
-                value={form.label}
-                onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value }))}
-              />
+              {mergeTarget ? (
+                <p className="form-helper" style={{ margin: 0 }}>
+                  Ce site a déjà un gabarit (« {mergeTarget.label} ») — le(s) nouvel/nouveaux arrêt(s) lui seront
+                  ajoutés au lieu d'en créer un doublon.
+                </p>
+              ) : (
+                <Input
+                  id="label"
+                  name="label"
+                  label="Nom du gabarit"
+                  placeholder="Nettoyage vitres — équipe A"
+                  required
+                  value={form.label}
+                  onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value }))}
+                />
+              )}
 
               <Select
                 label="Site"
-                options={[{ value: '', label: 'Sélectionner un site' }, ...siteOptions]}
+                options={[{ value: '', label: 'Sélectionner un site' }, ...filteredSiteOptions]}
                 value={form.siteId}
                 onChange={(e) => handleSiteChange(e.target.value)}
               />
 
-              <div className="form-row">
-                <Input
-                  id="startDate"
-                  name="startDate"
-                  label="Date de début"
-                  type="date"
-                  required
-                  value={form.startDate}
-                  onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))}
-                />
-                <Input
-                  id="endDate"
-                  name="endDate"
-                  label="Date de fin (facultatif)"
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) => setForm((prev) => ({ ...prev, endDate: e.target.value }))}
-                />
-              </div>
-
-              <Checkbox
-                checked={form.autoGenerate}
-                onChange={(checked) => setForm((prev) => ({ ...prev, autoGenerate: checked }))}
-                label="Génération automatique (propose un nouveau lot toutes les 8 semaines, à valider par un admin)"
-              />
+              {!mergeTarget && (
+                <div className="form-row">
+                  <Input
+                    id="startDate"
+                    name="startDate"
+                    label="Date de début"
+                    type="date"
+                    required
+                    value={form.startDate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                  />
+                  <Input
+                    id="endDate"
+                    name="endDate"
+                    label="Date de fin (facultatif)"
+                    type="date"
+                    value={form.endDate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                  />
+                </div>
+              )}
 
               <div className="form-field">
                 <span>Arrêts (un agent peut avoir plusieurs arrêts le même jour)</span>
@@ -556,6 +564,15 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                     removeLabel="Retirer cet arrêt"
                     renderItem={(stop, index) => (
                       <>
+                        <ChipGroup
+                          label="Type"
+                          options={[
+                            { value: 'recurring', label: 'Récurrent' },
+                            { value: 'once', label: 'Jour unique' },
+                          ]}
+                          value={stop.recurring ? 'recurring' : 'once'}
+                          onChange={(value) => updateStop(index, { recurring: value === 'recurring' })}
+                        />
                         <div className="form-row">
                           <Select
                             label="Catégorie (facultatif)"
@@ -588,22 +605,33 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                             value={stop.endTime}
                             onChange={(e) => updateStop(index, { endTime: e.target.value })}
                           />
-                          <Input
-                            label="Fréquence (toutes les N semaines)"
-                            type="number"
-                            min={1}
-                            helperText="1 = chaque semaine, 2 = une semaine sur deux, etc."
-                            value={stop.intervalWeeks}
-                            onChange={(e) => updateStop(index, { intervalWeeks: e.target.value })}
-                          />
+                          {stop.recurring ? (
+                            <Input
+                              label="Fréquence (toutes les N semaines)"
+                              type="number"
+                              min={1}
+                              helperText="1 = chaque semaine, 2 = une semaine sur deux, etc."
+                              value={stop.intervalWeeks}
+                              onChange={(e) => updateStop(index, { intervalWeeks: e.target.value })}
+                            />
+                          ) : (
+                            <Input
+                              label="Date"
+                              type="date"
+                              value={stop.specificDate}
+                              onChange={(e) => updateStop(index, { specificDate: e.target.value })}
+                            />
+                          )}
                         </div>
-                        <ChipGroup
-                          multiple
-                          label="Jours"
-                          options={DAYS.map((day) => ({ value: String(day.value), label: day.label }))}
-                          value={stop.daysOfWeek.map(String)}
-                          onChange={(values) => updateStop(index, { daysOfWeek: values.map(Number) })}
-                        />
+                        {stop.recurring && (
+                          <ChipGroup
+                            multiple
+                            label="Jours"
+                            options={DAYS.map((day) => ({ value: String(day.value), label: day.label }))}
+                            value={stop.daysOfWeek.map(String)}
+                            onChange={(values) => updateStop(index, { daysOfWeek: values.map(Number) })}
+                          />
+                        )}
                         <ChipGroup
                           multiple
                           label="Agents"
@@ -619,10 +647,10 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
               </div>
 
               <div className="form-actions">
-                <Button type="submit" loading={submitting} disabled={isInvalid}>
-                  {editingId ? 'Mettre à jour' : 'Créer le gabarit'}
+                <Button type="submit" icon={Check} loading={submitting} disabled={isInvalid}>
+                  {editingId ? 'Mettre à jour' : mergeTarget ? "Ajouter l'arrêt au gabarit" : 'Créer le gabarit'}
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>
+                <Button type="button" variant="ghost" icon={X} onClick={() => setFormOpen(false)}>
                   Annuler
                 </Button>
               </div>
@@ -630,7 +658,7 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
         </ModalBody>
       </Modal>
 
-      <Modal open={Boolean(generateTemplateId)} onClose={() => setGenerateTemplateId(null)} maxWidth={600} labelledBy="gabarit-generate-title">
+      <Modal open={Boolean(generateTemplateId)} onClose={() => setGenerateTemplateId(null)} maxWidth={700} labelledBy="gabarit-generate-title">
         <ModalHeader eyebrow="Génération" title={generatingTemplate?.label ?? ''} titleId="gabarit-generate-title" onClose={() => setGenerateTemplateId(null)} />
         <ModalBody>
             <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -667,7 +695,7 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                 />
               </div>
 
-              <Button type="button" variant="ghost" onClick={handlePreview} disabled={previewLoading}>
+              <Button type="button" variant="ghost" icon={Eye} onClick={handlePreview} disabled={previewLoading}>
                 {previewLoading ? 'Calcul...' : 'Voir l’aperçu'}
               </Button>
 
@@ -720,7 +748,7 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
                                       style={{
                                         fontSize: '0.65rem',
                                         color: '#fff',
-                                        background: '#0E8E7C',
+                                        background: '#0f98eb',
                                         borderRadius: '4px',
                                         padding: '1px 4px',
                                         overflow: 'hidden',
@@ -743,10 +771,10 @@ export const GabaritsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => 
               )}
 
               <div className="form-actions">
-                <Button type="button" onClick={handleGenerate} disabled={!preview?.occurrences.length || generating}>
+                <Button type="button" icon={Check} onClick={handleGenerate} disabled={!preview?.occurrences.length || generating}>
                   {generating ? 'Génération...' : 'Confirmer la génération'}
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setGenerateTemplateId(null)}>
+                <Button type="button" variant="ghost" icon={X} onClick={() => setGenerateTemplateId(null)}>
                   Annuler
                 </Button>
               </div>

@@ -7,6 +7,7 @@ import {
   RouteOptimizationResult,
   TemplatePreview,
   InterventionTemplate,
+  PlanningEntry,
 } from '../../types/intervention';
 import { ApprovalRequest, isApprovalRequest } from '../../types/approval';
 import { SiteRoster } from '../../types/category';
@@ -171,8 +172,10 @@ export async function createOneshotBatch(
 
 export type TemplateStopPayload = {
   id?: string;
-  daysOfWeek: number[];
+  daysOfWeek?: number[];
   intervalWeeks?: number;
+  /** Arrêt sans fréquence : une seule occurrence à cette date, exclusif avec daysOfWeek. */
+  specificDate?: string;
   categoryId?: string;
   startTime: string;
   endTime: string;
@@ -186,7 +189,6 @@ export type CreateTemplatePayload = {
   stops: TemplateStopPayload[];
   startDate?: string;
   endDate?: string;
-  autoGenerate?: boolean;
   active?: boolean;
 };
 
@@ -194,6 +196,10 @@ export type UpdateTemplatePayload = Partial<CreateTemplatePayload>;
 
 export async function listTemplates(token: string) {
   return apiFetch<InterventionTemplate[]>({ path: 'interventions/templates/list', token });
+}
+
+export async function getTemplate(token: string, id: string) {
+  return apiFetch<InterventionTemplate>({ path: `interventions/templates/${id}`, token });
 }
 
 export async function createTemplate(token: string, payload: CreateTemplatePayload) {
@@ -245,6 +251,22 @@ export async function generateTemplate(token: string, id: string, startDate: str
       body: JSON.stringify({ startDate, endDate }),
     },
   });
+}
+
+export type PlanningFilters = { startDate: string; endDate: string; agentId?: string; siteId?: string };
+
+/**
+ * Le planning n'est jamais stocké : calculé à la volée par le backend à partir des occurrences
+ * des gabarits validés (`source: 'projected'`), fusionnées avec les interventions réelles déjà
+ * matérialisées (`source: 'real'`, créées automatiquement peu avant leur début).
+ */
+export async function getPlanning(token: string, filters: PlanningFilters) {
+  const params = new URLSearchParams();
+  params.set('startDate', filters.startDate);
+  params.set('endDate', filters.endDate);
+  if (filters.agentId) params.set('agentId', filters.agentId);
+  if (filters.siteId) params.set('siteId', filters.siteId);
+  return apiFetch<PlanningEntry[]>({ path: `interventions/planning?${params.toString()}`, token });
 }
 
 export async function getAssignmentSuggestions(token: string, interventionId: string) {

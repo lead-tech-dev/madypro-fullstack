@@ -76,6 +76,9 @@ export class ApprovalsController {
         return this.interventionsService.cancel(request.entityId, payload.observation, reviewerId);
       case 'CREATE_TEMPLATE_BATCH':
         return this.interventionsService.createTemplateBatch(payload, reviewerId);
+      case 'VALIDATE_TEMPLATE':
+        if (!request.entityId) throw new Error('Gabarit manquant');
+        return this.interventionsService.validateTemplate(request.entityId, reviewerId);
       default:
         throw new Error('Type d’action non pris en charge');
     }

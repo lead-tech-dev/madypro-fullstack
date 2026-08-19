@@ -4,7 +4,8 @@ export type ApprovalActionType =
   | 'ASSIGN_AGENT'
   | 'UNASSIGN_AGENT'
   | 'CANCEL_INTERVENTION'
-  | 'CREATE_TEMPLATE_BATCH';
+  | 'CREATE_TEMPLATE_BATCH'
+  | 'VALIDATE_TEMPLATE';
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
 
@@ -12,6 +13,12 @@ export type TemplateBatchPayload = {
   templateId: string;
   templateLabel?: string;
   occurrences: { date: string; siteId: string; startTime: string; endTime: string; agentIds: string[] }[];
+};
+
+export type ValidateTemplatePayload = {
+  templateLabel?: string;
+  siteId?: string;
+  siteName?: string;
 };
 
 /** Payload de CREATE_INTERVENTION quand plusieurs arrêts (sites) sont soumis en une fois. */

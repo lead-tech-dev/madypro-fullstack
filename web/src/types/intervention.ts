@@ -45,6 +45,8 @@ export type TemplateStop = {
   id: string;
   daysOfWeek: number[];
   intervalWeeks: number;
+  /** Arrêt sans fréquence : une seule occurrence à cette date, exclusif avec daysOfWeek. */
+  specificDate?: string | null;
   categoryId?: string | null;
   startTime: string;
   endTime: string;
@@ -58,8 +60,9 @@ export type InterventionTemplate = {
   siteId: string;
   startDate: string;
   endDate: string | null;
-  autoGenerate: boolean;
   active: boolean;
+  validatedAt: string | null;
+  validatedById: string | null;
   createdAt: string;
   stops: TemplateStop[];
 };
@@ -79,4 +82,20 @@ export type TemplatePreview = {
   templateId: string;
   templateLabel: string;
   occurrences: TemplateOccurrence[];
+};
+
+export type PlanningEntry = {
+  date: string;
+  stopId: string;
+  siteId: string;
+  siteName: string;
+  templateId: string;
+  templateLabel: string;
+  categoryId?: string | null;
+  startTime: string;
+  endTime: string;
+  agentIds: string[];
+  source: 'real' | 'projected';
+  interventionId?: string;
+  status?: InterventionStatus;
 };

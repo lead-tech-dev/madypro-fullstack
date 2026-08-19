@@ -20,6 +20,8 @@ export type TemplateStopLike = {
   id: string;
   daysOfWeek: number[];
   intervalWeeks: number;
+  /** Date précise (YYYY-MM-DD) pour un arrêt sans fréquence, exclusif avec daysOfWeek/intervalWeeks. */
+  specificDate?: string | null;
   categoryId?: string | null;
   startTime: string;
   endTime: string;
@@ -66,8 +68,12 @@ export function computeTemplateOccurrences(
     const weeksDiff = Math.round((cursorWeekStart.getTime() - templateWeekStart.getTime()) / MS_PER_WEEK);
     const date = cursor.toISOString().slice(0, 10);
     for (const stop of stops) {
-      const intervalWeeks = Math.max(1, stop.intervalWeeks || 1);
-      if (weeksDiff >= 0 && weeksDiff % intervalWeeks === 0 && stop.daysOfWeek.includes(cursor.getUTCDay())) {
+      const matches = stop.specificDate
+        ? stop.specificDate.slice(0, 10) === date
+        : weeksDiff >= 0 &&
+          weeksDiff % Math.max(1, stop.intervalWeeks || 1) === 0 &&
+          stop.daysOfWeek.includes(cursor.getUTCDay());
+      if (matches) {
         occurrences.push({
           date,
           stopId: stop.id,
@@ -94,28 +100,60 @@ function timeRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: s
   return timeToMinutes(aStart) < timeToMinutes(bEnd) && timeToMinutes(bStart) < timeToMinutes(aEnd);
 }
 
-function daysOverlap(a: number[], b: number[]): boolean {
-  return a.some((day) => b.includes(day));
-}
+export type TemplateGroup = {
+  template: TemplateLike;
+  stops: TemplateStopLike[];
+};
+
+export type StopConflict = {
+  templateA: TemplateLike;
+  stopA: TemplateStopLike;
+  templateB: TemplateLike;
+  stopB: TemplateStopLike;
+  date: string;
+  agentId: string;
+};
 
 /**
- * Détecte, au sein d'un même gabarit, les paires d'arrêts dont les jours se recoupent et qui
- * partagent au moins un agent avec des horaires qui se chevauchent (un agent ne peut pas être à
- * deux endroits en même temps).
+ * Détecte, en dépliant les occurrences réelles de chaque gabarit sur [horizonStart, horizonEnd],
+ * les paires d'arrêts (au sein d'un même gabarit ou entre plusieurs gabarits différents, ex. deux
+ * sites) qui tombent le même jour avec des horaires qui se chevauchent et qui partagent au moins
+ * un agent — un agent ne peut pas être à deux endroits en même temps. Passer un seul groupe
+ * détecte les conflits intra-gabarit ; passer plusieurs groupes (le gabarit en cours + les
+ * gabarits déjà validés) détecte aussi les conflits inter-gabarits, en une seule passe.
  */
-export function findTemplateStopConflicts(
-  stops: TemplateStopLike[],
-): Array<{ a: TemplateStopLike; b: TemplateStopLike; agentId: string }> {
-  const conflicts: Array<{ a: TemplateStopLike; b: TemplateStopLike; agentId: string }> = [];
-  for (let i = 0; i < stops.length; i += 1) {
-    for (let j = i + 1; j < stops.length; j += 1) {
-      const a = stops[i];
-      const b = stops[j];
-      if (!daysOverlap(a.daysOfWeek, b.daysOfWeek)) continue;
-      if (!timeRangesOverlap(a.startTime, a.endTime, b.startTime, b.endTime)) continue;
-      const sharedAgent = a.agentIds.find((id) => b.agentIds.includes(id));
+export function findStopConflicts(
+  groups: TemplateGroup[],
+  horizonStart: Date,
+  horizonEnd: Date,
+): StopConflict[] {
+  const dated = groups.flatMap(({ template, stops }) => {
+    const stopById = new Map(stops.map((s) => [s.id, s]));
+    return computeTemplateOccurrences(template, stops, horizonStart, horizonEnd).map((occ) => ({
+      template,
+      stop: stopById.get(occ.stopId)!,
+      occ,
+    }));
+  });
+
+  const conflicts: StopConflict[] = [];
+  for (let i = 0; i < dated.length; i += 1) {
+    for (let j = i + 1; j < dated.length; j += 1) {
+      const x = dated[i];
+      const y = dated[j];
+      if (x.stop.id === y.stop.id) continue;
+      if (x.occ.date !== y.occ.date) continue;
+      if (!timeRangesOverlap(x.occ.startTime, x.occ.endTime, y.occ.startTime, y.occ.endTime)) continue;
+      const sharedAgent = x.occ.agentIds.find((id) => y.occ.agentIds.includes(id));
       if (sharedAgent) {
-        conflicts.push({ a, b, agentId: sharedAgent });
+        conflicts.push({
+          templateA: x.template,
+          stopA: x.stop,
+          templateB: y.template,
+          stopB: y.stop,
+          date: x.occ.date,
+          agentId: sharedAgent,
+        });
       }
     }
   }

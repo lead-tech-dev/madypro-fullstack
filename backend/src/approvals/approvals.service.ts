@@ -10,7 +10,8 @@ export type ApprovalActionType =
   | 'ASSIGN_AGENT'
   | 'UNASSIGN_AGENT'
   | 'CANCEL_INTERVENTION'
-  | 'CREATE_TEMPLATE_BATCH';
+  | 'CREATE_TEMPLATE_BATCH'
+  | 'VALIDATE_TEMPLATE';
 
 export type CreateApprovalRequestInput = {
   actionType: ApprovalActionType;
@@ -30,6 +31,7 @@ const ACTION_LABELS: Record<ApprovalActionType, string> = {
   UNASSIGN_AGENT: 'Retrait d’agent',
   CANCEL_INTERVENTION: 'Annulation d’intervention',
   CREATE_TEMPLATE_BATCH: 'Génération d’un lot d’interventions',
+  VALIDATE_TEMPLATE: 'Validation d’un gabarit',
 };
 
 @Injectable()

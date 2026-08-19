@@ -85,6 +85,18 @@ export class InterventionsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('planning')
+  getPlanning(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('agentId') agentId?: string,
+    @Query('siteId') siteId?: string,
+  ) {
+    return this.service.getPlanning({ startDate, endDate, agentId, siteId });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR', 'AGENT')
   @Get(':id')
   detail(@Param('id') id: string, @Req() req: Request) {
@@ -219,9 +231,17 @@ export class InterventionsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
+  @Get('templates/:id')
+  getTemplate(@Param('id') id: string) {
+    return this.service.getTemplate(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
   @Post('templates')
-  createTemplate(@Body() dto: CreateTemplateDto) {
-    return this.service.createTemplate(dto);
+  createTemplate(@Body() dto: CreateTemplateDto, @Req() req: Request) {
+    const user = req.user as any;
+    return this.service.createTemplate(dto, user.sub, user.role);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -229,7 +249,7 @@ export class InterventionsController {
   @Patch('templates/:id')
   updateTemplate(@Param('id') id: string, @Body() dto: UpdateTemplateDto, @Req() req: Request) {
     const user = req.user as any;
-    return this.service.updateTemplate(id, dto, user.sub);
+    return this.service.updateTemplate(id, dto, user.sub, user.role);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -246,6 +266,11 @@ export class InterventionsController {
     return this.service.previewTemplateOccurrences(id, startDate, endDate);
   }
 
+  /**
+   * Génération manuelle, en avance, à partir d'un gabarit déjà validé (ex. pour avoir de l'avance
+   * avant l'envoi d'un planning client) — les interventions réelles quotidiennes sont sinon
+   * créées automatiquement peu avant leur début, sans action requise ici.
+   */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Post('templates/:id/generate')
@@ -256,6 +281,10 @@ export class InterventionsController {
     @Req() req: Request,
   ) {
     const user = req.user as any;
+    const template = await this.service.getTemplate(id);
+    if (!template.validatedAt) {
+      throw new BadRequestException('Le gabarit doit être validé avant de pouvoir être généré.');
+    }
     const preview = await this.service.previewTemplateOccurrences(id, startDate, endDate);
     if (!preview.occurrences.length) {
       throw new BadRequestException('Aucune occurrence à générer sur cette période.');
@@ -263,8 +292,9 @@ export class InterventionsController {
     const payload = {
       templateId: preview.templateId,
       templateLabel: preview.templateLabel,
-      occurrences: preview.occurrences.map(({ date, siteId, categoryId, startTime, endTime, agentIds }) => ({
+      occurrences: preview.occurrences.map(({ date, stopId, siteId, categoryId, startTime, endTime, agentIds }) => ({
         date,
+        stopId,
         siteId,
         categoryId,
         startTime,
@@ -272,16 +302,6 @@ export class InterventionsController {
         agentIds,
       })),
     };
-    if (user.role === 'SUPERVISOR') {
-      return this.approvals.createRequest({
-        actionType: 'CREATE_TEMPLATE_BATCH',
-        entityType: 'InterventionTemplate',
-        entityId: id,
-        payload,
-        requestedById: user.sub,
-        summary: `${preview.occurrences.length} occurrence(s) — ${preview.templateLabel}`,
-      });
-    }
     return this.service.createTemplateBatch(payload, user.sub);
   }
 

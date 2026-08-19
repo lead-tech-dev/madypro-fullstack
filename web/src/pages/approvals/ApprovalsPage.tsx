@@ -3,9 +3,17 @@ import { useAuthContext } from '../../context/AuthContext';
 import { listApprovalRequests, approveRequest, rejectRequest } from '../../services/api/approvals.api';
 import { listUsers } from '../../services/api/users.api';
 import { listSites } from '../../services/api/sites.api';
-import { ApprovalActionType, ApprovalRequest, TemplateBatchPayload, OneshotBatchPayload } from '../../types/approval';
+import {
+  ApprovalActionType,
+  ApprovalRequest,
+  TemplateBatchPayload,
+  OneshotBatchPayload,
+  ValidateTemplatePayload,
+} from '../../types/approval';
 import { Button } from '../../components/ui/Button';
 import { PromptModal } from '../../components/ui/PromptModal';
+import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
+import { Check, X } from 'lucide-react';
 
 const ACTION_LABELS: Record<ApprovalActionType, string> = {
   CREATE_INTERVENTION: 'Création d’intervention',
@@ -14,6 +22,7 @@ const ACTION_LABELS: Record<ApprovalActionType, string> = {
   UNASSIGN_AGENT: 'Retrait d’agent',
   CANCEL_INTERVENTION: 'Annulation d’intervention',
   CREATE_TEMPLATE_BATCH: 'Génération d’un gabarit',
+  VALIDATE_TEMPLATE: 'Validation d’un gabarit',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -31,19 +40,21 @@ export const ApprovalsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [datesModalId, setDatesModalId] = useState<string | null>(null);
   const [rejectPromptId, setRejectPromptId] = useState<string | null>(null);
 
   const load = () => {
-    if (!token) return;
+    if (!token) return Promise.resolve();
     setLoading(true);
-    listApprovalRequests(token, { status: statusFilter === 'all' ? undefined : statusFilter, pageSize: 100 })
+    return listApprovalRequests(token, { status: statusFilter === 'all' ? undefined : statusFilter, pageSize: 100 })
       .then((res) => setRequests(res.items))
       .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger les demandes', 'error'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [token, statusFilter]);
+  useEffect(() => {
+    load();
+  }, [token, statusFilter]);
 
   useEffect(() => {
     if (!token) return;
@@ -68,6 +79,7 @@ export const ApprovalsPage: React.FC = () => {
   }, [token]);
 
   const pendingCount = useMemo(() => requests.filter((r) => r.status === 'PENDING').length, [requests]);
+  const datesModalRequest = requests.find((r) => r.id === datesModalId) ?? null;
 
   const describe = (req: ApprovalRequest) => {
     const payload = req.payload as any;
@@ -104,6 +116,11 @@ export const ApprovalsPage: React.FC = () => {
         const siteLabels = Array.from(new Set((batch.occurrences ?? []).map((o) => siteNames[o.siteId] ?? o.siteId)));
         return `${batch.templateLabel ?? 'Gabarit'} — ${siteLabels.join(', ')} — ${batch.occurrences?.length ?? 0} intervention(s)`;
       }
+      case 'VALIDATE_TEMPLATE': {
+        const validate = payload as ValidateTemplatePayload;
+        const siteLabel = validate.siteName ?? (validate.siteId ? siteNames[validate.siteId] ?? validate.siteId : '');
+        return `${validate.templateLabel ?? 'Gabarit'}${siteLabel ? ` — ${siteLabel}` : ''}`;
+      }
       default:
         return '';
     }
@@ -115,7 +132,7 @@ export const ApprovalsPage: React.FC = () => {
     try {
       await approveRequest(token, id);
       notify('Demande approuvée et appliquée');
-      load();
+      await load();
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Impossible d’approuver cette demande', 'error');
     } finally {
@@ -133,7 +150,7 @@ export const ApprovalsPage: React.FC = () => {
     try {
       await rejectRequest(token, id, comment);
       notify('Demande refusée');
-      load();
+      await load();
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Impossible de refuser cette demande', 'error');
     } finally {
@@ -195,26 +212,19 @@ export const ApprovalsPage: React.FC = () => {
                       <div style={{ marginTop: '0.35rem' }}>
                         <button
                           type="button"
-                          onClick={() => setExpandedId(expandedId === req.id ? null : req.id)}
+                          onClick={() => setDatesModalId(req.id)}
                           style={{
                             background: 'none',
                             border: 'none',
                             padding: 0,
-                            color: 'var(--color-primary, #0E8E7C)',
+                            color: 'var(--color-accent)',
                             cursor: 'pointer',
                             fontSize: '0.8rem',
                             textDecoration: 'underline',
                           }}
                         >
-                          {expandedId === req.id ? 'Masquer les dates' : 'Voir les dates'}
+                          Voir les dates
                         </button>
-                        {expandedId === req.id && (
-                          <div className="card__meta" style={{ marginTop: '0.35rem', maxWidth: 320 }}>
-                            {(req.payload as TemplateBatchPayload | OneshotBatchPayload).occurrences
-                              ?.map((o) => `${o.date} (${siteNames[o.siteId] ?? o.siteId})`)
-                              .join(', ')}
-                          </div>
-                        )}
                       </div>
                     )}
                   </td>
@@ -243,6 +253,7 @@ export const ApprovalsPage: React.FC = () => {
                         <Button
                           type="button"
                           className="btn--compact"
+                          icon={Check}
                           disabled={busyId === req.id}
                           onClick={() => handleApprove(req.id)}
                         >
@@ -252,6 +263,7 @@ export const ApprovalsPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={X}
                           disabled={busyId === req.id}
                           onClick={() => handleReject(req.id)}
                         >
@@ -286,6 +298,24 @@ export const ApprovalsPage: React.FC = () => {
         onConfirm={confirmReject}
         onCancel={() => setRejectPromptId(null)}
       />
+
+      <Modal open={datesModalId !== null} onClose={() => setDatesModalId(null)} maxWidth={480} labelledBy="approval-dates-title">
+        <ModalHeader eyebrow="Détail" title="Dates concernées" titleId="approval-dates-title" onClose={() => setDatesModalId(null)} />
+        <ModalBody>
+          {datesModalRequest && (
+            <ol className="list-line" style={{ margin: 0, padding: 0 }}>
+              {(datesModalRequest.payload as TemplateBatchPayload | OneshotBatchPayload).occurrences?.map((o, index) => (
+                <li key={index}>
+                  <span>{o.date}</span>
+                  <span>
+                    {siteNames[o.siteId] ?? o.siteId} · {o.startTime}–{o.endTime}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </ModalBody>
+      </Modal>
     </div>
   );
 };

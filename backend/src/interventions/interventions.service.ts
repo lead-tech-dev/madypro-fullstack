@@ -30,7 +30,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { haversineDistanceMeters } from '../common/utils/geo';
 import { checkAttendanceCompleteness } from './attendance-completeness.util';
-import { computeTemplateOccurrences, findTemplateStopConflicts, TemplateStopLike } from './recurrence.util';
+import { computeTemplateOccurrences, findStopConflicts, TemplateStopLike, TemplateGroup } from './recurrence.util';
 import { ApprovalsService } from '../approvals/approvals.service';
 
 export type InterventionFilters = {
@@ -79,7 +79,8 @@ export class InterventionsService implements OnModuleInit {
   private lastSummaryDay: string | null = null;
   private MISSED_CHECKIN_GRACE_MS = 15 * 60 * 1000;
   private readonly missedCheckInNotified = new Set<string>(); // key: interventionId:userId
-  private readonly GENERATION_HORIZON_DAYS = 56; // 8 semaines
+  private readonly GENERATION_HORIZON_DAYS = 56; // 8 semaines — fenêtre de détection des conflits inter-gabarits
+  private INTERVENTION_LEAD_MINUTES = 90; // délai avant le début auquel une intervention réelle est créée
 
   constructor(
     private readonly prisma: PrismaService,
@@ -113,13 +114,18 @@ export class InterventionsService implements OnModuleInit {
     if (Number.isFinite(dailyHour) && dailyHour >= 0 && dailyHour < 24) {
       this.DAILY_SUMMARY_HOUR = dailyHour;
     }
+    const leadMinutes = Number(process.env.INTERVENTION_LEAD_MINUTES ?? '90');
+    if (Number.isFinite(leadMinutes) && leadMinutes > 0) {
+      this.INTERVENTION_LEAD_MINUTES = leadMinutes;
+    }
 
-    await this.generateFromTemplates();
+    // Matérialise les interventions réelles des gabarits validés peu avant leur début
+    await this.generateImminentInterventionsFromTemplates();
     setInterval(() => {
-      this.generateFromTemplates().catch((error) =>
-        this.logger.error('Erreur lors de la génération automatique des interventions', error.stack),
+      this.generateImminentInterventionsFromTemplates().catch((error) =>
+        this.logger.error('Erreur lors de la génération imminente des interventions', error.stack),
       );
-    }, 1000 * 60 * 60 * 6);
+    }, 5 * 60 * 1000);
     // Clôture automatique des interventions dépassées
     setInterval(() => {
       if (!this.AUTO_CLOSE_ENABLED) return;
@@ -765,6 +771,7 @@ export class InterventionsService implements OnModuleInit {
         observation: dto.observation ?? null,
         photos: dto.photos ?? [],
         generatedFromTemplateId: dto.generatedFromTemplateId ?? null,
+        generatedFromStopId: dto.generatedFromStopId ?? null,
         batchId: dto.batchId ?? null,
         assignments: dto.agentIds?.length
           ? {
@@ -1141,11 +1148,12 @@ export class InterventionsService implements OnModuleInit {
     siteId: string;
     startDate: Date;
     endDate: Date | null;
-    autoGenerate: boolean;
     active: boolean;
+    validatedAt: Date | null;
+    validatedById: string | null;
     createdAt: Date;
     updatedAt: Date;
-    stops: { id: string; daysOfWeek: number[]; intervalWeeks: number; categoryId: string | null; startTime: string; endTime: string; agentIds: string[]; order: number }[];
+    stops: { id: string; daysOfWeek: number[]; intervalWeeks: number; specificDate: Date | null; categoryId: string | null; startTime: string; endTime: string; agentIds: string[]; order: number }[];
   }): InterventionTemplateEntity {
     return {
       id: template.id,
@@ -1153,8 +1161,9 @@ export class InterventionsService implements OnModuleInit {
       siteId: template.siteId,
       startDate: template.startDate,
       endDate: template.endDate,
-      autoGenerate: template.autoGenerate,
       active: template.active,
+      validatedAt: template.validatedAt,
+      validatedById: template.validatedById,
       createdAt: template.createdAt,
       updatedAt: template.updatedAt,
       stops: template.stops
@@ -1164,6 +1173,7 @@ export class InterventionsService implements OnModuleInit {
           id: s.id,
           daysOfWeek: s.daysOfWeek,
           intervalWeeks: s.intervalWeeks,
+          specificDate: s.specificDate,
           categoryId: s.categoryId,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -1173,14 +1183,72 @@ export class InterventionsService implements OnModuleInit {
     };
   }
 
-  /** Un agent ne peut pas être sur deux arrêts dont les jours se recoupent avec des horaires qui se chevauchent. */
-  private assertNoTemplateStopConflicts(stops: TemplateStopLike[]) {
-    const conflicts = findTemplateStopConflicts(stops);
+  private toStopLike(s: {
+    id: string;
+    daysOfWeek: number[];
+    intervalWeeks: number;
+    specificDate: Date | null;
+    categoryId: string | null;
+    startTime: string;
+    endTime: string;
+    agentIds: string[];
+  }): TemplateStopLike {
+    return {
+      id: s.id,
+      daysOfWeek: s.daysOfWeek,
+      intervalWeeks: s.intervalWeeks,
+      specificDate: s.specificDate ? s.specificDate.toISOString().slice(0, 10) : null,
+      categoryId: s.categoryId,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      agentIds: s.agentIds,
+    };
+  }
+
+  /**
+   * Vérifie qu'aucun agent n'est affecté à deux arrêts qui se chevauchent, au sein du gabarit en
+   * cours d'édition (`stops`) ou avec un autre gabarit déjà validé (autre site) — un agent ne peut
+   * pas être à deux endroits en même temps. `currentTemplateId` est `null` pour une création.
+   */
+  private async assertNoConflicts(
+    currentTemplateId: string | null,
+    currentSite: { id: string; name: string },
+    startDate: Date,
+    endDate: Date | null,
+    stops: TemplateStopLike[],
+  ) {
+    const others = await this.prisma.interventionTemplate.findMany({
+      where: {
+        validatedAt: { not: null },
+        ...(currentTemplateId ? { id: { not: currentTemplateId } } : {}),
+      },
+      include: { stops: true, site: { select: { name: true } } },
+    });
+    const horizonStart = this.toDateOnly(new Date().toISOString().slice(0, 10));
+    const horizonEnd = new Date(horizonStart.getTime() + this.GENERATION_HORIZON_DAYS * 24 * 60 * 60 * 1000);
+    const groups: TemplateGroup[] = [
+      { template: { siteId: currentSite.id, startDate, endDate }, stops },
+      ...others.map((t) => ({
+        template: { siteId: t.siteId, startDate: t.startDate, endDate: t.endDate },
+        stops: t.stops.map((s) => this.toStopLike(s)),
+      })),
+    ];
+    const siteNameById = new Map<string, string>([[currentSite.id, currentSite.name]]);
+    others.forEach((t) => siteNameById.set(t.siteId, t.site.name));
+
+    const conflicts = findStopConflicts(groups, horizonStart, horizonEnd);
     if (conflicts.length) {
-      const { a, b, agentId } = conflicts[0];
-      const agent = this.usersService.findOne(agentId);
+      const conflict = conflicts[0];
+      const agent = this.usersService.findOne(conflict.agentId);
+      const agentName = agent?.name ?? conflict.agentId;
+      if (conflict.templateA.siteId === conflict.templateB.siteId) {
+        throw new BadRequestException(
+          `Conflit dans le gabarit : ${agentName} est affecté à deux arrêts qui se chevauchent le ${conflict.date} (${conflict.stopA.startTime}–${conflict.stopA.endTime} et ${conflict.stopB.startTime}–${conflict.stopB.endTime}).`,
+        );
+      }
+      const otherSiteId = conflict.templateA.siteId === currentSite.id ? conflict.templateB.siteId : conflict.templateA.siteId;
       throw new BadRequestException(
-        `Conflit dans le gabarit : ${agent?.name ?? agentId} est affecté à deux arrêts qui se chevauchent (${a.startTime}–${a.endTime} et ${b.startTime}–${b.endTime}).`,
+        `Conflit inter-gabarits : ${agentName} est déjà affecté sur "${siteNameById.get(otherSiteId) ?? otherSiteId}" le ${conflict.date} à un horaire qui se chevauche.`,
       );
     }
   }
@@ -1193,33 +1261,55 @@ export class InterventionsService implements OnModuleInit {
     return templates.map((template) => this.presentTemplate(template));
   }
 
-  async createTemplate(dto: CreateTemplateDto) {
+  async getTemplate(id: string): Promise<InterventionTemplateEntity> {
+    const template = await this.prisma.interventionTemplate.findUnique({
+      where: { id },
+      include: { stops: true },
+    });
+    if (!template) {
+      throw new NotFoundException('Gabarit introuvable');
+    }
+    return this.presentTemplate(template);
+  }
+
+  async createTemplate(dto: CreateTemplateDto, actorId: string, actorRole: string) {
     const existing = await this.prisma.interventionTemplate.findUnique({ where: { siteId: dto.siteId } });
     if (existing) {
       throw new BadRequestException('Un gabarit existe déjà pour ce site');
     }
-    this.assertNoTemplateStopConflicts(
-      dto.stops.map((s, index) => ({
-        id: `new-${index}`,
-        daysOfWeek: s.daysOfWeek,
-        intervalWeeks: s.intervalWeeks ?? 1,
-        startTime: s.startTime,
-        endTime: s.endTime,
-        agentIds: s.agentIds ?? [],
-      })),
-    );
+    const site = await this.prisma.site.findUnique({ where: { id: dto.siteId }, select: { id: true, name: true } });
+    if (!site) {
+      throw new NotFoundException('Site introuvable');
+    }
+    const startDate = dto.startDate ? new Date(dto.startDate) : new Date();
+    const endDate = dto.endDate ? new Date(dto.endDate) : null;
+    const stopsForCheck: TemplateStopLike[] = dto.stops.map((s, index) => ({
+      id: `new-${index}`,
+      daysOfWeek: s.daysOfWeek ?? [],
+      intervalWeeks: s.intervalWeeks ?? 1,
+      specificDate: s.specificDate ?? null,
+      categoryId: s.categoryId ?? null,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      agentIds: s.agentIds ?? [],
+    }));
+    await this.assertNoConflicts(null, site, startDate, endDate, stopsForCheck);
+
+    const isAdmin = actorRole === 'ADMIN';
     const template = await this.prisma.interventionTemplate.create({
       data: {
         label: dto.label,
         siteId: dto.siteId,
-        startDate: dto.startDate ? new Date(dto.startDate) : new Date(),
-        endDate: dto.endDate ? new Date(dto.endDate) : null,
-        autoGenerate: dto.autoGenerate ?? false,
+        startDate,
+        endDate,
         active: dto.active ?? true,
+        validatedAt: isAdmin ? new Date() : null,
+        validatedById: isAdmin ? actorId : null,
         stops: {
           create: dto.stops.map((s, index) => ({
-            daysOfWeek: s.daysOfWeek,
+            daysOfWeek: s.daysOfWeek ?? [],
             intervalWeeks: s.intervalWeeks ?? 1,
+            specificDate: s.specificDate ? new Date(s.specificDate) : null,
             categoryId: s.categoryId ?? null,
             startTime: s.startTime,
             endTime: s.endTime,
@@ -1230,6 +1320,19 @@ export class InterventionsService implements OnModuleInit {
       },
       include: { stops: true },
     });
+    if (!isAdmin) {
+      await this.approvals.createRequest({
+        actionType: 'VALIDATE_TEMPLATE',
+        entityType: 'InterventionTemplate',
+        entityId: template.id,
+        payload: { templateLabel: template.label, siteId: template.siteId, siteName: site.name },
+        requestedById: actorId,
+        summary: `Validation du gabarit — ${template.label} (${site.name})`,
+      });
+    } else {
+      // Évite d'attendre le prochain passage du job (jusqu'à 5 min) pour un arrêt imminent.
+      await this.generateImminentInterventionsFromTemplates();
+    }
     return this.presentTemplate(template);
   }
 
@@ -1237,10 +1340,10 @@ export class InterventionsService implements OnModuleInit {
     return `${siteName} — ${stop.startTime}-${stop.endTime}`;
   }
 
-  async updateTemplate(id: string, dto: UpdateTemplateDto, actorId: string) {
+  async updateTemplate(id: string, dto: UpdateTemplateDto, actorId: string, actorRole: string) {
     const existing = await this.prisma.interventionTemplate.findUnique({
       where: { id },
-      include: { stops: true, site: { select: { name: true } } },
+      include: { stops: true, site: { select: { id: true, name: true } } },
     });
     if (!existing) {
       throw new NotFoundException('Gabarit introuvable');
@@ -1251,26 +1354,46 @@ export class InterventionsService implements OnModuleInit {
         throw new BadRequestException('Un gabarit existe déjà pour ce site');
       }
     }
-    if (dto.stops) {
-      this.assertNoTemplateStopConflicts(
-        dto.stops.map((s, index) => ({
+
+    const siteId = dto.siteId ?? existing.siteId;
+    const site =
+      siteId === existing.siteId
+        ? existing.site
+        : await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true, name: true } });
+    if (!site) {
+      throw new NotFoundException('Site introuvable');
+    }
+    const startDate = dto.startDate !== undefined ? new Date(dto.startDate) : existing.startDate;
+    const endDate = dto.endDate !== undefined ? (dto.endDate ? new Date(dto.endDate) : null) : existing.endDate;
+    const stopsForCheck: TemplateStopLike[] = dto.stops
+      ? dto.stops.map((s, index) => ({
           id: s.id ?? `new-${index}`,
-          daysOfWeek: s.daysOfWeek,
+          daysOfWeek: s.daysOfWeek ?? [],
           intervalWeeks: s.intervalWeeks ?? 1,
+          specificDate: s.specificDate ?? null,
+          categoryId: s.categoryId ?? null,
           startTime: s.startTime,
           endTime: s.endTime,
           agentIds: s.agentIds ?? [],
-        })),
-      );
-    }
+        }))
+      : existing.stops.map((s) => this.toStopLike(s));
+    await this.assertNoConflicts(id, site, startDate, endDate, stopsForCheck);
 
-    const data: Prisma.InterventionTemplateUpdateInput = {};
+    const isAdmin = actorRole === 'ADMIN';
+    const data: Prisma.InterventionTemplateUncheckedUpdateInput = {};
     if (dto.label !== undefined) data.label = dto.label;
-    if (dto.siteId !== undefined) data.site = { connect: { id: dto.siteId } };
+    if (dto.siteId !== undefined) data.siteId = dto.siteId;
     if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
     if (dto.endDate !== undefined) data.endDate = dto.endDate ? new Date(dto.endDate) : null;
-    if (dto.autoGenerate !== undefined) data.autoGenerate = dto.autoGenerate;
     if (dto.active !== undefined) data.active = dto.active;
+    if (isAdmin) {
+      data.validatedAt = new Date();
+      data.validatedById = actorId;
+    } else {
+      // Une modification par un non-admin invalide la validation précédente : re-approbation requise.
+      data.validatedAt = null;
+      data.validatedById = null;
+    }
 
     const siteName = existing.site.name;
 
@@ -1301,8 +1424,9 @@ export class InterventionsService implements OnModuleInit {
 
         for (const [index, s] of dto.stops.entries()) {
           const stopData = {
-            daysOfWeek: s.daysOfWeek,
+            daysOfWeek: s.daysOfWeek ?? [],
             intervalWeeks: s.intervalWeeks ?? 1,
+            specificDate: s.specificDate ? new Date(s.specificDate) : null,
             categoryId: s.categoryId ?? null,
             startTime: s.startTime,
             endTime: s.endTime,
@@ -1352,7 +1476,40 @@ export class InterventionsService implements OnModuleInit {
         include: { stops: true },
       });
     });
+    if (!isAdmin) {
+      await this.approvals.createRequest({
+        actionType: 'VALIDATE_TEMPLATE',
+        entityType: 'InterventionTemplate',
+        entityId: id,
+        payload: { templateLabel: template.label, siteId: template.siteId, siteName: site.name },
+        requestedById: actorId,
+        summary: `Validation du gabarit — ${template.label} (${site.name})`,
+      });
+    } else {
+      // Évite d'attendre le prochain passage du job (jusqu'à 5 min) pour un arrêt imminent.
+      await this.generateImminentInterventionsFromTemplates();
+    }
     return this.presentTemplate(template);
+  }
+
+  /** Re-vérifie les conflits inter-gabarits (au cas où un autre gabarit aurait changé entretemps) puis valide. */
+  async validateTemplate(templateId: string, reviewerId: string) {
+    const template = await this.prisma.interventionTemplate.findUnique({
+      where: { id: templateId },
+      include: { stops: true, site: { select: { id: true, name: true } } },
+    });
+    if (!template) {
+      throw new NotFoundException('Gabarit introuvable');
+    }
+    const stops = template.stops.map((s) => this.toStopLike(s));
+    await this.assertNoConflicts(template.id, template.site, template.startDate, template.endDate, stops);
+    const updated = await this.prisma.interventionTemplate.update({
+      where: { id: templateId },
+      data: { validatedAt: new Date(), validatedById: reviewerId },
+      include: { stops: true },
+    });
+    await this.generateImminentInterventionsFromTemplates();
+    return this.presentTemplate(updated);
   }
 
   async toggleTemplate(id: string, active: boolean) {
@@ -1361,6 +1518,9 @@ export class InterventionsService implements OnModuleInit {
       data: { active },
       include: { stops: true },
     });
+    if (active) {
+      await this.generateImminentInterventionsFromTemplates();
+    }
     return this.presentTemplate(template);
   }
 
@@ -1373,15 +1533,7 @@ export class InterventionsService implements OnModuleInit {
     if (!template) {
       throw new NotFoundException('Gabarit introuvable');
     }
-    const stops: TemplateStopLike[] = template.stops.map((s) => ({
-      id: s.id,
-      daysOfWeek: s.daysOfWeek,
-      intervalWeeks: s.intervalWeeks,
-      categoryId: s.categoryId,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      agentIds: s.agentIds,
-    }));
+    const stops = template.stops.map((s) => this.toStopLike(s));
     const occurrences = computeTemplateOccurrences(
       { siteId: template.siteId, startDate: template.startDate, endDate: template.endDate },
       stops,
@@ -1401,116 +1553,101 @@ export class InterventionsService implements OnModuleInit {
   }
 
   /**
-   * Propose (sans jamais créer directement) les occurrences des 8 prochaines semaines pour
-   * chaque gabarit actif dont la génération automatique est activée — single ou multi-site. Une
-   * ApprovalRequest CREATE_TEMPLATE_BATCH par gabarit, à valider par un admin.
+   * Le planning (par agent/site/semaine/mois) n'est jamais stocké : calculé à la volée à partir
+   * des occurrences des gabarits validés sur la période demandée. Chaque occurrence est marquée
+   * `source: 'real'` si l'intervention correspondante a déjà été matérialisée (job jour-J ou
+   * génération manuelle), sinon `source: 'projected'`.
    */
-  private async generateFromTemplates() {
-    if (this.generatingTemplates) {
-      return;
-    }
-    this.generatingTemplates = true;
-    try {
-      const horizonStart = this.toDateOnly(new Date().toISOString().slice(0, 10));
-      const horizonEnd = new Date(horizonStart.getTime() + this.GENERATION_HORIZON_DAYS * 24 * 60 * 60 * 1000);
-      const templates = await this.prisma.interventionTemplate.findMany({
-        where: { active: true, autoGenerate: true },
-        include: { stops: true },
-      });
+  async getPlanning(params: { startDate: string; endDate: string; agentId?: string; siteId?: string }) {
+    const horizonStart = this.toDateOnly(params.startDate);
+    const horizonEnd = this.toDateOnly(params.endDate);
+    const templates = await this.prisma.interventionTemplate.findMany({
+      where: {
+        active: true,
+        validatedAt: { not: null },
+        ...(params.siteId ? { siteId: params.siteId } : {}),
+      },
+      include: { stops: true, site: { select: { id: true, name: true } } },
+    });
 
-      for (const template of templates) {
-        const stops: TemplateStopLike[] = template.stops.map((s) => ({
-          id: s.id,
-          daysOfWeek: s.daysOfWeek,
-          intervalWeeks: s.intervalWeeks,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          agentIds: s.agentIds,
-        }));
-        const occurrences = computeTemplateOccurrences(
-          { siteId: template.siteId, startDate: template.startDate, endDate: template.endDate },
-          stops,
-          horizonStart,
-          horizonEnd,
-        );
-        if (!occurrences.length) continue;
-
-        const [existingInterventions, existingBatches] = await Promise.all([
-          this.prisma.intervention.findMany({
-            where: { generatedFromTemplateId: template.id, date: { gte: horizonStart, lte: horizonEnd } },
-            select: { date: true, siteId: true },
-          }),
-          this.prisma.approvalRequest.findMany({
-            where: {
-              entityType: 'InterventionTemplate',
-              entityId: template.id,
-              actionType: 'CREATE_TEMPLATE_BATCH',
-              status: { in: ['PENDING', 'APPROVED'] },
-            },
-            select: { payload: true },
-          }),
-        ]);
-
-        const covered = new Set<string>(
-          existingInterventions.map((i) => `${i.date.toISOString().slice(0, 10)}:${i.siteId}`),
-        );
-        existingBatches.forEach((batch) => {
-          const occ = (batch.payload as any)?.occurrences as { date: string; siteId: string }[] | undefined;
-          occ?.forEach((o) => covered.add(`${o.date}:${o.siteId}`));
-        });
-
-        const newOccurrences = occurrences.filter((o) => !covered.has(`${o.date}:${o.siteId}`));
-        if (!newOccurrences.length) continue;
-
-        await this.approvals.createRequest({
-          actionType: 'CREATE_TEMPLATE_BATCH',
-          entityType: 'InterventionTemplate',
-          entityId: template.id,
-          payload: {
-            templateId: template.id,
-            templateLabel: template.label,
-            occurrences: newOccurrences.map((o) => ({
-              date: o.date,
-              siteId: o.siteId,
-              categoryId: o.categoryId,
-              startTime: o.startTime,
-              endTime: o.endTime,
-              agentIds: o.agentIds,
-            })),
-          },
-          requestedById: null,
-          summary: `${newOccurrences.length} occurrence(s) — ${template.label}`,
+    const flattened: Array<{
+      date: string;
+      stopId: string;
+      siteId: string;
+      siteName: string;
+      templateId: string;
+      templateLabel: string;
+      categoryId?: string | null;
+      startTime: string;
+      endTime: string;
+      agentIds: string[];
+    }> = [];
+    for (const template of templates) {
+      const stops = template.stops.map((s) => this.toStopLike(s));
+      const occurrences = computeTemplateOccurrences(
+        { siteId: template.siteId, startDate: template.startDate, endDate: template.endDate },
+        stops,
+        horizonStart,
+        horizonEnd,
+      );
+      for (const occ of occurrences) {
+        if (params.agentId && !occ.agentIds.includes(params.agentId)) continue;
+        flattened.push({
+          ...occ,
+          siteName: template.site.name,
+          templateId: template.id,
+          templateLabel: template.label,
         });
       }
-    } catch (error) {
-      this.logger.error('Erreur lors de la génération programmée', error.stack);
-    } finally {
-      this.generatingTemplates = false;
     }
+
+    const realInterventions = await this.prisma.intervention.findMany({
+      where: { date: { gte: horizonStart, lte: horizonEnd }, generatedFromStopId: { not: null } },
+      select: { id: true, date: true, generatedFromStopId: true, status: true },
+    });
+    const realByKey = new Map(
+      realInterventions.map((i) => [`${i.date.toISOString().slice(0, 10)}:${i.generatedFromStopId}`, i]),
+    );
+
+    return flattened.map((occ) => {
+      const real = realByKey.get(`${occ.date}:${occ.stopId}`);
+      return {
+        ...occ,
+        source: real ? ('real' as const) : ('projected' as const),
+        interventionId: real?.id,
+        status: real?.status,
+      };
+    });
   }
 
   /**
-   * Applique un lot d'occurrences (généré à la demande, ou approuvé par un admin) : pré-valide
-   * les conflits d'affectation, crée toutes les interventions en mode silencieux (une par
-   * arrêt/date), taguées du même batchId, puis envoie une notification consolidée par agent
-   * concerné.
+   * Matérialise les interventions réelles d'un lot d'occurrences (une par arrêt/date), taguées du
+   * même batchId, en mode silencieux, puis envoie une notification consolidée par agent concerné.
+   * Réutilisé par la génération manuelle (`createTemplateBatch`) et par le job de génération
+   * imminente (jour-J, peu avant le début).
    */
-  async createTemplateBatch(
-    payload: {
-      templateId: string;
-      templateLabel?: string;
-      occurrences: { date: string; siteId: string; categoryId?: string | null; startTime: string; endTime: string; agentIds: string[] }[];
-    },
+  private async createInterventionsForOccurrences(
+    occurrences: {
+      date: string;
+      siteId: string;
+      stopId?: string;
+      categoryId?: string | null;
+      startTime: string;
+      endTime: string;
+      agentIds: string[];
+    }[],
+    templateId: string | undefined,
+    templateLabel: string | undefined,
     actorId: string,
   ) {
-    for (const occurrence of payload.occurrences) {
+    for (const occurrence of occurrences) {
       if (occurrence.agentIds?.length) {
         await this.checkAssignmentConflicts(occurrence.agentIds, occurrence.date, occurrence.startTime, occurrence.endTime);
       }
     }
     const batchId = randomUUID();
     const created: InterventionView[] = [];
-    for (const occurrence of payload.occurrences) {
+    for (const occurrence of occurrences) {
       const view = await this.create(
         {
           type: 'REGULAR',
@@ -1518,10 +1655,11 @@ export class InterventionsService implements OnModuleInit {
           date: occurrence.date,
           startTime: occurrence.startTime,
           endTime: occurrence.endTime,
-          label: payload.templateLabel,
+          label: templateLabel,
           agentIds: occurrence.agentIds,
           categoryId: occurrence.categoryId ?? undefined,
-          generatedFromTemplateId: payload.templateId,
+          generatedFromTemplateId: templateId,
+          generatedFromStopId: occurrence.stopId,
           batchId,
         } as CreateInterventionDto,
         actorId,
@@ -1535,6 +1673,108 @@ export class InterventionsService implements OnModuleInit {
       this.logger.warn(`Notification de lot échouée: ${(err as Error).message}`);
     }
     return created;
+  }
+
+  /**
+   * Matérialise, pour chaque gabarit actif et validé, les occurrences du jour (et du lendemain
+   * pour couvrir un début tôt le matin) dont l'heure de début tombe dans la fenêtre de préavis
+   * `INTERVENTION_LEAD_MINUTES` — les interventions réelles ne sont créées qu'au jour J, jamais à
+   * l'avance en masse.
+   */
+  private async generateImminentInterventionsFromTemplates() {
+    if (this.generatingTemplates) {
+      return;
+    }
+    this.generatingTemplates = true;
+    try {
+      const now = new Date();
+      const todayStart = this.toDateOnly(now.toISOString().slice(0, 10));
+      const horizonEnd = new Date(todayStart.getTime() + 2 * 24 * 60 * 60 * 1000 - 1);
+      const templates = await this.prisma.interventionTemplate.findMany({
+        where: { active: true, validatedAt: { not: null } },
+        include: { stops: true },
+      });
+
+      for (const template of templates) {
+        const stops = template.stops.map((s) => this.toStopLike(s));
+        const occurrences = computeTemplateOccurrences(
+          { siteId: template.siteId, startDate: template.startDate, endDate: template.endDate },
+          stops,
+          todayStart,
+          horizonEnd,
+        );
+        if (!occurrences.length) continue;
+
+        const imminent = occurrences.filter((o) => {
+          const startMs = this.combine(o.date, o.startTime).getTime();
+          const endMs = this.combine(o.date, o.endTime).getTime();
+          return startMs - now.getTime() <= this.INTERVENTION_LEAD_MINUTES * 60 * 1000 && endMs > now.getTime();
+        });
+        if (!imminent.length) continue;
+
+        const existing = await this.prisma.intervention.findMany({
+          where: {
+            generatedFromTemplateId: template.id,
+            generatedFromStopId: { in: imminent.map((o) => o.stopId) },
+            date: { gte: todayStart, lte: horizonEnd },
+          },
+          select: { date: true, generatedFromStopId: true },
+        });
+        const covered = new Set(
+          existing.map((i) => `${i.date.toISOString().slice(0, 10)}:${i.generatedFromStopId}`),
+        );
+        const toCreate = imminent.filter((o) => !covered.has(`${o.date}:${o.stopId}`));
+        if (!toCreate.length) continue;
+
+        await this.createInterventionsForOccurrences(
+          toCreate.map((o) => ({
+            date: o.date,
+            siteId: o.siteId,
+            stopId: o.stopId,
+            categoryId: o.categoryId,
+            startTime: o.startTime,
+            endTime: o.endTime,
+            agentIds: o.agentIds,
+          })),
+          template.id,
+          template.label,
+          'system',
+        );
+      }
+    } catch (error) {
+      this.logger.error('Erreur lors de la génération imminente des interventions', error.stack);
+    } finally {
+      this.generatingTemplates = false;
+    }
+  }
+
+  /**
+   * Génération manuelle à la demande (bouton "Générer") : crée directement les interventions
+   * réelles d'un gabarit déjà validé sur une période choisie par l'admin/superviseur — utile pour
+   * avoir de l'avance (ex. avant l'envoi d'un planning client par e-mail).
+   */
+  async createTemplateBatch(
+    payload: {
+      templateId: string;
+      templateLabel?: string;
+      occurrences: {
+        date: string;
+        siteId: string;
+        stopId?: string;
+        categoryId?: string | null;
+        startTime: string;
+        endTime: string;
+        agentIds: string[];
+      }[];
+    },
+    actorId: string,
+  ) {
+    return this.createInterventionsForOccurrences(
+      payload.occurrences,
+      payload.templateId,
+      payload.templateLabel,
+      actorId,
+    );
   }
 
   /**

@@ -1,18 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Plus, Filter, Download, Eye, Pencil, Copy, X } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import { AssignmentSuggestion, DurationEstimate, Intervention, InterventionStatus, InterventionType } from '../../types/intervention';
 import { isApprovalRequest } from '../../types/approval';
 import {
   listInterventions,
-  createIntervention,
-  createOneshotBatch,
-  OneshotOccurrence,
   updateIntervention,
   duplicateIntervention,
   cancelIntervention,
   getAssignmentSuggestions,
   estimateDuration,
-  setClientSignature,
   InterventionFilters,
   CreateInterventionPayload,
 } from '../../services/api/interventions.api';
@@ -21,35 +18,14 @@ import { listUsers } from '../../services/api/users.api';
 import { SiteCategory } from '../../types/category';
 import { Site } from '../../types/site';
 import { User } from '../../types/user';
-import { Select } from '../../components/ui/Select';
-import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { Checkbox } from '../../components/ui/Checkbox';
-import { ChipGroup } from '../../components/ui/ChipGroup';
-import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { FilterBar, FilterField } from '../../components/ui/FilterBar';
-import { RepeatableFieldArray } from '../../components/ui/RepeatableFieldArray';
-import { RichTextEditor } from '../../components/ui/RichTextEditor';
-import { ImageSlider } from '../../components/ui/ImageSlider';
 import { PromptModal } from '../../components/ui/PromptModal';
-import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
-import { Attendance } from '../../types/attendance';
-import { compressImageFile } from '../../utils/image';
+import { StatusChip } from '../../components/ui/StatusChip';
+import { InterventionFormModal } from '../../components/interventions/InterventionFormModal';
+import { InterventionViewModal } from '../../components/interventions/InterventionViewModal';
 import { GabaritsPage } from './GabaritsPage';
 import { SupervisorPlanningPage } from '../supervision/SupervisorPlanningPage';
-
-const formatHour = (value?: string | null) => {
-  if (!value) return '—';
-  const d = value.includes('T') ? new Date(value) : new Date(`1970-01-01T${value}`);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-};
-
-const timeValue = (value?: string | null) => {
-  if (!value) return '';
-  if (value.includes('T')) return value.slice(11, 16);
-  return value;
-};
 
 const STATUS_OPTIONS: { value: InterventionStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'Tous statuts' },
@@ -66,8 +42,6 @@ const TYPE_OPTIONS: { value: InterventionType | 'all'; label: string }[] = [
   { value: 'REGULAR', label: 'Régulier' },
   { value: 'PONCTUAL', label: 'Ponctuel' },
 ];
-
-const TRUCK_OPTIONS = ['Camion (Drissa)', 'Camion (Cissé)', 'Camion (Samassa)'];
 
 const today = new Date();
 const formatDate = (date: Date) => date.toISOString().slice(0, 10);
@@ -104,21 +78,15 @@ export const InterventionsPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<CreateInterventionPayload>(createFormDefaults);
-  const [extraStops, setExtraStops] = useState<OneshotOccurrence[]>([]);
   const [siteCategoriesBySite, setSiteCategoriesBySite] = useState<Record<string, SiteCategory[]>>({});
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [observationOnly, setObservationOnly] = useState(false);
   const [formVisible, setFormVisible] = useState(false);
   const [viewing, setViewing] = useState<Intervention | null>(null);
-  const [modalObservation, setModalObservation] = useState('');
-  const [photoDraft, setPhotoDraft] = useState<string[]>([]);
-  const [savingObservation, setSavingObservation] = useState(false);
-  const [viewAttendances, setViewAttendances] = useState<Attendance[]>([]);
   const [suggestions, setSuggestions] = useState<AssignmentSuggestion | null>(null);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [durationEstimate, setDurationEstimate] = useState<DurationEstimate | null>(null);
-  const [signatureUploading, setSignatureUploading] = useState(false);
   const [duplicatePromptFor, setDuplicatePromptFor] = useState<Intervention | null>(null);
   const [cancelPromptFor, setCancelPromptFor] = useState<Intervention | null>(null);
   const needsReviewCount = useMemo(
@@ -128,40 +96,11 @@ export const InterventionsPage: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
-  const [attendanceEdits, setAttendanceEdits] = useState<Record<string, { checkInTime?: string; checkOutTime?: string }>>({});
-  const attendanceByAgent = React.useMemo(() => {
-    const map = new Map<string, Attendance>();
-    viewAttendances.forEach((att) => {
-      if (!map.has(att.agent.id)) {
-        map.set(att.agent.id, att);
-      }
-    });
-    return Array.from(map.values());
-  }, [viewAttendances]);
 
-  const filterAttendanceForIntervention = React.useCallback(
-    (list: Attendance[], intervention: Intervention) => {
-      return list.filter((att) => att.interventionId === intervention.id);
-    },
-    [],
-  );
-
-  const openCreateForm = () => {
-    setObservationOnly(false);
-    setEditingId(null);
-    setSuggestions(null);
-    setExtraStops([]);
-    setForm({
-      ...createFormDefaults,
-      date: formatDate(new Date()),
-      siteId: '',
-      agentIds: [],
-      truckLabels: [],
-      label: '',
-      observation: '',
-      subType: undefined,
-    });
-    setFormVisible(true);
+  const [gabaritCreateSignal, setGabaritCreateSignal] = useState(0);
+  const openTemplateCreateForm = () => {
+    setTab('templates');
+    setGabaritCreateSignal((n) => n + 1);
   };
 
   const ensureSiteCategoriesLoaded = (siteId: string) => {
@@ -169,31 +108,6 @@ export const InterventionsPage: React.FC = () => {
     listSiteCategories(token, siteId)
       .then((cats) => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: cats })))
       .catch(() => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: [] })));
-  };
-
-  const applyCategoryToForm = (categoryId: string) => {
-    const sc = (siteCategoriesBySite[form.siteId] ?? []).find((c) => c.categoryId === categoryId);
-    setForm((prev) => ({
-      ...prev,
-      categoryId,
-      subType: sc?.category.label,
-      ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
-    }));
-  };
-
-  const addExtraStop = () => {
-    setExtraStops((prev) => [
-      ...prev,
-      { siteId: sites[0]?.id ?? '', date: form.date, startTime: form.startTime, endTime: form.endTime, agentIds: [] },
-    ]);
-  };
-
-  const updateExtraStop = (index: number, patch: Partial<OneshotOccurrence>) => {
-    setExtraStops((prev) => prev.map((stop, i) => (i === index ? { ...stop, ...patch } : stop)));
-  };
-
-  const removeExtraStop = (index: number) => {
-    setExtraStops((prev) => prev.filter((_, i) => i !== index));
   };
 
   useEffect(() => {
@@ -221,9 +135,9 @@ export const InterventionsPage: React.FC = () => {
       .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger les référentiels', 'error'));
   }, [token, notify]);
 
-  const fetchInterventions = () => {
+  const fetchInterventions = (options?: { silent?: boolean }) => {
     if (!token) return;
-    setLoading(true);
+    if (!options?.silent) setLoading(true);
     const query: InterventionFilters = {
       startDate: filters.startDate,
       endDate: filters.endDate,
@@ -246,7 +160,9 @@ export const InterventionsPage: React.FC = () => {
         setTotal((data as any)?.total ?? items.length);
       })
       .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger les interventions', 'error'))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!options?.silent) setLoading(false);
+      });
   };
 
   const exportCsv = () => {
@@ -282,26 +198,10 @@ export const InterventionsPage: React.FC = () => {
   useEffect(() => {
     if (!token) return;
     const id = setInterval(() => {
-      fetchInterventions();
+      fetchInterventions({ silent: true });
     }, 20000);
     return () => clearInterval(id);
   }, [token, filters.startDate, filters.endDate, filters.siteId, filters.type, filters.subType, filters.agentId, filters.status, page]);
-
-  useEffect(() => {
-    if (!token || !viewing) return;
-    listAttendance(token, {
-      siteId: viewing.siteId,
-      startDate: viewing.date,
-      endDate: viewing.date,
-      status: 'all',
-    })
-      .then((data) => {
-        const items = (data as any)?.items ?? (data as any);
-        setViewAttendances(items);
-      })
-      .catch(() => setViewAttendances([]));
-    setPhotoDraft(viewing.photos ?? []);
-  }, [token, viewing]);
 
   useEffect(() => {
     if (!token || !formVisible || !form.siteId) {
@@ -331,26 +231,6 @@ export const InterventionsPage: React.FC = () => {
     setForm((prev) => (prev.agentIds.includes(agentId) ? prev : { ...prev, agentIds: [...prev.agentIds, agentId] }));
   };
 
-  const handleSignatureUpload = async (file: File) => {
-    if (!token || !viewing) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      setSignatureUploading(true);
-      try {
-        await setClientSignature(token, viewing.id, dataUrl);
-        setViewing((prev) => (prev ? { ...prev, clientSignature: dataUrl } : prev));
-        setInterventions((prev) => prev.map((i) => (i.id === viewing.id ? { ...i, clientSignature: dataUrl } : i)));
-        notify('Signature enregistrée');
-      } catch (err) {
-        notify(err instanceof Error ? err.message : 'Envoi impossible', 'error');
-      } finally {
-        setSignatureUploading(false);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
   const siteOptions = useMemo(() => [{ value: 'all', label: 'Tous les sites' }].concat(sites.map((site) => ({ value: site.id, label: site.name }))), [sites]);
   const agentOptions = useMemo(() => [{ value: 'all', label: 'Tous les agents' }].concat(users.map((user) => ({ value: user.id, label: user.name }))), [users]);
   const hasStarted = (intervention: Intervention) => {
@@ -358,24 +238,9 @@ export const InterventionsPage: React.FC = () => {
     return Date.now() >= planned.getTime();
   };
 
-  const handleFormChange = (
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handlePhotoUpload = (files: FileList | null) => {
-    if (!files || !files.length) return;
-    const tasks = Array.from(files).map((file) => compressImageFile(file));
-    Promise.all(tasks)
-      .then((base64) => setPhotoDraft((prev) => [...prev, ...base64]))
-      .catch(() => notify('Impossible de charger les photos', 'error'));
-  };
-
   const submitForm = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!token) return;
+    if (!token || !editingId) return;
     if (!form.siteId || !form.date) {
       notify('Site et date requis', 'error');
       return;
@@ -386,27 +251,10 @@ export const InterventionsPage: React.FC = () => {
     }
     setCreating(true);
     try {
-      if (editingId) {
-        const payload = observationOnly ? { observation: form.observation } : form;
-        const result = await updateIntervention(token, editingId, payload);
-        notify(isApprovalRequest(result) ? 'Demande envoyée pour validation admin' : 'Intervention mise à jour');
-      } else if (extraStops.length) {
-        const occurrences: OneshotOccurrence[] = [
-          { siteId: form.siteId, date: form.date, startTime: form.startTime, endTime: form.endTime, agentIds: form.agentIds, label: form.label },
-          ...extraStops.map((stop) => ({ ...stop, label: form.label })),
-        ];
-        const result = await createOneshotBatch(token, occurrences);
-        notify(
-          isApprovalRequest(result)
-            ? 'Demande envoyée pour validation admin'
-            : `${result.length} intervention(s) créée(s) — notification unique envoyée à chaque agent concerné`,
-        );
-      } else {
-        const result = await createIntervention(token, form);
-        notify(isApprovalRequest(result) ? 'Demande envoyée pour validation admin' : 'Intervention créée');
-      }
+      const payload = observationOnly ? { observation: form.observation } : form;
+      const result = await updateIntervention(token, editingId, payload);
+      notify(isApprovalRequest(result) ? 'Demande envoyée pour validation admin' : 'Intervention mise à jour');
       setForm((prev) => ({ ...prev, label: '', truckLabels: [], agentIds: form.agentIds, observation: '' }));
-      setExtraStops([]);
       setEditingId(null);
       setObservationOnly(false);
       fetchInterventions();
@@ -429,7 +277,6 @@ export const InterventionsPage: React.FC = () => {
     setObservationOnly(obsOnly);
     setEditingId(intervention.id);
     setSuggestions(null);
-    setExtraStops([]);
     setForm({
       type: intervention.type,
       siteId: intervention.siteId,
@@ -448,7 +295,6 @@ export const InterventionsPage: React.FC = () => {
   const cancelEditing = () => {
     setEditingId(null);
     setObservationOnly(false);
-    setExtraStops([]);
     setForm((prev) => ({ ...createFormDefaults, siteId: prev.siteId, agentIds: prev.agentIds }));
   };
 
@@ -490,7 +336,7 @@ export const InterventionsPage: React.FC = () => {
         <p>Planifiez les missions régulières ou ponctuelles, les règles récurrentes et les tournées multi-sites.</p>
         {tab === 'planning' && (
           <>
-            <Button type="button" onClick={openCreateForm}>
+            <Button type="button" icon={Plus} onClick={openTemplateCreateForm}>
               Nouvelle intervention
             </Button>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
@@ -500,11 +346,12 @@ export const InterventionsPage: React.FC = () => {
               <Button
                 type="button"
                 variant="ghost"
+                icon={Filter}
                 onClick={() => setFilters((prev) => ({ ...prev, status: 'NEEDS_REVIEW' }))}
               >
                 Filtrer "À valider"
               </Button>
-              <Button type="button" variant="ghost" onClick={exportCsv}>
+              <Button type="button" variant="ghost" icon={Download} onClick={exportCsv}>
                 Export CSV
               </Button>
             </div>
@@ -525,7 +372,7 @@ export const InterventionsPage: React.FC = () => {
       </div>
 
       {tab === 'weekly' && <SupervisorPlanningPage embedded />}
-      {tab === 'templates' && <GabaritsPage embedded />}
+      {tab === 'templates' && <GabaritsPage embedded openCreateSignal={gabaritCreateSignal} />}
 
       {tab === 'planning' && (
       <>
@@ -600,252 +447,26 @@ export const InterventionsPage: React.FC = () => {
         </div>
       </FilterBar>
 
-      <Modal open={formVisible} onClose={() => { cancelEditing(); setFormVisible(false); }} maxWidth={960} labelledBy="intervention-form-title">
-        <ModalHeader
-          eyebrow="Intervention"
-          title={editingId ? 'Modifier une intervention' : 'Nouvelle intervention'}
-          titleId="intervention-form-title"
-          onClose={() => { cancelEditing(); setFormVisible(false); }}
-          actions={
-            <Button type="button" variant="ghost" onClick={cancelEditing}>
-              Réinitialiser
-            </Button>
-          }
-        />
-        <ModalBody>
-            <form
-              className="form-card"
-              onSubmit={submitForm}
-              style={{
-                boxShadow: 'none',
-                padding: 0,
-                display: 'grid',
-                gap: '1rem',
-              }}
-            >
-              <Select
-                id="type"
-                name="type"
-                label="Type"
-                options={TYPE_OPTIONS.filter((option) => option.value !== 'all') as { value: string; label: string }[]}
-                value={form.type}
-                onChange={handleFormChange}
-                disabled={observationOnly}
-              />
-              <Select
-                id="site"
-                name="siteId"
-                label="Site"
-                options={sites.map((site) => ({ value: site.id, label: site.name }))}
-                value={form.siteId}
-                onChange={(e) => {
-                  handleFormChange(e);
-                  ensureSiteCategoriesLoaded(e.target.value);
-                }}
-                disabled={observationOnly}
-              />
-              <Select
-                id="categoryId"
-                name="categoryId"
-                label="Catégorie"
-                options={[
-                  { value: '', label: form.type === 'PONCTUAL' ? 'Sélectionner (obligatoire)' : 'Aucune / personnalisé' },
-                  ...(siteCategoriesBySite[form.siteId] ?? []).map((sc) => ({ value: sc.categoryId, label: sc.category.label })),
-                ]}
-                value={form.categoryId ?? ''}
-                onChange={(e) => applyCategoryToForm(e.target.value)}
-                disabled={observationOnly}
-              />
-              {form.type === 'PONCTUAL' && !form.categoryId && (
-                <Input
-                  id="subType"
-                  name="subType"
-                  label="Sous-type (si aucune catégorie ne convient)"
-                  value={form.subType ?? ''}
-                  onChange={handleFormChange}
-                  disabled={observationOnly}
-                />
-              )}
-              <Input
-                id="label"
-                name="label"
-                label="Libellé"
-                value={form.label ?? ''}
-                onChange={handleFormChange}
-                placeholder="Nettoyage du site – matin"
-                disabled={observationOnly}
-              />
-              <div className="form-row">
-                <Input
-                  id="date"
-                  name="date"
-                  label="Date"
-                  type="date"
-                  value={form.date}
-                  onChange={handleFormChange}
-                  lang="fr-FR"
-                  disabled={observationOnly}
-                />
-                <Input
-                  id="startTime"
-                  name="startTime"
-                  label="Début"
-                  type="time"
-                  value={form.startTime}
-                  onChange={handleFormChange}
-                  lang="fr-FR"
-                  inputMode="numeric"
-                  placeholder="14:00"
-                  disabled={observationOnly}
-                />
-                <Input
-                  id="endTime"
-                  name="endTime"
-                  label="Fin"
-                  type="time"
-                  value={form.endTime}
-                  onChange={handleFormChange}
-                  lang="fr-FR"
-                  inputMode="numeric"
-                  placeholder="16:00"
-                  disabled={observationOnly}
-                />
-              </div>
-              {durationEstimate?.estimatedMinutes != null && (
-                <small className="form-helper">
-                  Durée moyenne historique sur ce site : {durationEstimate.estimatedMinutes} min (sur {durationEstimate.sampleSize} interventions)
-                </small>
-              )}
-              <ChipGroup
-                multiple
-                label="Agents"
-                options={users.map((user) => ({ value: user.id, label: user.name, disabled: observationOnly }))}
-                value={form.agentIds}
-                onChange={(agentIds) => setForm((prev) => ({ ...prev, agentIds }))}
-              />
-              {!editingId && (
-                <div className="form-field">
-                  <span>Autres sites (une seule fois, même jour ou non)</span>
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <RepeatableFieldArray
-                      items={extraStops}
-                      onAdd={addExtraStop}
-                      onRemove={removeExtraStop}
-                      addLabel="+ Ajouter un site"
-                      removeLabel="Retirer ce site"
-                      renderItem={(stop, index) => (
-                        <>
-                          <div className="form-row">
-                            <Select
-                              label="Site"
-                              options={[{ value: '', label: 'Sélectionner un site' }, ...sites.map((site) => ({ value: site.id, label: site.name }))]}
-                              value={stop.siteId}
-                              onChange={(e) => {
-                                const siteId = e.target.value;
-                                updateExtraStop(index, { siteId, categoryId: undefined });
-                                ensureSiteCategoriesLoaded(siteId);
-                              }}
-                            />
-                            <Select
-                              label="Catégorie"
-                              options={[
-                                { value: '', label: 'Aucune / personnalisé' },
-                                ...(siteCategoriesBySite[stop.siteId] ?? []).map((sc) => ({ value: sc.categoryId, label: sc.category.label })),
-                              ]}
-                              value={stop.categoryId ?? ''}
-                              onChange={(e) => {
-                                const categoryId = e.target.value;
-                                const sc = (siteCategoriesBySite[stop.siteId] ?? []).find((c) => c.categoryId === categoryId);
-                                updateExtraStop(index, {
-                                  categoryId: categoryId || undefined,
-                                  ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
-                                });
-                              }}
-                            />
-                            <Input
-                              label="Date"
-                              type="date"
-                              value={stop.date}
-                              onChange={(e) => updateExtraStop(index, { date: e.target.value })}
-                            />
-                            <Input
-                              label="Début"
-                              type="time"
-                              value={stop.startTime}
-                              onChange={(e) => updateExtraStop(index, { startTime: e.target.value })}
-                            />
-                            <Input
-                              label="Fin"
-                              type="time"
-                              value={stop.endTime}
-                              onChange={(e) => updateExtraStop(index, { endTime: e.target.value })}
-                            />
-                          </div>
-                          <ChipGroup
-                            multiple
-                            label="Agents"
-                            options={users.map((user) => ({ value: user.id, label: user.name }))}
-                            value={stop.agentIds}
-                            onChange={(agentIds) => updateExtraStop(index, { agentIds })}
-                          />
-                        </>
-                      )}
-                    />
-                  </div>
-                </div>
-              )}
-              {editingId && !observationOnly && (
-                <div className="form-field">
-                  <Button type="button" variant="ghost" onClick={fetchSuggestions} disabled={suggestionsLoading}>
-                    {suggestionsLoading ? 'Recherche...' : 'Suggérer un agent'}
-                  </Button>
-                  {suggestions && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
-                      {suggestions.candidates.length === 0 && <small className="form-helper">Aucun candidat disponible.</small>}
-                      {suggestions.candidates.map((candidate) => (
-                        <div key={candidate.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                          <span>
-                            {candidate.name}
-                            {candidate.distanceMeters != null ? ` · ${(candidate.distanceMeters / 1000).toFixed(1)} km` : ''}
-                          </span>
-                          <Button type="button" variant="ghost" className="btn--compact" onClick={() => addSuggestedAgent(candidate.id)}>
-                            Ajouter
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {form.type === 'PONCTUAL' && (
-                <ChipGroup
-                  multiple
-                  label="Camions"
-                  options={TRUCK_OPTIONS.map((truck) => ({ value: truck, label: truck, disabled: observationOnly }))}
-                  value={form.truckLabels ?? []}
-                  onChange={(truckLabels) => setForm((prev) => ({ ...prev, truckLabels }))}
-                />
-              )}
-              <label className="form-field" htmlFor="observation">
-                <span>Observation admin / superviseur</span>
-                <RichTextEditor
-                  value={form.observation ?? ''}
-                  onChange={(value) => setForm((prev) => ({ ...prev, observation: value }))}
-                  disabled={observationOnly}
-                  placeholder="Instruction ou remarque"
-                />
-              </label>
-              <div className="form-actions" style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
-                <Button type="submit" disabled={creating}>
-                  {creating ? 'Enregistrement...' : editingId ? 'Mettre à jour' : 'Enregistrer'}
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setFormVisible(false)}>
-                  Annuler
-                </Button>
-              </div>
-            </form>
-        </ModalBody>
-      </Modal>
+      <InterventionFormModal
+        open={formVisible}
+        onClose={() => { cancelEditing(); setFormVisible(false); }}
+        editingId={editingId}
+        observationOnly={observationOnly}
+        submitting={creating}
+        sites={sites}
+        agentOptions={users.map((user) => ({ id: user.id, name: user.name }))}
+        siteCategoriesBySite={siteCategoriesBySite}
+        form={form}
+        setForm={setForm}
+        onSiteChange={ensureSiteCategoriesLoaded}
+        onSubmit={submitForm}
+        onReset={cancelEditing}
+        durationEstimate={durationEstimate}
+        suggestions={suggestions}
+        suggestionsLoading={suggestionsLoading}
+        onFetchSuggestions={fetchSuggestions}
+        onAddSuggestedAgent={addSuggestedAgent}
+      />
 
       <section className="panel">
         <h3>Interventions planifiées</h3>
@@ -887,20 +508,7 @@ export const InterventionsPage: React.FC = () => {
                     <td>{intervention.agents.map((agent) => agent.name).join(', ') || '—'}</td>
                     <td>{intervention.truckLabels.join(', ') || '—'}</td>
                     <td>
-                      <span
-                        className={`status-chip ${intervention.status === 'PLANNED' ? 'status-chip--info' : intervention.status === 'COMPLETED' ? 'status-chip--success' : 'status-chip--warning'} ${
-                          intervention.status === 'IN_PROGRESS' ? 'status-pulse' : ''
-                        }`}
-                      >
-                        {{
-                          PLANNED: 'Planifiée',
-                          IN_PROGRESS: 'En cours',
-                          COMPLETED: 'Terminée',
-                          NEEDS_REVIEW: 'À valider',
-                          CANCELLED: 'Annulée',
-                          NO_SHOW: 'Non effectuée',
-                        }[intervention.status] || intervention.status}
-                      </span>
+                      <StatusChip status={intervention.status} pulse />
                     </td>
                     <td>
                       <div className="table-actions">
@@ -908,11 +516,8 @@ export const InterventionsPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
-                          onClick={() => {
-                            setViewing(intervention);
-                            setModalObservation(intervention.observation ?? '');
-                            setPhotoDraft(intervention.photos ?? []);
-                          }}
+                          icon={Eye}
+                          onClick={() => setViewing(intervention)}
                         >
                           Visualiser
                         </Button>
@@ -920,6 +525,7 @@ export const InterventionsPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={Pencil}
                           onClick={() => startEditing(intervention)}
                           disabled={
                             intervention.status === 'COMPLETED' ||
@@ -933,6 +539,7 @@ export const InterventionsPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={Copy}
                           onClick={() => duplicate(intervention)}
                           disabled={
                             intervention.status === 'COMPLETED' ||
@@ -942,7 +549,7 @@ export const InterventionsPage: React.FC = () => {
                         >
                           Dupliquer
                         </Button>
-                        <Button type="button" variant="ghost" className="btn--compact" onClick={() => cancel(intervention)}>
+                        <Button type="button" variant="ghost" className="btn--compact" icon={X} onClick={() => cancel(intervention)}>
                           Annuler
                         </Button>
                       </div>
@@ -973,306 +580,15 @@ export const InterventionsPage: React.FC = () => {
         <span className="card__meta">{total} résultats</span>
       </div>
 
-      <Modal open={Boolean(viewing)} onClose={() => setViewing(null)} maxWidth={800} labelledBy="intervention-view-title">
-        {viewing && (
-          <>
-            <ModalHeader
-              eyebrow="Intervention"
-              title={
-                <>
-                  {viewing.siteName}
-                  <br />
-                  <small style={{ color: 'var(--color-muted)', textTransform: 'none', letterSpacing: 'normal' }}>
-                    {viewing.date} · {viewing.startTime} - {viewing.endTime}
-                  </small>
-                </>
-              }
-              titleId="intervention-view-title"
-              onClose={() => setViewing(null)}
-            />
-            <ModalBody>
-            <div className="detail-grid" style={{ marginTop: 0 }}>
-              <div>
-                <strong>Site</strong>
-                <p>{viewing.siteName}</p>
-              </div>
-              <div>
-                <strong>Type</strong>
-                <p>{viewing.type === 'REGULAR' ? 'Régulier' : `Ponctuel - ${viewing.subType ?? 'Sans sous-type'}`}</p>
-              </div>
-              <div>
-                <strong>Agents</strong>
-                <p>{viewing.agents.map((a) => a.name).join(', ') || '—'}</p>
-              </div>
-              <div>
-                <strong>Camions</strong>
-                <p>{viewing.truckLabels.join(', ') || '—'}</p>
-              </div>
-              <div>
-                <strong>Statut</strong>
-                <p>
-                  {{
-                    PLANNED: 'Planifiée',
-                    IN_PROGRESS: 'En cours',
-                    COMPLETED: 'Terminée',
-                    NEEDS_REVIEW: 'À valider',
-                    CANCELLED: 'Annulée',
-                    NO_SHOW: 'Non effectuée',
-                  }[viewing.status] || viewing.status}
-                </p>
-              </div>
-              <div>
-                <strong>Facturable</strong>
-                <Checkbox
-                  checked={viewing.billable}
-                  label={viewing.billable ? 'Oui' : 'Non (interne)'}
-                  onChange={async () => {
-                    if (!token) return;
-                    try {
-                      const updated = await updateIntervention(token, viewing.id, { billable: !viewing.billable });
-                      if (isApprovalRequest(updated)) {
-                        notify('Demande envoyée pour validation admin');
-                        return;
-                      }
-                      setViewing(updated);
-                      setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-                    } catch (err) {
-                      notify(err instanceof Error ? err.message : 'Mise à jour impossible', 'error');
-                    }
-                  }}
-                />
-              </div>
-              <div>
-                <strong>Observation</strong>
-                <p>{viewing.observation || '—'}</p>
-              </div>
-            </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <h4>Agents & pointages</h4>
-                <div className="table-wrapper" style={{ maxHeight: 240, overflow: 'auto' }}>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Agent</th>
-                        <th>Arrivée</th>
-                        <th>Début</th>
-                        <th>Fin</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {viewing.agents.map((agent) => {
-                        const fallback = filterAttendanceForIntervention(attendanceByAgent, viewing).find(
-                          (att) => att.agent.id === agent.id,
-                        );
-                        const attendanceId = agent.attendanceId ?? fallback?.id;
-                        const arrival = formatHour(agent.arrivalTime);
-                        const startValue = attendanceEdits[attendanceId ?? '']?.checkInTime ?? timeValue(agent.checkInTime);
-                        const endValue = attendanceEdits[attendanceId ?? '']?.checkOutTime ?? timeValue(agent.checkOutTime);
-                        return (
-                          <tr key={agent.id}>
-                            <td>{agent.name}</td>
-                            <td>{arrival}</td>
-                            <td>
-                              {viewing.status === 'NEEDS_REVIEW' && attendanceId ? (
-                                <input
-                                  type="time"
-                                  value={startValue}
-                                  onChange={(e) =>
-                                    setAttendanceEdits((prev) => ({
-                                      ...prev,
-                                      [attendanceId]: { ...prev[attendanceId], checkInTime: e.target.value },
-                                    }))
-                                  }
-                                />
-                              ) : (
-                                formatHour(agent.checkInTime)
-                              )}
-                            </td>
-                            <td>
-                              {viewing.status === 'NEEDS_REVIEW' && attendanceId ? (
-                                <input
-                                  type="time"
-                                  value={endValue}
-                                  onChange={(e) =>
-                                    setAttendanceEdits((prev) => ({
-                                      ...prev,
-                                      [attendanceId]: { ...prev[attendanceId], checkOutTime: e.target.value },
-                                    }))
-                                  }
-                                />
-                              ) : (
-                                formatHour(agent.checkOutTime)
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {!viewing.agents.length && (
-                        <tr>
-                          <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
-                            Aucun agent associé
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                {viewing.status === 'NEEDS_REVIEW' && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setAttendanceEdits({})}
-                    >
-                      Réinitialiser
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={async () => {
-                        if (!token) return;
-                        const entries = Object.entries(attendanceEdits).filter(
-                          ([, edit]) => edit.checkInTime || edit.checkOutTime,
-                        );
-                        for (const [attId, edit] of entries) {
-                          await updateAttendanceApi(token, attId, {
-                            checkInTime: edit.checkInTime,
-                            checkOutTime: edit.checkOutTime,
-                          });
-                        }
-                        // recharger les pointages et l'intervention
-                        if (viewing) {
-                          const refreshed = await listAttendance(token, {
-                            siteId: viewing.siteId,
-                            startDate: viewing.date,
-                            endDate: viewing.date,
-                            status: 'all',
-                          });
-                          const items = (refreshed as any)?.items ?? (refreshed as any);
-                          setViewAttendances(items);
-                          setAttendanceEdits({});
-                          const refreshedIntervention = interventions.find((i) => i.id === viewing.id);
-                          if (refreshedIntervention) {
-                            setViewing({
-                              ...refreshedIntervention,
-                              agents: refreshedIntervention.agents.map((a) => {
-                                const att = items.find((x: any) => x.agent.id === a.id);
-                                return att
-                                  ? {
-                                      ...a,
-                                      checkInTime: att.checkInTime,
-                                      checkOutTime: att.checkOutTime,
-                                    }
-                                  : a;
-                              }),
-                            });
-                          }
-                        }
-                      }}
-                    >
-                      Enregistrer corrections
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {viewing.status === 'NEEDS_REVIEW' && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem' }}>
-                  <small style={{ color: 'var(--color-muted)' }}>
-                    Seul le superviseur peut valider cette intervention.
-                  </small>
-                  <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                    Fermer
-                  </Button>
-                </div>
-              )}
-
-              <div style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>
-                {['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(viewing.status) ? (
-                  <div style={{ display: 'grid', gap: '0.5rem' }}>
-                    <h4>Observation superviseur / admin</h4>
-                    <RichTextEditor
-                      value={modalObservation}
-                      onChange={(value) => setModalObservation(value)}
-                      placeholder="Ajouter une observation"
-                    />
-                  <div style={{ display: 'grid', gap: '0.35rem' }}>
-                    <p className="card__meta">Photos</p>
-                    <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
-                    {photoDraft.length > 0 && <ImageSlider images={photoDraft} />}
-                  </div>
-                  {viewing.status === 'COMPLETED' && (
-                    <div style={{ display: 'grid', gap: '0.35rem' }}>
-                      <p className="card__meta">Signature client</p>
-                      {viewing.clientSignature && (
-                        <img
-                          src={viewing.clientSignature}
-                          alt="Signature client"
-                          style={{ maxWidth: '240px', border: '1px solid #eef1f4', borderRadius: '8px' }}
-                        />
-                      )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        disabled={signatureUploading}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleSignatureUpload(file);
-                        }}
-                      />
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                    <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                      Fermer
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={async () => {
-                        if (!token || !viewing) return;
-                        setSavingObservation(true);
-                        try {
-                          const updated = await updateIntervention(token, viewing.id, {
-                            observation: modalObservation,
-                            photos: photoDraft,
-                          });
-                          if (isApprovalRequest(updated)) {
-                            notify('Demande envoyée pour validation admin');
-                            return;
-                          }
-                          setViewing(updated);
-                          setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-                        } finally {
-                          setSavingObservation(false);
-                        }
-                      }}
-                      disabled={savingObservation}
-                    >
-                      {savingObservation ? 'Enregistrement...' : 'Enregistrer'}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {photoDraft.length > 0 ? (
-                    <div style={{ flex: 1 }}>
-                      <h4 style={{ marginBottom: '0.5rem' }}>Photos</h4>
-                      <ImageSlider images={photoDraft} />
-                    </div>
-                  ) : (
-                    <div />
-                  )}
-                  <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                    Fermer
-                  </Button>
-                </div>
-              )}
-
-            </div>
-            </ModalBody>
-          </>
-        )}
-      </Modal>
+      <InterventionViewModal
+        viewing={viewing}
+        onClose={() => setViewing(null)}
+        agentOptions={users.map((user) => ({ id: user.id, name: user.name }))}
+        onUpdated={(updated) => {
+          setViewing(updated);
+          setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+        }}
+      />
       </>
       )}
       <PromptModal

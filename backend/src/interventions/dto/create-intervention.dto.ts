@@ -52,6 +52,10 @@ export class CreateInterventionDto {
 
   @IsOptional()
   @IsString()
+  generatedFromStopId?: string;
+
+  @IsOptional()
+  @IsString()
   batchId?: string;
 
   @IsOptional()

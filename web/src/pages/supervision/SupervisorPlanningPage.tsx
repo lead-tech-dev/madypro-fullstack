@@ -1,13 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthContext } from '../../context/AuthContext';
-import { listInterventions, updateIntervention, getRouteOptimization } from '../../services/api/interventions.api';
+import {
+  listInterventions,
+  updateIntervention,
+  getPlanning,
+} from '../../services/api/interventions.api';
 import { listSites } from '../../services/api/sites.api';
-import { Intervention, RouteOptimizationResult } from '../../types/intervention';
+import { listUsers } from '../../services/api/users.api';
+import { Intervention, PlanningEntry } from '../../types/intervention';
 import { isApprovalRequest } from '../../types/approval';
 import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { ChipGroup } from '../../components/ui/ChipGroup';
+import { StatusChip } from '../../components/ui/StatusChip';
+import { RouteOptimizationPanel } from '../../components/interventions/RouteOptimizationPanel';
+import { useSupervisedSiteIds } from '../../hooks/useSupervisedSiteIds';
 
 const today = new Date();
 
@@ -42,10 +52,10 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
   const [loading, setLoading] = useState(false);
   const [anchorDate, setAnchorDate] = useState<Date>(startOfWeek(today));
   const [filters, setFilters] = useState<{ siteId: string; agentId: string }>({ siteId: 'all', agentId: 'all' });
-  const [routeAgentId, setRouteAgentId] = useState('');
-  const [routeDate, setRouteDate] = useState(toISODate(today));
-  const [route, setRoute] = useState<RouteOptimizationResult | null>(null);
-  const [routeLoading, setRouteLoading] = useState(false);
+  const [groupBy, setGroupBy] = useState<'site' | 'agent'>('site');
+  const [planning, setPlanning] = useState<PlanningEntry[]>([]);
+  const [planningLoading, setPlanningLoading] = useState(false);
+  const [userNames, setUserNames] = useState<Record<string, string>>({});
 
   const weekStart = useMemo(() => startOfWeek(anchorDate), [anchorDate]);
   const weekEnd = useMemo(() => {
@@ -76,10 +86,29 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
       .finally(() => setLoading(false));
   }, [token, notify, weekStart, weekEnd]);
 
-  const supervisedSiteIds = useMemo(() => {
-    if (!user || user.role?.toUpperCase() !== 'SUPERVISOR') return null;
-    return new Set(sites.filter((s) => s.supervisorIds?.includes(user.id)).map((s) => s.id));
-  }, [sites, user]);
+  useEffect(() => {
+    if (!token || groupBy !== 'agent') return;
+    setPlanningLoading(true);
+    getPlanning(token, { startDate: toISODate(weekStart), endDate: toISODate(weekEnd) })
+      .then(setPlanning)
+      .catch((err) => notify(err instanceof Error ? err.message : 'Impossible de charger le planning', 'error'))
+      .finally(() => setPlanningLoading(false));
+  }, [token, notify, weekStart, weekEnd, groupBy]);
+
+  useEffect(() => {
+    if (!token || groupBy !== 'agent') return;
+    listUsers(token, { pageSize: 500 })
+      .then((res) => {
+        const map: Record<string, string> = {};
+        res.items.forEach((u: any) => {
+          map[u.id] = u.name ?? `${u.firstName} ${u.lastName}`;
+        });
+        setUserNames(map);
+      })
+      .catch(() => setUserNames({}));
+  }, [token, groupBy]);
+
+  const supervisedSiteIds = useSupervisedSiteIds(sites, user);
 
   const filtered = useMemo(() => {
     return interventions.filter((i) => {
@@ -117,19 +146,28 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [interventions]);
 
-  const fetchRoute = async () => {
-    if (!token || !routeAgentId || !routeDate) return;
-    setRouteLoading(true);
-    try {
-      const result = await getRouteOptimization(token, routeAgentId, routeDate);
-      setRoute(result);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Optimisation impossible';
-      notify(message, 'error');
-    } finally {
-      setRouteLoading(false);
-    }
-  };
+  const groupedByAgent = useMemo(() => {
+    const map = new Map<string, { agentId: string; items: PlanningEntry[] }>();
+    planning.forEach((entry) => {
+      if (supervisedSiteIds && !supervisedSiteIds.has(entry.siteId)) return;
+      if (filters.siteId !== 'all' && entry.siteId !== filters.siteId) return;
+      entry.agentIds.forEach((agentId) => {
+        if (filters.agentId !== 'all' && agentId !== filters.agentId) return;
+        const existing = map.get(agentId);
+        if (existing) {
+          existing.items.push(entry);
+        } else {
+          map.set(agentId, { agentId, items: [entry] });
+        }
+      });
+    });
+    return Array.from(map.values())
+      .map((group) => ({
+        ...group,
+        items: group.items.sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)),
+      }))
+      .sort((a, b) => (userNames[a.agentId] ?? a.agentId).localeCompare(userNames[b.agentId] ?? b.agentId));
+  }, [planning, supervisedSiteIds, filters.siteId, filters.agentId, userNames]);
 
   const shiftIntervention = async (intervention: Intervention, deltaStart: number, deltaEnd?: number) => {
     if (!token) return;
@@ -167,6 +205,7 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
           <Button
             type="button"
             variant="ghost"
+            icon={ChevronLeft}
             onClick={() => setAnchorDate((prev) => new Date(prev.getTime() - 7 * 24 * 60 * 60 * 1000))}
           >
             Semaine précédente
@@ -182,6 +221,8 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
           <Button
             type="button"
             variant="ghost"
+            icon={ChevronRight}
+            iconPosition="right"
             onClick={() => setAnchorDate((prev) => new Date(prev.getTime() + 7 * 24 * 60 * 60 * 1000))}
           >
             Semaine suivante
@@ -215,56 +256,22 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
             ))}
           </select>
         </label>
-      </div>
-
-      {!embedded && (
-      <div className="panel" style={{ marginBottom: '1rem' }}>
-        <h3>Optimisation de tournée</h3>
-        <div className="filter-grid">
-          <label className="filter-field filter-card">
-            Agent
-            <select value={routeAgentId} onChange={(e) => setRouteAgentId(e.target.value)}>
-              <option value="">Sélectionner</option>
-              {agentOptions.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="filter-field filter-card">
-            Date
-            <input type="date" value={routeDate} onChange={(e) => setRouteDate(e.target.value)} />
-          </label>
-          <div className="filter-card" style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <Button type="button" onClick={fetchRoute} disabled={!routeAgentId || routeLoading}>
-              {routeLoading ? 'Calcul...' : 'Optimiser'}
-            </Button>
-          </div>
+        <div className="filter-card">
+          <ChipGroup
+            label="Grouper par"
+            options={[
+              { value: 'site', label: 'Site' },
+              { value: 'agent', label: 'Agent' },
+            ]}
+            value={groupBy}
+            onChange={(value) => setGroupBy(value as 'site' | 'agent')}
+          />
         </div>
-        {route && (
-          <div style={{ marginTop: '0.75rem' }}>
-            <p className="card__meta">
-              Distance totale estimée : {(route.totalDistanceMeters / 1000).toFixed(1)} km
-            </p>
-            {route.stops.length === 0 ? (
-              <p>Aucune intervention géolocalisée ce jour-là.</p>
-            ) : (
-              <ol className="list-line">
-                {route.stops.map((stop) => (
-                  <li key={stop.interventionId}>
-                    <span>{stop.startTime}</span>
-                    <span>{stop.siteName}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        )}
       </div>
-      )}
 
-      {loading ? (
+      {!embedded && <RouteOptimizationPanel agentOptions={agentOptions} />}
+
+      {groupBy === 'site' && (loading ? (
         <div className="panel">
           <p>Chargement...</p>
         </div>
@@ -318,24 +325,7 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
                         )}
                       </td>
                       <td>
-                        <span
-                          className={`status-chip ${
-                            intervention.status === 'COMPLETED'
-                              ? 'status-chip--success'
-                              : intervention.status === 'IN_PROGRESS'
-                              ? 'status-chip--warning'
-                              : 'status-chip--info'
-                          }`}
-                        >
-                          {{
-                            PLANNED: 'Planifiée',
-                            IN_PROGRESS: 'En cours',
-                            COMPLETED: 'Terminée',
-                            NEEDS_REVIEW: 'À valider',
-                            CANCELLED: 'Annulée',
-                            NO_SHOW: 'Non effectuée',
-                          }[intervention.status] || intervention.status}
-                        </span>
+                        <StatusChip status={intervention.status} />
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
@@ -343,6 +333,7 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
                             type="button"
                             variant="ghost"
                             className="btn--compact"
+                            icon={Clock}
                             onClick={() => shiftIntervention(intervention, -15, -15)}
                           >
                             -15 min
@@ -351,6 +342,7 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
                             type="button"
                             variant="ghost"
                             className="btn--compact"
+                            icon={Clock}
                             onClick={() => shiftIntervention(intervention, 15, 15)}
                           >
                             +15 min
@@ -359,6 +351,7 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
                             type="button"
                             variant="ghost"
                             className="btn--compact"
+                            icon={Clock}
                             onClick={() => shiftIntervention(intervention, -15, 0)}
                           >
                             Avancer début
@@ -367,6 +360,7 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
                             type="button"
                             variant="ghost"
                             className="btn--compact"
+                            icon={Clock}
                             onClick={() => shiftIntervention(intervention, 0, 15)}
                           >
                             Prolonger fin
@@ -387,6 +381,67 @@ export const SupervisorPlanningPage: React.FC<{ embedded?: boolean }> = ({ embed
             </div>
           </div>
         ))
+      ))}
+
+      {groupBy === 'agent' && (planningLoading ? (
+        <div className="panel">
+          <p>Chargement...</p>
+        </div>
+      ) : (
+        groupedByAgent.map(({ agentId, items }) => (
+          <div key={agentId} className="panel" style={{ marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p className="card__meta">Agent</p>
+                <h3 style={{ margin: 0 }}>
+                  <Link to={`/supervision/agents/${agentId}`}>{userNames[agentId] ?? agentId}</Link>
+                </h3>
+              </div>
+            </div>
+            <div className="table-wrapper" style={{ marginTop: '0.5rem' }}>
+              <table className="table" aria-label={`planning ${userNames[agentId] ?? agentId}`}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Heures</th>
+                    <th>Site</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((entry, index) => (
+                    <tr key={`${entry.stopId}-${entry.date}-${index}`}>
+                      <td>{entry.date}</td>
+                      <td>
+                        {entry.startTime} – {entry.endTime}
+                      </td>
+                      <td>{entry.siteName}</td>
+                      <td>
+                        <span className={`status-chip ${entry.source === 'real' ? 'status-chip--success' : 'status-chip--info'}`}>
+                          {entry.source === 'real' ? 'Confirmée' : 'Prévue'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {items.length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                        Aucune intervention prévue sur cette semaine.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))
+      ))}
+      {groupBy === 'agent' && !planningLoading && groupedByAgent.length === 0 && (
+        <div className="panel">
+          <p style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+            Aucune intervention prévue sur cette semaine (gabarits validés uniquement).
+          </p>
+        </div>
       )}
     </div>
   );

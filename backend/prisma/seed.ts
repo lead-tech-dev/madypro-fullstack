@@ -15,7 +15,6 @@ async function main() {
   await prisma.pushToken.deleteMany();
   await prisma.setting.deleteMany();
   await prisma.site.deleteMany();
-  await prisma.client.deleteMany();
   await prisma.user.deleteMany();
 
   const admin = await prisma.user.create({
@@ -62,22 +61,6 @@ async function main() {
     },
   });
 
-  const clientArches = await prisma.client.create({
-    data: {
-      name: 'Maison Arches',
-      contactName: 'Claire Lenoir',
-      contactEmail: 'claire@arches.com',
-    },
-  });
-
-  const clientViva = await prisma.client.create({
-    data: {
-      name: 'Viva Retail',
-      contactName: 'Julien Vasseur',
-      contactEmail: 'julien@vivaretail.com',
-    },
-  });
-
   const siteAtelier = await prisma.site.create({
     data: {
       name: 'Atelier Genève',
@@ -85,7 +68,8 @@ async function main() {
       latitude: 46.2044,
       longitude: 6.1432,
       timeWindow: '06:00-14:00',
-      clientId: clientArches.id,
+      contactName: 'Claire Lenoir',
+      contactEmail: 'claire@arches.com',
       supervisors: {
         create: [{ userId: supervisor.id }],
       },
@@ -99,7 +83,8 @@ async function main() {
       latitude: 48.875,
       longitude: 2.319,
       timeWindow: '08:00-18:00',
-      clientId: clientViva.id,
+      contactName: 'Julien Vasseur',
+      contactEmail: 'julien@vivaretail.com',
       supervisors: {
         create: [{ userId: supervisor.id }],
       },
@@ -109,11 +94,12 @@ async function main() {
   const atelierRule = await prisma.interventionTemplate.create({
     data: {
       label: 'Nettoyage atelier – matin',
-      autoGenerate: true,
+      siteId: siteAtelier.id,
+      validatedAt: new Date(),
+      validatedById: admin.id,
       stops: {
         create: [
           {
-            siteId: siteAtelier.id,
             startTime: '06:00',
             endTime: '09:00',
             daysOfWeek: [1, 2, 3, 4, 5],

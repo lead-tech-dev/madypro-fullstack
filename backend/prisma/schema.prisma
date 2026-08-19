@@ -113,6 +113,7 @@ enum ApprovalActionType {
   UNASSIGN_AGENT
   CANCEL_INTERVENTION
   CREATE_TEMPLATE_BATCH
+  VALIDATE_TEMPLATE
 }
 
 enum ApprovalStatus {
@@ -153,6 +154,7 @@ model User {
   badges                      UserBadge[]
   onboardingItems             UserOnboardingItem[]
   availabilities              Availability[]
+  validatedTemplates          InterventionTemplate[]   @relation("TemplateValidator")
   leaveAllocations            LeaveAllocation[]
   chatThread                  ChatMessage[]            @relation("ChatThread")
   chatMessagesSent            ChatMessage[]            @relation("ChatSender")
@@ -437,6 +439,7 @@ model Intervention {
   anomalies               Anomaly[]
   generatedFromTemplateId String?
   generatedFromTemplate   InterventionTemplate?       @relation(fields: [generatedFromTemplateId], references: [id])
+  generatedFromStopId     String?
   batchId                 String?
   attendances             Attendance[]
   checklistItems          InterventionChecklistItem[]
@@ -482,8 +485,10 @@ model InterventionTemplate {
   site          Site           @relation(fields: [siteId], references: [id])
   startDate     DateTime       @default(now())
   endDate       DateTime?
-  autoGenerate  Boolean        @default(false)
   active        Boolean        @default(true)
+  validatedAt   DateTime?
+  validatedById String?
+  validatedBy   User?          @relation("TemplateValidator", fields: [validatedById], references: [id])
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   stops         TemplateStop[]
@@ -496,6 +501,7 @@ model TemplateStop {
   template      InterventionTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
   daysOfWeek    Int[]
   intervalWeeks Int                   @default(1)
+  specificDate  DateTime?
   categoryId    String?
   category      InterventionCategory? @relation(fields: [categoryId], references: [id])
   startTime     String

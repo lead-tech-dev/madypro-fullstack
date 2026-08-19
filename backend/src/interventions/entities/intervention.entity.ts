@@ -20,6 +20,7 @@ export class InterventionEntity {
   createdAt!: Date;
   updatedAt!: Date;
   generatedFromTemplateId?: string;
+  generatedFromStopId?: string;
   batchId?: string;
 }
 
@@ -27,6 +28,7 @@ export class TemplateStopEntity {
   id!: string;
   daysOfWeek!: number[];
   intervalWeeks: number = 1;
+  specificDate?: Date | null;
   categoryId?: string | null;
   startTime!: string;
   endTime!: string;
@@ -40,8 +42,9 @@ export class InterventionTemplateEntity {
   siteId!: string;
   startDate!: Date;
   endDate?: Date | null;
-  autoGenerate: boolean = false;
   active: boolean = true;
+  validatedAt?: Date | null;
+  validatedById?: string | null;
   createdAt!: Date;
   updatedAt!: Date;
   stops: TemplateStopEntity[] = [];

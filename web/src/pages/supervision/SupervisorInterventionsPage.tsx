@@ -1,43 +1,21 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
-import {
-  listInterventions,
-  updateIntervention,
-  createIntervention,
-  cancelIntervention,
-  CreateInterventionPayload,
-} from '../../services/api/interventions.api';
-import { listSites, listSiteCategories } from '../../services/api/sites.api';
+import { listInterventions, updateIntervention, cancelIntervention } from '../../services/api/interventions.api';
+import { listSites } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
-import { listAttendance, updateAttendance as updateAttendanceApi } from '../../services/api/attendance.api';
 import { Intervention } from '../../types/intervention';
 import { isApprovalRequest } from '../../types/approval';
 import { Site } from '../../types/site';
 import { User } from '../../types/user';
-import { SiteCategory } from '../../types/category';
 import { Input } from '../../components/ui/Input';
-import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
-import { ChipGroup } from '../../components/ui/ChipGroup';
-import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
+import { Plus, Eye, Play, CheckCheck, X } from 'lucide-react';
 import { PromptModal } from '../../components/ui/PromptModal';
-import { ImageSlider } from '../../components/ui/ImageSlider';
-import { RichTextEditor } from '../../components/ui/RichTextEditor';
-import { compressImageFile } from '../../utils/image';
+import { StatusChip } from '../../components/ui/StatusChip';
+import { InterventionViewModal } from '../../components/interventions/InterventionViewModal';
+import { GabaritsPage } from '../interventions/GabaritsPage';
+import { useSupervisedSiteIds } from '../../hooks/useSupervisedSiteIds';
 import { formatDateTime } from '../../utils/datetime';
-
-const formatHour = (value?: string | null) => {
-  if (!value) return '—';
-  const d = value.includes('T') ? new Date(value) : new Date(`1970-01-01T${value}`);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-};
-
-const timeValue = (value?: string | null) => {
-  if (!value) return '';
-  if (value.includes('T')) return value.slice(11, 16);
-  return value;
-};
 
 const todayLocal = () => {
   const d = new Date();
@@ -47,43 +25,25 @@ const todayLocal = () => {
 
 const today = todayLocal();
 
-const EMPTY_CREATE_FORM: CreateInterventionPayload = {
-  type: 'REGULAR',
-  siteId: '',
-  date: today,
-  startTime: '08:00',
-  endTime: '10:00',
-  subType: '',
-  agentIds: [],
-};
-
 export const SupervisorInterventionsPage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
+  const [tab, setTab] = useState<'list' | 'templates'>('list');
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewing, setViewing] = useState<Intervention | null>(null);
-  const [observationDraft, setObservationDraft] = useState('');
-  const [photoDraft, setPhotoDraft] = useState<string[]>([]);
-  const [attendance, setAttendance] = useState<any[]>([]);
-  const [attendanceEdits, setAttendanceEdits] = useState<Record<string, { checkInTime?: string; checkOutTime?: string }>>({});
   const [agents, setAgents] = useState<User[]>([]);
-  const [createFormVisible, setCreateFormVisible] = useState(false);
-  const [createForm, setCreateForm] = useState<CreateInterventionPayload>(EMPTY_CREATE_FORM);
-  const [siteCategoriesBySite, setSiteCategoriesBySite] = useState<Record<string, SiteCategory[]>>({});
-  const [creating, setCreating] = useState(false);
+  const [gabaritCreateSignal, setGabaritCreateSignal] = useState(0);
   const [cancelPromptFor, setCancelPromptFor] = useState<Intervention | null>(null);
-  const [agentSelection, setAgentSelection] = useState<string[]>([]);
-  const [savingAgents, setSavingAgents] = useState(false);
   const [filters, setFilters] = useState<{ siteId: string; date: string; status: string }>({
     siteId: 'all',
     date: today,
     status: 'all',
   });
 
-  useEffect(() => {
+  const fetchInterventions = (options?: { silent?: boolean }) => {
     if (!token) return;
-    setLoading(true);
+    if (!options?.silent) setLoading(true);
     Promise.all([
       listInterventions(token, {
         startDate: filters.date,
@@ -103,38 +63,22 @@ export const SupervisorInterventionsPage: React.FC = () => {
         const message = err instanceof Error ? err.message : 'Impossible de charger les interventions';
         notify(message, 'error');
       })
-      .finally(() => setLoading(false));
-  }, [token, filters.date, notify]);
+      .finally(() => {
+        if (!options?.silent) setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchInterventions();
+  }, [token, filters.date, filters.status]);
 
   useEffect(() => {
     if (!token) return;
-    const id = setInterval(() => {
-      setLoading(true);
-      Promise.all([
-        listInterventions(token, {
-          startDate: filters.date,
-          endDate: filters.date,
-          status: filters.status !== 'all' ? (filters.status as any) : undefined,
-          pageSize: 200,
-        }).catch(() => ({
-          items: [],
-        })),
-        listSites(token, { pageSize: 200 }).catch(() => ({ items: [] as Site[] })),
-      ])
-        .then(([intRes, sitesRes]) => {
-          setInterventions((intRes as any).items ?? (Array.isArray(intRes) ? intRes : []));
-          setSites(sitesRes.items);
-        })
-        .finally(() => setLoading(false));
-    }, 20000);
+    const id = setInterval(() => fetchInterventions({ silent: true }), 20000);
     return () => clearInterval(id);
   }, [token, filters.date, filters.status]);
 
-  const supervisedSiteIds = useMemo(() => {
-    if (!user || user.role?.toUpperCase() !== 'SUPERVISOR') return null;
-    const ids = sites.filter((s) => s.supervisorIds?.includes(user.id)).map((s) => s.id);
-    return new Set(ids);
-  }, [sites, user]);
+  const supervisedSiteIds = useSupervisedSiteIds(sites, user);
 
   const filtered = useMemo(() => {
     return interventions.filter((i) => {
@@ -145,90 +89,12 @@ export const SupervisorInterventionsPage: React.FC = () => {
     });
   }, [filters.siteId, filters.status, interventions, supervisedSiteIds]);
 
-  const attendanceByAgent = useMemo(() => {
-    const map = new Map<string, any>();
-    attendance.forEach((att) => {
-      const id = att.agent?.id || att.agentId || att.id;
-      if (id && !map.has(id)) {
-        map.set(id, att);
-      }
-    });
-    return Array.from(map.values());
-  }, [attendance]);
-
-  const filterAttendanceForIntervention = useCallback(
-    (list: any[], intervention: Intervention) => {
-      return list.filter((att) => att.interventionId === intervention.id);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (viewing) {
-      setObservationDraft(viewing.observation ?? '');
-      setPhotoDraft(viewing.photos ?? []);
-      setAgentSelection(viewing.agentIds ?? []);
-      fetchAttendanceForViewing(viewing);
-    }
-  }, [viewing]);
-
-  useEffect(() => {
-    setAttendanceEdits({});
-  }, [viewing?.id]);
-
   useEffect(() => {
     if (!token) return;
     listUsers(token, { role: 'AGENT', status: 'active', pageSize: 500 })
       .then((res) => setAgents(res.items))
       .catch(() => setAgents([]));
   }, [token]);
-
-  const fetchAttendanceForViewing = useCallback(
-    (current: Intervention) => {
-      if (!token) return;
-      const date = current.date;
-      listAttendance(token, {
-        siteId: current.siteId,
-        startDate: date,
-        endDate: date,
-        status: 'all',
-        pageSize: 200,
-      })
-        .then((res) => {
-          const items = (res as any)?.items ?? (Array.isArray(res) ? res : []);
-          const allowedAgents = new Set(current.agents.map((a) => a.id).filter(Boolean));
-          const filtered = allowedAgents.size
-            ? items.filter((att: any) => allowedAgents.has(att.agent?.id || att.agentId))
-            : items;
-          setAttendance(filtered);
-        })
-        .catch(() => setAttendance([]));
-    },
-    [token],
-  );
-
-  useEffect(() => {
-    if (!viewing) return;
-    const interval = setInterval(() => fetchAttendanceForViewing(viewing), 20000);
-    return () => clearInterval(interval);
-  }, [viewing, fetchAttendanceForViewing]);
-
-  const ensureSiteCategoriesLoaded = (siteId: string) => {
-    if (!token || !siteId || siteCategoriesBySite[siteId]) return;
-    listSiteCategories(token, siteId)
-      .then((cats) => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: cats })))
-      .catch(() => setSiteCategoriesBySite((prev) => ({ ...prev, [siteId]: [] })));
-  };
-
-  const applyCategoryToForm = (categoryId: string) => {
-    const sc = (siteCategoriesBySite[createForm.siteId] ?? []).find((c) => c.categoryId === categoryId);
-    setCreateForm((prev) => ({
-      ...prev,
-      categoryId,
-      subType: sc?.category.label,
-      ...(sc ? { startTime: sc.startTime, endTime: sc.endTime } : {}),
-    }));
-  };
 
   const confirmCancel = async (observation: string) => {
     if (!token || !cancelPromptFor) return;
@@ -247,141 +113,39 @@ export const SupervisorInterventionsPage: React.FC = () => {
     }
   };
 
-  const handlePhotoUpload = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const tasks = Array.from(files).map((file) => compressImageFile(file));
-    Promise.all(tasks)
-      .then((base64) => setPhotoDraft((prev) => [...prev, ...base64]))
-      .catch(() => notify('Impossible de charger les photos', 'error'));
-  };
-
   return (
     <div className="page">
       <div className="page-header">
         <span className="pill">Supervision</span>
         <h2>Interventions</h2>
         <p>Gestion des interventions (planifiées, en cours, terminées) sur vos sites.</p>
-        <Button
-          type="button"
-          onClick={() => {
-            const siteId = sites[0]?.id ?? '';
-            setCreateForm({ ...EMPTY_CREATE_FORM, siteId });
-            ensureSiteCategoriesLoaded(siteId);
-            setCreateFormVisible(true);
-          }}
-        >
-          Nouvelle intervention
-        </Button>
+        {tab === 'list' && (
+          <Button
+            type="button"
+            icon={Plus}
+            onClick={() => {
+              setTab('templates');
+              setGabaritCreateSignal((n) => n + 1);
+            }}
+          >
+            Nouvelle intervention
+          </Button>
+        )}
       </div>
 
-      <Modal open={createFormVisible} onClose={() => setCreateFormVisible(false)} maxWidth={760} labelledBy="supervisor-intervention-create-title">
-        <ModalHeader eyebrow="Intervention" title="Nouvelle intervention" titleId="supervisor-intervention-create-title" onClose={() => setCreateFormVisible(false)} />
-        <ModalBody>
-            <form
-              className="form-card"
-              style={{ boxShadow: 'none', padding: 0, display: 'grid', gap: '1rem' }}
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!token) return;
-                if (!createForm.siteId || !createForm.date) {
-                  notify('Site et date requis', 'error');
-                  return;
-                }
-                if (createForm.type === 'REGULAR' && !createForm.agentIds.length) {
-                  notify('Sélectionnez au moins un agent', 'error');
-                  return;
-                }
-                setCreating(true);
-                try {
-                  const result = await createIntervention(token, createForm);
-                  if (isApprovalRequest(result)) {
-                    notify('Demande de création envoyée pour validation admin');
-                  } else {
-                    notify('Intervention créée');
-                    setInterventions((prev) => [result, ...prev]);
-                  }
-                  setCreateFormVisible(false);
-                  setCreateForm(EMPTY_CREATE_FORM);
-                } catch (err) {
-                  notify(err instanceof Error ? err.message : 'Création impossible', 'error');
-                } finally {
-                  setCreating(false);
-                }
-              }}
-            >
-              <Select
-                label="Site"
-                value={createForm.siteId}
-                onChange={(e) => {
-                  setCreateForm((prev) => ({ ...prev, siteId: e.target.value }));
-                  ensureSiteCategoriesLoaded(e.target.value);
-                }}
-                options={sites.map((site) => ({ value: site.id, label: site.name }))}
-              />
-              <Select
-                label="Type"
-                value={createForm.type}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, type: e.target.value as 'REGULAR' | 'PONCTUAL' }))}
-                options={[
-                  { value: 'REGULAR', label: 'Régulière' },
-                  { value: 'PONCTUAL', label: 'Ponctuelle' },
-                ]}
-              />
-              <Select
-                label="Catégorie"
-                options={[
-                  { value: '', label: createForm.type === 'PONCTUAL' ? 'Sélectionner (obligatoire)' : 'Aucune / personnalisé' },
-                  ...(siteCategoriesBySite[createForm.siteId] ?? []).map((sc) => ({ value: sc.categoryId, label: sc.category.label })),
-                ]}
-                value={createForm.categoryId ?? ''}
-                onChange={(e) => applyCategoryToForm(e.target.value)}
-              />
-              {createForm.type === 'PONCTUAL' && !createForm.categoryId && (
-                <Input
-                  label="Sous-type (si aucune catégorie ne convient)"
-                  value={createForm.subType ?? ''}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, subType: e.target.value }))}
-                />
-              )}
-              <div className="form-row">
-                <Input
-                  type="date"
-                  label="Date"
-                  value={createForm.date}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, date: e.target.value }))}
-                />
-                <Input
-                  type="time"
-                  label="Début"
-                  value={createForm.startTime}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, startTime: e.target.value }))}
-                />
-                <Input
-                  type="time"
-                  label="Fin"
-                  value={createForm.endTime}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, endTime: e.target.value }))}
-                />
-              </div>
-              <ChipGroup
-                multiple
-                label="Agents"
-                options={agents.map((a) => ({ value: a.id, label: `${a.firstName} ${a.lastName}` }))}
-                value={createForm.agentIds}
-                onChange={(agentIds) => setCreateForm((prev) => ({ ...prev, agentIds }))}
-              />
-              <div className="form-actions">
-                <Button type="submit" loading={creating}>
-                  Enregistrer
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setCreateFormVisible(false)}>
-                  Annuler
-                </Button>
-              </div>
-            </form>
-        </ModalBody>
-      </Modal>
+      <div className="chips" style={{ margin: '1rem 0' }}>
+        <button type="button" className={`chip ${tab === 'list' ? 'chip--selected' : ''}`} onClick={() => setTab('list')}>
+          Interventions
+        </button>
+        <button type="button" className={`chip ${tab === 'templates' ? 'chip--selected' : ''}`} onClick={() => setTab('templates')}>
+          Gabarits
+        </button>
+      </div>
 
+      {tab === 'templates' && <GabaritsPage embedded restrictToSiteIds={supervisedSiteIds} openCreateSignal={gabaritCreateSignal} />}
+
+      {tab === 'list' && (
+      <>
       <div className="filter-grid" style={{ marginBottom: '1rem' }}>
         <label className="filter-field filter-card">
           Site
@@ -451,24 +215,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
                     </td>
                     <td>{intervention.type === 'REGULAR' ? 'Régulière' : 'Ponctuelle'}</td>
                     <td>
-                      <span
-                        className={`status-chip ${
-                          intervention.status === 'COMPLETED'
-                            ? 'status-chip--success'
-                            : intervention.status === 'IN_PROGRESS'
-                            ? 'status-chip--warning'
-                            : 'status-chip--info'
-                        } ${intervention.status === 'IN_PROGRESS' ? 'status-pulse' : ''}`}
-                      >
-                        {{
-                          PLANNED: 'Planifiée',
-                          IN_PROGRESS: 'En cours',
-                          COMPLETED: 'Terminée',
-                          NEEDS_REVIEW: 'À valider',
-                          CANCELLED: 'Annulée',
-                          NO_SHOW: 'Non effectuée',
-                        }[intervention.status] || intervention.status}
-                      </span>
+                      <StatusChip status={intervention.status} pulse />
                     </td>
                     <td>{intervention.agents.map((a) => a.name).join(', ') || '—'}</td>
                     <td style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -480,6 +227,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={Eye}
                           onClick={() => setViewing(intervention)}
                         >
                           Visualiser
@@ -488,6 +236,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={Play}
                           disabled={
                             intervention.status === 'COMPLETED' ||
                             intervention.status === 'CANCELLED' ||
@@ -516,6 +265,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={CheckCheck}
                           disabled={
                             intervention.status === 'COMPLETED' ||
                             intervention.status === 'CANCELLED' ||
@@ -544,6 +294,7 @@ export const SupervisorInterventionsPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           className="btn--compact"
+                          icon={X}
                           disabled={intervention.status === 'COMPLETED' || intervention.status === 'CANCELLED'}
                           onClick={() => setCancelPromptFor(intervention)}
                         >
@@ -565,333 +316,19 @@ export const SupervisorInterventionsPage: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
 
-      {viewing && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <div>
-                <p className="card__meta">Intervention</p>
-                <h3 style={{ margin: 0 }}>{viewing.siteName}</h3>
-              </div>
-              <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                Fermer
-              </Button>
-            </div>
-          <div className="table-wrapper" style={{ marginTop: '0.75rem' }}>
-              <table className="table" aria-label="détails intervention">
-                <tbody>
-                  <tr>
-                    <th>Statut</th>
-                    <td>
-                      <span
-                        className={`status-chip ${
-                          viewing.status === 'COMPLETED'
-                            ? 'status-chip--success'
-                            : viewing.status === 'IN_PROGRESS'
-                            ? 'status-chip--warning'
-                            : 'status-chip--info'
-                        }`}
-                      >
-                        {{
-                          PLANNED: 'Planifiée',
-                          IN_PROGRESS: 'En cours',
-                          COMPLETED: 'Terminée',
-                          NEEDS_REVIEW: 'À valider',
-                          CANCELLED: 'Annulée',
-                          NO_SHOW: 'Non effectuée',
-                        }[viewing.status] || viewing.status}
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Date / horaires</th>
-                    <td>
-                      {formatDateTime(viewing.date)} · {viewing.startTime} – {viewing.endTime}
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Type</th>
-                    <td>{viewing.type === 'REGULAR' ? 'Régulière' : 'Ponctuelle'} {viewing.subType ? `· ${viewing.subType}` : ''}</td>
-                  </tr>
-                  <tr>
-                    <th>Camions</th>
-                    <td>{viewing.truckLabels?.length ? viewing.truckLabels.join(', ') : '—'}</td>
-                  </tr>
-                  <tr>
-                    <th>Observation</th>
-                    <td>{viewing.observation || '—'}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+      <InterventionViewModal
+        viewing={viewing}
+        onClose={() => setViewing(null)}
+        agentOptions={agents.map((agent) => ({ id: agent.id, name: agent.name }))}
+        onUpdated={(updated) => {
+          setViewing(updated);
+          setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+        }}
+      />
 
-            <div className="detail-grid" style={{ marginTop: '1rem' }}>
-              <div>
-                <strong>Site</strong>
-                <p>{viewing.siteName}</p>
-              </div>
-              <div>
-                <strong>Type</strong>
-                <p>{viewing.type === 'REGULAR' ? 'Régulier' : `Ponctuel - ${viewing.subType ?? 'Sans sous-type'}`}</p>
-              </div>
-              <div>
-                <strong>Agents</strong>
-                <p>{viewing.agents.map((a) => a.name).join(', ') || '—'}</p>
-              </div>
-              <div>
-                <strong>Camions</strong>
-                <p>{viewing.truckLabels?.join(', ') || '—'}</p>
-              </div>
-              <div>
-                <strong>Statut</strong>
-                <p>
-                  {{
-                    PLANNED: 'Planifiée',
-                    IN_PROGRESS: 'En cours',
-                    COMPLETED: 'Terminée',
-                    NEEDS_REVIEW: 'À valider',
-                    CANCELLED: 'Annulée',
-                    NO_SHOW: 'Non effectuée',
-                  }[viewing.status] || viewing.status}
-                </p>
-              </div>
-              <div>
-                <strong>Observation</strong>
-                <p>{viewing.observation || '—'}</p>
-              </div>
-            </div>
-
-            {viewing.status !== 'COMPLETED' && viewing.status !== 'CANCELLED' && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <h4>Agents assignés</h4>
-                <ChipGroup
-                  multiple
-                  options={agents.map((agent) => ({ value: agent.id, label: `${agent.firstName} ${agent.lastName}` }))}
-                  value={agentSelection}
-                  onChange={setAgentSelection}
-                />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="btn--compact"
-                    disabled={savingAgents}
-                    onClick={async () => {
-                      if (!token || !viewing) return;
-                      setSavingAgents(true);
-                      try {
-                        const result = await updateIntervention(token, viewing.id, { agentIds: agentSelection });
-                        if (isApprovalRequest(result)) {
-                          notify('Demande de changement d’agents envoyée pour validation admin');
-                        } else {
-                          setViewing(result);
-                          setInterventions((prev) => prev.map((i) => (i.id === result.id ? result : i)));
-                          notify('Agents mis à jour');
-                        }
-                      } catch (err) {
-                        notify(err instanceof Error ? err.message : 'Mise à jour impossible', 'error');
-                      } finally {
-                        setSavingAgents(false);
-                      }
-                    }}
-                  >
-                    {savingAgents ? 'Enregistrement...' : 'Mettre à jour les agents'}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            <div style={{ marginTop: '1.5rem' }}>
-              <h4>Agents & pointages</h4>
-              <div className="table-wrapper" style={{ maxHeight: 240, overflow: 'auto' }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Agent</th>
-                      <th>Arrivée</th>
-                      <th>Début</th>
-                      <th>Fin</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {viewing.agents.map((agent) => {
-                      const fallback = filterAttendanceForIntervention(attendanceByAgent, viewing).find(
-                        (att) => att.agent?.id === agent.id,
-                      );
-                      const attendanceId = agent.attendanceId ?? fallback?.id;
-                      const arrival = formatHour(agent.arrivalTime ?? fallback?.arrivalTime);
-                      const startValue = attendanceEdits[attendanceId ?? '']?.checkInTime ?? timeValue(agent.checkInTime ?? fallback?.checkInTime);
-                      const endValue = attendanceEdits[attendanceId ?? '']?.checkOutTime ?? timeValue(agent.checkOutTime ?? fallback?.checkOutTime);
-                      return (
-                        <tr key={agent.id}>
-                          <td>{agent.name}</td>
-                          <td>{arrival}</td>
-                          <td>
-                            {viewing.status === 'NEEDS_REVIEW' && attendanceId ? (
-                              <input
-                                type="time"
-                                value={startValue}
-                                onChange={(e) =>
-                                  setAttendanceEdits((prev) => ({
-                                    ...prev,
-                                    [attendanceId]: { ...prev[attendanceId], checkInTime: e.target.value },
-                                  }))
-                                }
-                              />
-                            ) : (
-                              formatHour(agent.checkInTime ?? fallback?.checkInTime)
-                            )}
-                          </td>
-                          <td>
-                            {viewing.status === 'NEEDS_REVIEW' && attendanceId ? (
-                              <input
-                                type="time"
-                                value={endValue}
-                                onChange={(e) =>
-                                  setAttendanceEdits((prev) => ({
-                                    ...prev,
-                                    [attendanceId]: { ...prev[attendanceId], checkOutTime: e.target.value },
-                                  }))
-                                }
-                              />
-                            ) : (
-                              formatHour(agent.checkOutTime ?? fallback?.checkOutTime)
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {!viewing.agents.length && (
-                      <tr>
-                        <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
-                          Aucun agent associé
-                        </td>
-                      </tr>
-                    )}
-                 </tbody>
-               </table>
-             </div>
-           </div>
-
-            {viewing.status === 'NEEDS_REVIEW' && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
-                <Button type="button" variant="ghost" onClick={() => setAttendanceEdits({})}>
-                  Réinitialiser
-                </Button>
-                <Button
-                  type="button"
-                  onClick={async () => {
-                    if (!token || !viewing) return;
-                    const entries = Object.entries(attendanceEdits).filter(
-                      ([, edit]) => edit.checkInTime || edit.checkOutTime,
-                    );
-                    if (entries.length === 0) {
-                      notify('Aucune modification détectée', 'info');
-                      return;
-                    }
-                    try {
-                      for (const [attId, edit] of entries) {
-                        await updateAttendanceApi(token, attId, {
-                          checkInTime: edit.checkInTime,
-                          checkOutTime: edit.checkOutTime,
-                        });
-                      }
-                      const refreshed = await listAttendance(token, {
-                        siteId: viewing.siteId,
-                        startDate: viewing.date,
-                        endDate: viewing.date,
-                        status: 'all',
-                        pageSize: 200,
-                      });
-                      const items = (refreshed as any)?.items ?? (Array.isArray(refreshed) ? refreshed : []);
-                      const allowedAgents = new Set(viewing.agents.map((a) => a.id).filter(Boolean));
-                      const filtered = allowedAgents.size
-                        ? items.filter((att: any) => allowedAgents.has(att.agent?.id || att.agentId))
-                        : items;
-                      setAttendance(filtered);
-                      setAttendanceEdits({});
-                      setViewing((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              agents: prev.agents.map((agent) => {
-                                const att = filtered.find((a: any) => a.agent?.id === agent.id);
-                                return att
-                                  ? {
-                                      ...agent,
-                                      arrivalTime: att.arrivalTime ?? agent.arrivalTime,
-                                      checkInTime: att.checkInTime ?? agent.checkInTime,
-                                      checkOutTime: att.checkOutTime ?? agent.checkOutTime,
-                                    }
-                                  : agent;
-                              }),
-                            }
-                          : prev,
-                      );
-                      notify('Corrections enregistrées');
-                    } catch (err) {
-                      const message = err instanceof Error ? err.message : 'Impossible d’enregistrer les corrections';
-                      notify(message, 'error');
-                    }
-                  }}
-                >
-                  Enregistrer corrections
-                </Button>
-              </div>
-            )}
-
-            <div style={{ marginTop: '1.5rem', display: 'grid', gap: '0.75rem' }}>
-              <div>
-                <h4>Observation</h4>
-                <RichTextEditor
-                  value={observationDraft}
-                  onChange={(value) => setObservationDraft(value)}
-                  placeholder="Ajouter une observation"
-                />
-              </div>
-              <div>
-                <h4>Photos</h4>
-                <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
-                {photoDraft.length > 0 && (
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <ImageSlider images={photoDraft} />
-                  </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                <Button type="button" variant="ghost" onClick={() => setViewing(null)}>
-                  Fermer
-                </Button>
-                <Button
-                  type="button"
-                  onClick={async () => {
-                    if (!token || !viewing) return;
-                    try {
-                      const updated = await updateIntervention(token, viewing.id, {
-                        observation: observationDraft,
-                        photos: photoDraft,
-                      });
-                      if (isApprovalRequest(updated)) {
-                        notify('Demande envoyée pour validation admin');
-                        return;
-                      }
-                      setViewing(updated);
-                      setInterventions((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-                      notify('Observation mise à jour');
-                    } catch (err) {
-                      const message = err instanceof Error ? err.message : 'Impossible de sauvegarder';
-                      notify(message, 'error');
-                    }
-                  }}
-                >
-                  Sauvegarder obs / photos
-                </Button>
-              </div>
-            </div>
-        </div>
-      </div>
-    )}
       <PromptModal
         open={cancelPromptFor !== null}
         title="Motif d'annulation"
