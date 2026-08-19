@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Attendance } from '../../types/attendance';
 import { theme } from '../../config/theme';
 import { Card } from '../ui/Card';
@@ -17,14 +18,20 @@ export const AttendanceCard: React.FC<{ entry: Attendance }> = ({ entry }) => {
   return (
     <Card style={styles.card}>
       <View>
-        <Text style={styles.title}>{entry.agent.name}</Text>
+        <View style={styles.titleRow}>
+          <Ionicons name="person-outline" size={16} color={theme.colors.ink} style={styles.titleIcon} />
+          <Text style={styles.title}>{entry.agent.name}</Text>
+        </View>
         <Text style={styles.meta}>{entry.site.name}</Text>
         <Text style={styles.meta}>{entry.date}</Text>
         {entry.note && <Text style={styles.note}>{entry.note}</Text>}
       </View>
       <View style={styles.badgeCol}>
         <StatusPill label={meta.label} tone={meta.tone} />
-        <Text style={styles.badgeTime}>{timeLabel}</Text>
+        <View style={styles.badgeTimeRow}>
+          <Ionicons name="time-outline" size={14} color={theme.colors.muted} />
+          <Text style={styles.badgeTime}>{timeLabel}</Text>
+        </View>
       </View>
     </Card>
   );
@@ -52,6 +59,13 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
     gap: theme.spacing.md,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  titleIcon: {
+    marginRight: 6,
+  },
   title: {
     fontSize: 16,
     fontFamily: theme.fonts.bodySemiBold,
@@ -69,6 +83,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 4,
     minWidth: 120,
+  },
+  badgeTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   badgeTime: {
     fontFamily: theme.fonts.bodySemiBold,

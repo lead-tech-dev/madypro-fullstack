@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Animated, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
@@ -8,6 +8,7 @@ import { Intervention } from '@/types/intervention';
 import { fetchInterventions, listInterventionsByRange } from '@/services/api/interventions.api';
 import { listAttendance } from '@/services/api/attendance.api';
 import { useAuthContext } from '@/context/AuthContext';
+import { useStaggeredFadeIn } from '@/hooks/useStaggeredFadeIn';
 
 const STATUS_FILTERS: Array<{ label: string; value: Intervention['status'] | 'ALL' }> = [
   { label: 'Tous', value: 'ALL' },
@@ -38,7 +39,7 @@ export default function HistoryScreen() {
   const { token, user } = useAuthContext();
   const navigation = useNavigation();
   const now = useMemo(() => new Date(), []);
-  const animRefs = useRef<Animated.Value[]>([]);
+  const { getItemStyle } = useStaggeredFadeIn();
   const loadData = React.useCallback(
     async (showLoader = true) => {
       if (!token || !user) {
@@ -249,33 +250,19 @@ export default function HistoryScreen() {
         ) : filtered.length === 0 ? (
           <Text style={styles.empty}>Aucune intervention pour ces filtres.</Text>
         ) : (
-          filtered.map((intervention, index) => {
-            if (!animRefs.current[index]) {
-              animRefs.current[index] = new Animated.Value(0);
-              Animated.timing(animRefs.current[index], {
-                toValue: 1,
-                duration: 220,
-                delay: index * 60,
-                easing: Easing.out(Easing.ease),
-                useNativeDriver: true,
-              }).start();
-            }
-            const opacity = animRefs.current[index];
-            const translateY = opacity.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
-            return (
-              <Animated.View
-                key={intervention.id}
-                style={{ opacity, transform: [{ translateY }], marginBottom: theme.spacing.sm }}
-              >
-                <HistoryCard
-                  intervention={intervention}
-                  onPress={() =>
-                    (navigation as any).navigate('AgentIntervention', { id: intervention.id })
-                  }
-                />
-              </Animated.View>
-            );
-          })
+          filtered.map((intervention, index) => (
+            <Animated.View
+              key={intervention.id}
+              style={[getItemStyle(index), { marginBottom: theme.spacing.sm }]}
+            >
+              <HistoryCard
+                intervention={intervention}
+                onPress={() =>
+                  (navigation as any).navigate('AgentIntervention', { id: intervention.id })
+                }
+              />
+            </Animated.View>
+          ))
         )}
       </ScrollView>
     </HeaderLayout>

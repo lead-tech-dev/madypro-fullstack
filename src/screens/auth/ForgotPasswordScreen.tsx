@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -8,10 +8,12 @@ import { Header } from '@/components/ui/Header';
 import { theme } from '@/config/theme';
 import { AuthStackParamList } from '@/navigation/types';
 import { forgotPassword } from '@/services/api/auth.api';
+import { useToast } from '@/context/ToastContext';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'ForgotPassword'>;
 
 export default function ForgotPasswordScreen({ navigation }: Props) {
+  const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -24,7 +26,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       setSubmitted(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erreur lors de la demande';
-      Alert.alert('Erreur', message);
+      showToast('Erreur', message, 'error');
     } finally {
       setLoading(false);
     }

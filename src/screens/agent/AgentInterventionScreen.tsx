@@ -10,6 +10,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -27,6 +28,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useSyncContext } from '@/context/SyncContext';
 import { useAuthContext } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { getSite } from '@/services/api/sites.api';
 import { ApiError } from '@/services/api/client';
 import { Site } from '@/types/site';
@@ -43,6 +45,11 @@ import { SwipeToConfirm } from '@/components/ui/SwipeToConfirm';
 const TYPE_LABELS = {
   REGULAR: 'Intervention régulière',
   PUNCTUAL: 'Intervention ponctuelle',
+};
+
+const TYPE_ICONS: Record<Intervention['type'], keyof typeof Ionicons.glyphMap> = {
+  REGULAR: 'repeat-outline',
+  PUNCTUAL: 'flash-outline',
 };
 
 const STATUS_TONE: Record<Intervention['status'], StatusTone> = {
@@ -87,6 +94,7 @@ export default function InterventionDetailScreen() {
     lastError,
   } = useSyncContext();
   const { token, user } = useAuthContext();
+  const { showToast } = useToast();
   const [site, setSite] = React.useState<Site | null>(null);
   const [isMarkingArrival, setMarkingArrival] = React.useState(false);
   const [arrivalRecorded, setArrivalRecorded] = React.useState(false);
@@ -282,19 +290,19 @@ export default function InterventionDetailScreen() {
       return;
     }
     if (!arrivalRecorded) {
-      Alert.alert('Arrivée requise', 'Enregistrez d’abord votre présence sur site.');
+      showToast('Arrivée requise', 'Enregistrez d’abord votre présence sur site.', 'error');
       return;
     }
     const startAction = async () => {
       const photo = await capturePhotoBase64();
       if (!photo) {
-        Alert.alert('Photo requise', 'Une photo est nécessaire pour démarrer la mission.');
+        showToast('Photo requise', 'Une photo est nécessaire pour démarrer la mission.', 'error');
         return;
       }
       const coords = await getCurrentCoordinates().catch(() => null);
       const now = new Date();
       if (!coords) {
-        Alert.alert('Position requise', 'Impossible de récupérer votre position pour démarrer.');
+        showToast('Position requise', 'Impossible de récupérer votre position pour démarrer.', 'error');
         return;
       }
       if (isOnline) {
@@ -311,10 +319,10 @@ export default function InterventionDetailScreen() {
           if (err instanceof ApiError) {
             // Refus explicite du serveur (ex: hors créneau, trop loin) : on ne file pas en offline
             // et on n'affiche pas la mission comme démarrée.
-            Alert.alert('Démarrage refusé', err.message);
+            showToast('Démarrage refusé', err.message, 'error');
             return;
           }
-          Alert.alert('Démarrage hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.");
+          showToast('Démarrage hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.", 'info');
           // on file en offline
           queueEvent({
             userId: user.id,
@@ -365,7 +373,7 @@ export default function InterventionDetailScreen() {
       }
     };
     runWithProximityCheck(startAction);
-  }, [arrivalRecorded, intervention, queueEvent, runWithProximityCheck, token, user]);
+  }, [arrivalRecorded, intervention, queueEvent, runWithProximityCheck, showToast, token, user]);
 
   const handleFinish = React.useCallback(() => {
     const target = intervention;
@@ -375,7 +383,7 @@ export default function InterventionDetailScreen() {
     const finishAction = async () => {
       const photo = await capturePhotoBase64();
       if (!photo) {
-        Alert.alert('Photo requise', 'Une photo de fin de mission est nécessaire pour terminer.');
+        showToast('Photo requise', 'Une photo de fin de mission est nécessaire pour terminer.', 'error');
         return;
       }
       const now = new Date();
@@ -385,10 +393,10 @@ export default function InterventionDetailScreen() {
         } catch (err: any) {
           if (err instanceof ApiError) {
             // Refus explicite du serveur : on ne file pas en offline et on n'affiche pas la mission comme terminée.
-            Alert.alert('Fin de mission refusée', err.message);
+            showToast('Fin de mission refusée', err.message, 'error');
             return;
           }
-          Alert.alert('Fin hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.");
+          showToast('Fin hors ligne', "Impossible de contacter le serveur, l'action sera synchronisée plus tard.", 'info');
           const coords = await getCurrentCoordinates().catch(() => null);
           queueEvent({
             userId: user.id,
@@ -443,11 +451,12 @@ export default function InterventionDetailScreen() {
           const stillWorking = refreshed.agents.filter(
             (a) => a.id !== user.id && a.attendanceStatus !== 'COMPLETED',
           );
-          Alert.alert(
+          showToast(
             'Votre pointage est terminé',
             stillWorking.length
               ? `En attente de : ${stillWorking.map((a) => a.name).join(', ')}.`
               : 'Tous les agents ont terminé : en attente de validation par le superviseur.',
+            'success',
           );
         }
       } catch (err) {
@@ -457,7 +466,7 @@ export default function InterventionDetailScreen() {
       setStartPersisted(null);
     };
     runWithProximityCheck(finishAction);
-  }, [intervention, queueEvent, runWithProximityCheck, token, user]);
+  }, [intervention, queueEvent, runWithProximityCheck, showToast, token, user]);
 
   const handleProblem = React.useCallback(() => {
     setProblemModalVisible(true);
@@ -466,9 +475,10 @@ export default function InterventionDetailScreen() {
   const handleArrival = React.useCallback(async () => {
     if (!intervention || !token || !user) return;
     if (!canMarkArrival && arrivalAllowedFrom) {
-      Alert.alert(
+      showToast(
         'Trop tôt',
         `Vous pourrez enregistrer votre présence à partir de ${formatTime(arrivalAllowedFrom)}.`,
+        'error',
       );
       return;
     }
@@ -500,9 +510,10 @@ export default function InterventionDetailScreen() {
             : prev,
         );
       } catch (error: any) {
-        Alert.alert(
+        showToast(
           'Coordonnées manquantes',
           "Impossible de récupérer les coordonnées GPS du site. Réessayez plus tard.",
+          'error',
         );
         return;
       }
@@ -512,9 +523,10 @@ export default function InterventionDetailScreen() {
     const targetLon = toNumber(targetSite?.longitude) ?? toNumber(intervention.siteLongitude);
 
     if (typeof targetLat !== 'number' || typeof targetLon !== 'number') {
-      Alert.alert(
+      showToast(
         'Coordonnées manquantes',
         'Coordonnées GPS introuvables pour ce site. Enregistrement de présence impossible.',
+        'error',
       );
       return;
     }
@@ -530,7 +542,7 @@ export default function InterventionDetailScreen() {
           longitude: coords.longitude,
           interventionId: intervention.id,
         });
-        Alert.alert('Présence enregistrée', 'Votre arrivée sur site a été enregistrée.');
+        showToast('Présence enregistrée', 'Votre arrivée sur site a été enregistrée.', 'success');
       } else {
         queueEvent({
           userId: user.id,
@@ -540,7 +552,7 @@ export default function InterventionDetailScreen() {
           timestamp: new Date().toISOString(),
           coordinates: coords,
         });
-        Alert.alert('Présence enregistrée hors ligne', 'Elle sera synchronisée dès le retour réseau.');
+        showToast('Présence enregistrée hors ligne', 'Elle sera synchronisée dès le retour réseau.', 'info');
       }
       setArrivalRecorded(true);
     } catch (error: any) {
@@ -548,9 +560,9 @@ export default function InterventionDetailScreen() {
         // Le serveur a répondu et a explicitement refusé la demande (créneau dépassé, trop loin du site,
         // intervention non assignée...) : ce n'est pas un problème réseau, il ne faut ni mettre en file
         // d'attente hors ligne, ni faire croire que la présence a été enregistrée.
-        Alert.alert("Présence refusée", error.message);
+        showToast("Présence refusée", error.message, 'error');
       } else if (!isOnline) {
-        Alert.alert("Impossible d’enregistrer la présence", error?.message ?? 'Erreur inconnue');
+        showToast("Impossible d’enregistrer la présence", error?.message ?? 'Erreur inconnue', 'error');
       } else {
         // Échec réseau (pas de réponse du serveur) : on met en file pour synchronisation ultérieure.
         const coords = await getCurrentCoordinates().catch(() => null);
@@ -563,16 +575,16 @@ export default function InterventionDetailScreen() {
             timestamp: new Date().toISOString(),
             coordinates: coords,
           });
-          Alert.alert('Présence enregistrée hors ligne', 'Elle sera synchronisée dès le retour réseau.');
+          showToast('Présence enregistrée hors ligne', 'Elle sera synchronisée dès le retour réseau.', 'info');
           setArrivalRecorded(true);
         } else {
-          Alert.alert("Impossible d’enregistrer la présence", error?.message ?? 'Erreur inconnue');
+          showToast("Impossible d’enregistrer la présence", error?.message ?? 'Erreur inconnue', 'error');
         }
       }
     } finally {
       setMarkingArrival(false);
     }
-  }, [arrivalAllowedFrom, canMarkArrival, intervention, token, user, site, isOnline, queueEvent]);
+  }, [arrivalAllowedFrom, canMarkArrival, intervention, token, user, site, isOnline, queueEvent, showToast]);
 
   const openMaps = React.useCallback(() => {
     if (!site) {
@@ -622,8 +634,11 @@ export default function InterventionDetailScreen() {
   if (!intervention) {
     return (
       <HeaderLayout title="Intervention" subtitle="Introuvable" accent="Planning">
-        <Text style={styles.empty}>Impossible de trouver cette intervention.</Text>
-        <Button title="Retour" onPress={goBack} />
+        <View style={styles.iconRow}>
+          <Ionicons name="alert-circle-outline" size={18} color={theme.colors.muted} />
+          <Text style={styles.empty}>Impossible de trouver cette intervention.</Text>
+        </View>
+        <Button title="Retour" icon="arrow-back" onPress={goBack} />
       </HeaderLayout>
     );
   }
@@ -645,6 +660,7 @@ export default function InterventionDetailScreen() {
                   ? 'Présence enregistrée'
                   : 'Enregistrer ma présence'
               }
+              icon="location-outline"
               onPress={handleArrival}
               disabled={
                 isMarkingArrival ||
@@ -676,7 +692,10 @@ export default function InterventionDetailScreen() {
         >
         {hasPendingSync && (
           <View style={styles.syncBanner}>
-            <Text style={styles.syncBannerTitle}>Intervention en attente de synchronisation</Text>
+            <View style={styles.syncBannerHeader}>
+              <Ionicons name="sync-outline" size={18} color={theme.colors.primary} />
+              <Text style={styles.syncBannerTitle}>Intervention en attente de synchronisation</Text>
+            </View>
             <Text style={styles.syncBannerText}>
               {isOnline
                 ? 'Synchronisation en cours…'
@@ -696,7 +715,7 @@ export default function InterventionDetailScreen() {
               <Text style={styles.syncBannerText}>… {pendingEvents.length - 5} élément(s) supplémentaires</Text>
             )}
             {pendingEvents.length > 0 && (
-              <Button title="Purger la file locale" variant="ghost" onPress={clearQueue} />
+              <Button title="Purger la file locale" variant="ghost" icon="trash-outline" onPress={clearQueue} />
             )}
           </View>
         )}
@@ -708,22 +727,31 @@ export default function InterventionDetailScreen() {
         <RunningTimer isRunning={isRunning} startDate={startDate} plannedStart={plannedStart} plannedEnd={plannedEnd} />
 
         <Section title="Type d’intervention">
-          <Text style={styles.highlight}>{TYPE_LABELS[intervention.type]}</Text>
+          <View style={styles.iconRow}>
+            <Ionicons name={TYPE_ICONS[intervention.type]} size={16} color={theme.colors.ink} />
+            <Text style={styles.highlight}>{TYPE_LABELS[intervention.type]}</Text>
+          </View>
           {intervention.type === 'PUNCTUAL' && intervention.subType && (
             <Text style={styles.textMuted}>{intervention.subType}</Text>
           )}
         </Section>
 
         <Section title="Site">
-          <Text style={styles.highlight}>{site?.name ?? intervention.siteName}</Text>
+          <View style={styles.iconRow}>
+            <Ionicons name="location-outline" size={16} color={theme.colors.ink} />
+            <Text style={styles.highlight}>{site?.name ?? intervention.siteName}</Text>
+          </View>
           {site?.address && <Text style={styles.textMuted}>{site.address}</Text>}
-          <Button title="Ouvrir dans Maps" variant="ghost" onPress={openMaps} />
+          <Button title="Ouvrir dans Maps" variant="ghost" icon="location-outline" onPress={openMaps} />
         </Section>
 
         <Section title="Horaires">
-          <Text style={styles.row}>
-            Prévu : {intervention.startTime} → {intervention.endTime}
-          </Text>
+          <View style={styles.iconRow}>
+            <Ionicons name="time-outline" size={16} color={theme.colors.ink} />
+            <Text style={styles.row}>
+              Prévu : {intervention.startTime} → {intervention.endTime}
+            </Text>
+          </View>
           {arrivalAllowedFrom && (
             <Text style={styles.textMuted}>
               Arrivée possible dès {formatTime(arrivalAllowedFrom)} (30 min avant le début)
@@ -742,6 +770,7 @@ export default function InterventionDetailScreen() {
         </Section>
 
         <Section title="Agents assignés">
+          <Ionicons name="person-outline" size={16} color={theme.colors.muted} style={styles.sectionIcon} />
           <AssignedAgentsList agents={intervention.agents} currentUserId={user?.id} />
         </Section>
 
@@ -749,24 +778,32 @@ export default function InterventionDetailScreen() {
           <Section title="Camions mobilisés">
             {intervention.truckLabels?.length ? (
               intervention.truckLabels.map((truck) => (
-                <Text key={truck} style={styles.row}>
-                  • {truck}
-                </Text>
+                <View key={truck} style={styles.iconRow}>
+                  <Ionicons name="car-outline" size={16} color={theme.colors.muted} />
+                  <Text style={styles.row}>• {truck}</Text>
+                </View>
               ))
             ) : (
-              <Text style={styles.textMuted}>Pas de camion affecté.</Text>
+              <View style={styles.iconRow}>
+                <Ionicons name="car-outline" size={16} color={theme.colors.muted} />
+                <Text style={styles.textMuted}>Pas de camion affecté.</Text>
+              </View>
             )}
           </Section>
         )}
 
         {intervention.observation && (
           <Section title="Observation">
-            <Text style={styles.row}>{intervention.observation}</Text>
+            <View style={styles.iconRow}>
+              <Ionicons name="document-text-outline" size={16} color={theme.colors.ink} />
+              <Text style={styles.row}>{intervention.observation}</Text>
+            </View>
           </Section>
         )}
 
         {isRunning && (
           <Section title="Checklist">
+            <Ionicons name="checkmark-circle-outline" size={16} color={theme.colors.muted} style={styles.sectionIcon} />
             <InterventionChecklist interventionId={intervention.id} />
           </Section>
         )}
@@ -808,7 +845,7 @@ export default function InterventionDetailScreen() {
             tone="danger"
           />
         )}
-        <Button title="Signaler un problème" variant="ghost" onPress={handleProblem} />
+        <Button title="Signaler un problème" variant="ghost" icon="alert-circle-outline" onPress={handleProblem} />
       </Animated.View>
       <ProblemModal
         visible={isProblemModalVisible}
@@ -821,7 +858,7 @@ export default function InterventionDetailScreen() {
         onAddPhoto={async () => {
           const permission = await ImagePicker.requestCameraPermissionsAsync();
           if (permission.status !== ImagePicker.PermissionStatus.GRANTED) {
-            Alert.alert('Permission requise', 'Activez la caméra pour joindre une photo.');
+            showToast('Permission requise', 'Activez la caméra pour joindre une photo.', 'error');
             return;
           }
           const result = await ImagePicker.launchCameraAsync({
@@ -840,7 +877,7 @@ export default function InterventionDetailScreen() {
             return;
           }
           if (!problemDescription.trim()) {
-            Alert.alert('Description requise', 'Veuillez décrire le problème rencontré.');
+            showToast('Description requise', 'Veuillez décrire le problème rencontré.', 'error');
             return;
           }
           setSubmittingProblem(true);
@@ -867,14 +904,14 @@ export default function InterventionDetailScreen() {
               description: problemDescription.trim(),
               photos: cleanedPhotos,
             });
-            Alert.alert('Merci', 'Votre anomalie a été transmise à l’équipe.');
+            showToast('Merci', 'Votre anomalie a été transmise à l’équipe.', 'success');
             setIntervention((prev) => (prev ? { ...prev, status: 'NEEDS_REVIEW' } : prev));
             setProblemDescription('');
             setProblemPhotos([]);
             setProblemType('CLEANLINESS');
             setProblemModalVisible(false);
           } catch (error) {
-            Alert.alert('Erreur', "Impossible d'envoyer l'anomalie.");
+            showToast('Erreur', "Impossible d'envoyer l'anomalie.", 'error');
           } finally {
             setSubmittingProblem(false);
           }
@@ -902,6 +939,14 @@ const styles = StyleSheet.create({
   empty: {
     color: theme.colors.muted,
   },
+  iconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  sectionIcon: {
+    marginBottom: theme.spacing.xs,
+  },
   actions: {
     gap: theme.spacing.md,
   },
@@ -918,6 +963,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.lg,
     padding: theme.spacing.md,
     gap: 4,
+  },
+  syncBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
   },
   syncBannerTitle: {
     fontFamily: theme.fonts.bodyBold,

@@ -1,14 +1,17 @@
 import React from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+import { Ionicons } from '@expo/vector-icons';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
 import { Button } from '@/components/ui/Button';
 import { theme } from '@/config/theme';
 import { useAuthContext } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { adjustInventoryQuantity, findInventoryItemByBarcode, InventoryItem } from '@/services/api/inventory.api';
 
 export default function AgentInventoryScannerScreen() {
   const { token } = useAuthContext();
+  const { showToast } = useToast();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setScanning] = React.useState(true);
   const [item, setItem] = React.useState<InventoryItem | null>(null);
@@ -37,7 +40,7 @@ export default function AgentInventoryScannerScreen() {
       const updated = await adjustInventoryQuantity(token, item.id, delta);
       setItem(updated);
     } catch {
-      Alert.alert('Erreur', "Impossible de mettre à jour la quantité.");
+      showToast('Erreur', "Impossible de mettre à jour la quantité.", 'error');
     }
   };
 
@@ -58,8 +61,9 @@ export default function AgentInventoryScannerScreen() {
   if (!permission.granted) {
     return (
       <HeaderLayout title="Scanner l'inventaire" subtitle="Autorisation requise" accent="Inventaire">
+        <Ionicons name="barcode-outline" size={22} color={theme.colors.primary} style={styles.headerIcon} />
         <Text style={styles.empty}>L'accès à l'appareil photo est nécessaire pour scanner un code-barres.</Text>
-        <Button title="Autoriser l'appareil photo" onPress={requestPermission} />
+        <Button title="Autoriser l'appareil photo" icon="barcode-outline" onPress={requestPermission} />
       </HeaderLayout>
     );
   }
@@ -68,6 +72,10 @@ export default function AgentInventoryScannerScreen() {
     <HeaderLayout title="Scanner l'inventaire" subtitle="Visez un code-barres d'article" accent="Inventaire" scrollable={false}>
       {isScanning ? (
         <View style={styles.cameraWrap}>
+          <View style={styles.scanHint}>
+            <Ionicons name="barcode-outline" size={18} color="#fff" />
+            <Text style={styles.scanHintText}>Visez un code-barres</Text>
+          </View>
           <CameraView
             style={styles.camera}
             barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'code128', 'qr', 'upc_a'] }}
@@ -88,16 +96,16 @@ export default function AgentInventoryScannerScreen() {
                 <Text style={styles.lowStock}>Stock bas (seuil : {item.minThreshold})</Text>
               )}
               <View style={styles.adjustRow}>
-                <Button title="− 1" variant="ghost" onPress={() => handleAdjust(-1)} />
-                <Button title="+ 1" onPress={() => handleAdjust(1)} />
+                <Button title="− 1" icon="remove-circle-outline" variant="ghost" onPress={() => handleAdjust(-1)} />
+                <Button title="+ 1" icon="add-circle-outline" onPress={() => handleAdjust(1)} />
               </View>
-              <Button title="Scanner un autre article" variant="ghost" onPress={reset} />
+              <Button title="Scanner un autre article" icon="barcode-outline" variant="ghost" onPress={reset} />
             </View>
           ) : (
             <View style={styles.card}>
               <Text style={styles.itemName}>Article introuvable</Text>
               <Text style={styles.itemMeta}>Code scanné : {notFoundCode}</Text>
-              <Button title="Réessayer" onPress={reset} />
+              <Button title="Réessayer" icon="sync-outline" onPress={reset} />
             </View>
           )}
         </View>
@@ -116,9 +124,31 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.lg,
     overflow: 'hidden',
     minHeight: 380,
+    position: 'relative',
   },
   camera: {
     flex: 1,
+  },
+  scanHint: {
+    position: 'absolute',
+    top: theme.spacing.md,
+    alignSelf: 'center',
+    zIndex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.radii.pill,
+  },
+  scanHintText: {
+    color: '#fff',
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 13,
+  },
+  headerIcon: {
+    marginBottom: theme.spacing.sm,
   },
   result: {
     flex: 1,

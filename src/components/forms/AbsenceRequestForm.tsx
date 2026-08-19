@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Alert, Image, Platform, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
+import { Image, Platform, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../ui/Button';
 import { theme } from '../../config/theme';
 import { Absence, AbsenceType } from '../../types/absences';
 import { submitAbsenceRequest } from '../../services/api/absences.api';
 import { capturePhotoBase64 } from '../../utils/photo';
+import { useToast } from '../../context/ToastContext';
 
 const toDateString = (date: Date) => date.toISOString().slice(0, 10);
 const formatDateLabel = (date: Date) =>
@@ -25,6 +27,7 @@ const ABSENCE_OPTIONS: Array<{ value: AbsenceType; label: string }> = [
 ];
 
 export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted }) => {
+  const { showToast } = useToast();
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
   const [pickerOpen, setPickerOpen] = useState<'from' | 'to' | null>(null);
@@ -40,11 +43,11 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
 
   const handleSubmit = async () => {
     if (!from || !to || !reason.trim()) {
-      Alert.alert('Champs requis', 'Veuillez choisir les dates et indiquer le motif.');
+      showToast('Champs requis', 'Veuillez choisir les dates et indiquer le motif.', 'error');
       return;
     }
     if (from > to) {
-      Alert.alert('Dates invalides', 'La date de début doit précéder la date de fin.');
+      showToast('Dates invalides', 'La date de début doit précéder la date de fin.', 'error');
       return;
     }
     setSubmitting(true);
@@ -63,10 +66,10 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
       setType('SICK');
       setAttachment(null);
       onSubmitted?.(absence);
-      Alert.alert('Demande envoyée', 'Votre absence est en attente de validation.');
+      showToast('Demande envoyée', 'Votre absence est en attente de validation.', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible d'envoyer la demande pour l'instant.";
-      Alert.alert('Erreur', message);
+      showToast('Erreur', message, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -89,11 +92,17 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
         })}
       </View>
       <TouchableOpacity style={styles.dateField} onPress={() => setPickerOpen('from')}>
-        <Text style={styles.dateLabel}>Du</Text>
+        <View style={styles.dateLabelRow}>
+          <Ionicons name="calendar-outline" size={14} color={theme.colors.muted} style={styles.dateLabelIcon} />
+          <Text style={styles.dateLabel}>Du</Text>
+        </View>
         <Text style={styles.dateValue}>{from ? formatDateLabel(from) : 'Choisir une date'}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.dateField} onPress={() => setPickerOpen('to')}>
-        <Text style={styles.dateLabel}>Au</Text>
+        <View style={styles.dateLabelRow}>
+          <Ionicons name="calendar-outline" size={14} color={theme.colors.muted} style={styles.dateLabelIcon} />
+          <Text style={styles.dateLabel}>Au</Text>
+        </View>
         <Text style={styles.dateValue}>{to ? formatDateLabel(to) : 'Choisir une date'}</Text>
       </TouchableOpacity>
       {pickerOpen && (
@@ -120,6 +129,10 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
       {pickerOpen === 'to' && Platform.OS === 'ios' && (
         <Button title="Valider la date" variant="ghost" onPress={() => setPickerOpen(null)} />
       )}
+      <View style={styles.sectionLabelRow}>
+        <Ionicons name="document-text-outline" size={14} color={theme.colors.muted} style={styles.dateLabelIcon} />
+        <Text style={styles.sectionLabel}>Motif</Text>
+      </View>
       <TextInput
         style={styles.textarea}
         placeholder="Motif ou commentaire"
@@ -142,7 +155,12 @@ export const AbsenceRequestForm: React.FC<Props> = ({ token, userId, onSubmitted
           </TouchableOpacity>
         )}
       </View>
-      <Button title={isSubmitting ? 'Envoi…' : 'Envoyer la demande'} onPress={handleSubmit} disabled={isSubmitting} />
+      <Button
+        title={isSubmitting ? 'Envoi…' : 'Envoyer la demande'}
+        icon="checkmark-circle-outline"
+        onPress={handleSubmit}
+        disabled={isSubmitting}
+      />
     </View>
   );
 };
@@ -167,7 +185,24 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     backgroundColor: theme.colors.shell,
   },
+  dateLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateLabelIcon: {
+    marginRight: 4,
+  },
   dateLabel: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionLabel: {
     color: theme.colors.muted,
     fontSize: 12,
     textTransform: 'uppercase',

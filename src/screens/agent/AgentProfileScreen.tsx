@@ -1,7 +1,9 @@
 import React from 'react';
-import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Switch, Text, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthContext } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { theme } from '@/config/theme';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
@@ -11,6 +13,7 @@ import { AgentStackParamList } from '@/navigation/types';
 
 export default function AgentProfileScreen() {
   const { user, logout } = useAuthContext();
+  const { showToast } = useToast();
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(false);
   const navigation = useNavigation<NativeStackNavigationProp<AgentStackParamList>>();
 
@@ -27,7 +30,7 @@ export default function AgentProfileScreen() {
     }
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Activez les notifications dans les réglages système.');
+      showToast('Permission requise', 'Activez les notifications dans les réglages système.', 'error');
       setNotificationsEnabled(false);
       return;
     }
@@ -41,6 +44,7 @@ export default function AgentProfileScreen() {
       accent="Compte"
       scrollable={false}
       contentStyle={styles.profileContent}
+      trailing={<Ionicons name="person-circle-outline" size={32} color={theme.colors.primary} />}
     >
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Informations personnelles</Text>
@@ -67,32 +71,43 @@ export default function AgentProfileScreen() {
         <Button
           title="File d'attente hors ligne"
           variant="ghost"
+          icon="chevron-forward"
+          iconPosition="right"
           onPress={() => navigation.navigate('AgentSyncQueue')}
         />
         <Button
           title="Mes disponibilités"
           variant="ghost"
+          icon="chevron-forward"
+          iconPosition="right"
           onPress={() => navigation.navigate('AgentAvailability')}
         />
         <Button
           title="Messages avec mon superviseur"
           variant="ghost"
+          icon="chevron-forward"
+          iconPosition="right"
           onPress={() => navigation.navigate('AgentChat')}
         />
         <Button
           title="Scanner l'inventaire"
           variant="ghost"
+          icon="chevron-forward"
+          iconPosition="right"
           onPress={() => navigation.navigate('AgentInventoryScanner')}
         />
         <Button
           title="Modifier le mot de passe"
           variant="ghost"
+          icon="chevron-forward"
+          iconPosition="right"
           onPress={() => navigation.navigate('AgentChangePassword')}
         />
       </View>
 
       <Button
         title="Se déconnecter"
+        icon="log-out-outline"
         onPress={() => {
           logout();
         }}

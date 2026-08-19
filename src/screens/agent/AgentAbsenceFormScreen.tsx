@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
@@ -25,6 +25,10 @@ export default function AgentAbsenceFormScreen() {
       }
     >
       <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="document-text-outline" size={20} color={theme.colors.primary} />
+          <Text style={styles.cardHeaderText}>Formulaire de demande</Text>
+        </View>
         {token && user ? (
           <AbsenceRequestForm
             token={token}
@@ -50,6 +54,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  cardHeaderText: {
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.ink,
+    fontSize: 15,
   },
   backBtn: {
     width: 40,

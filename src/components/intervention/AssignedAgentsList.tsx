@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/config/theme';
 import { Intervention } from '@/types/intervention';
 import { formatTime } from '@/utils/interventionTime';
@@ -30,8 +31,9 @@ export const AssignedAgentsList: React.FC<AssignedAgentsListProps> = ({ agents, 
         return (
           <View key={agent.id} style={styles.agentRow}>
             <View style={styles.agentHeader}>
+              <Ionicons name="person-outline" size={14} color={theme.colors.ink} />
               <Text style={styles.row}>
-                • {agent.name} {isCurrent ? '(vous)' : ''}
+                {agent.name} {isCurrent ? '(vous)' : ''}
               </Text>
               <StatusPill label={meta.label} tone={meta.tone} />
             </View>

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useAuthContext } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { changePassword } from '@/services/api/auth.api';
 import { theme } from '@/config/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -12,6 +14,7 @@ import { AgentStackParamList } from '@/navigation/types';
 
 export default function AgentChangePasswordScreen() {
   const { token } = useAuthContext();
+  const { showToast } = useToast();
   const navigation = useNavigation<NativeStackNavigationProp<AgentStackParamList>>();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -21,21 +24,21 @@ export default function AgentChangePasswordScreen() {
   const handleSubmit = async () => {
     if (!token) return;
     if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert('Champs requis', 'Remplissez tous les champs.');
+      showToast('Champs requis', 'Remplissez tous les champs.', 'error');
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Erreur', 'Les mots de passe ne correspondent pas.');
+      showToast('Erreur', 'Les mots de passe ne correspondent pas.', 'error');
       return;
     }
     setLoading(true);
     try {
       await changePassword(token, { currentPassword, newPassword });
-      Alert.alert('Succès', 'Mot de passe mis à jour');
+      showToast('Succès', 'Mot de passe mis à jour', 'success');
       navigation.goBack();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Impossible de changer le mot de passe';
-      Alert.alert('Erreur', message);
+      showToast('Erreur', message, 'error');
     } finally {
       setLoading(false);
     }
@@ -51,6 +54,10 @@ export default function AgentChangePasswordScreen() {
       }
     >
       <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="lock-closed-outline" size={20} color={theme.colors.primary} />
+          <Text style={styles.cardHeaderText}>Sécurité du compte</Text>
+        </View>
         <Input
           label="Mot de passe actuel"
           value={currentPassword}
@@ -69,7 +76,12 @@ export default function AgentChangePasswordScreen() {
           onChangeText={setConfirmPassword}
           secureTextEntry
         />
-        <Button title={loading ? 'En cours...' : 'Enregistrer'} onPress={handleSubmit} disabled={loading} />
+        <Button
+          title={loading ? 'En cours...' : 'Enregistrer'}
+          icon="checkmark-circle-outline"
+          onPress={handleSubmit}
+          disabled={loading}
+        />
       </View>
     </HeaderLayout>
   );
@@ -87,5 +99,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  cardHeaderText: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 15,
+    color: theme.colors.ink,
   },
 });

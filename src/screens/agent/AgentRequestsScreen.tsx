@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { listMyAbsences } from '@/services/api/absences.api';
 import { Absence } from '@/types/absences';
@@ -7,6 +8,7 @@ import { theme } from '@/config/theme';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
 import { useAuthContext } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
+import { useStaggeredFadeIn } from '@/hooks/useStaggeredFadeIn';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AgentStackParamList } from '@/navigation/types';
 
@@ -18,9 +20,9 @@ const TYPE_LABELS = {
 } as const;
 
 const STATUS_META = {
-  PENDING: { label: 'En attente', color: '#b46a00', background: '#fff6e8' },
-  APPROVED: { label: 'Approuvée', color: '#0b874b', background: '#e6f5ef' },
-  REJECTED: { label: 'Refusée', color: '#c62828', background: '#fdecef' },
+  PENDING: { label: 'En attente', color: '#b46a00', background: '#fff6e8', icon: 'time-outline' as const },
+  APPROVED: { label: 'Approuvée', color: '#0b874b', background: '#e6f5ef', icon: 'checkmark-circle-outline' as const },
+  REJECTED: { label: 'Refusée', color: '#c62828', background: '#fdecef', icon: 'close-circle-outline' as const },
 } as const;
 
 const formatDate = (value: string) => {
@@ -35,6 +37,7 @@ export default function RequestsScreen() {
   const [isLoading, setLoading] = useState(true);
   const { token, user } = useAuthContext();
   const navigation = useNavigation<NativeStackNavigationProp<AgentStackParamList>>();
+  const { getItemStyle } = useStaggeredFadeIn();
 
   const loadAbsences = useCallback(async () => {
     if (!token || !user) return;
@@ -71,11 +74,15 @@ export default function RequestsScreen() {
       subtitle="Consultez vos absences et demandes"
       accent="Congés & absences"
       trailing={
-        <Button
-          title="Nouvelle demande"
-          onPress={() => navigation.navigate('AgentAbsenceForm')}
-          size="sm"
-        />
+        <View style={styles.headerTrailing}>
+          <Ionicons name="document-text-outline" size={26} color={theme.colors.primary} />
+          <Button
+            title="Nouvelle demande"
+            icon="add-circle-outline"
+            onPress={() => navigation.navigate('AgentAbsenceForm')}
+            size="sm"
+          />
+        </View>
       }
     >
       <View style={styles.sectionHeader}>
@@ -94,43 +101,46 @@ export default function RequestsScreen() {
         <Text style={styles.empty}>Aucune demande encore enregistrée.</Text>
       ) : (
         <View style={styles.list}>
-          {absences.map((absence) => {
+          {absences.map((absence, index) => {
             const statusMeta = STATUS_META[absence.status];
             return (
-              <View key={absence.id} style={styles.item}>
-                <View style={styles.itemHeader}>
-                  <View style={styles.titleRow}>
-                    <View style={styles.bullet} />
-                    <Text style={styles.itemTitle}>{TYPE_LABELS[absence.type]}</Text>
+              <Animated.View key={absence.id} style={getItemStyle(index)}>
+                <View style={styles.item}>
+                  <View style={styles.itemHeader}>
+                    <View style={styles.titleRow}>
+                      <View style={styles.bullet} />
+                      <Text style={styles.itemTitle}>{TYPE_LABELS[absence.type]}</Text>
+                    </View>
+                    <View style={[styles.badge, { backgroundColor: statusMeta.background, borderColor: statusMeta.color }]}>
+                      <Ionicons name={statusMeta.icon} size={14} color={statusMeta.color} style={styles.badgeIcon} />
+                      <Text style={[styles.badgeLabel, { color: statusMeta.color }]}>{statusMeta.label}</Text>
+                    </View>
                   </View>
-                  <View style={[styles.badge, { backgroundColor: statusMeta.background, borderColor: statusMeta.color }]}>
-                    <Text style={[styles.badgeLabel, { color: statusMeta.color }]}>{statusMeta.label}</Text>
+
+                  <View style={styles.metaRow}>
+                    <Text style={styles.metaLabel}>Période</Text>
+                    <Text style={styles.metaValue}>
+                      {formatDate(absence.from)} → {formatDate(absence.to)}
+                    </Text>
                   </View>
-                </View>
-
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Période</Text>
-                  <Text style={styles.metaValue}>
-                    {formatDate(absence.from)} → {formatDate(absence.to)}
-                  </Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Agent</Text>
-                  <Text style={styles.metaValue}>{absence.agent.name}</Text>
-                </View>
-
-                <View style={styles.reasonBox}>
-                  <Text style={styles.reasonLabel}>Motif</Text>
-                  <Text style={styles.reason}>{absence.reason || '—'}</Text>
-                </View>
-
-                {absence.validationComment && (
-                  <View style={styles.managerBox}>
-                    <Text style={styles.managerLabel}>Commentaire manager</Text>
-                    <Text style={styles.managerText}>{absence.validationComment}</Text>
+                  <View style={styles.metaRow}>
+                    <Text style={styles.metaLabel}>Agent</Text>
+                    <Text style={styles.metaValue}>{absence.agent.name}</Text>
                   </View>
-                )}
-              </View>
+
+                  <View style={styles.reasonBox}>
+                    <Text style={styles.reasonLabel}>Motif</Text>
+                    <Text style={styles.reason}>{absence.reason || '—'}</Text>
+                  </View>
+
+                  {absence.validationComment && (
+                    <View style={styles.managerBox}>
+                      <Text style={styles.managerLabel}>Commentaire manager</Text>
+                      <Text style={styles.managerText}>{absence.validationComment}</Text>
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
             );
           })}
         </View>
@@ -140,6 +150,11 @@ export default function RequestsScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerTrailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
   sectionHeader: {
     marginTop: theme.spacing.lg,
     marginBottom: theme.spacing.md,
@@ -216,10 +231,15 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: theme.radii.pill,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.xs,
     borderWidth: 1,
+  },
+  badgeIcon: {
+    marginRight: 4,
   },
   badgeLabel: {
     fontSize: 12,

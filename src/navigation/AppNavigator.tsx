@@ -44,7 +44,7 @@ const agentTabMeta: Record<keyof AgentTabParamList, { label: string; icon: keyof
 
 function AuthNavigator() {
   return (
-    <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+    <AuthStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </AuthStack.Navigator>
@@ -87,8 +87,8 @@ function AgentTabNavigator() {
 
 function AgentNavigator() {
   return (
-    <AgentStack.Navigator screenOptions={{ headerShown: false }}>
-      <AgentStack.Screen name="AgentTabs" component={AgentTabNavigator} />
+    <AgentStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+      <AgentStack.Screen name="AgentTabs" component={AgentTabNavigator} options={{ animation: 'fade' }} />
       <AgentStack.Screen name="AgentIntervention" component={AgentInterventionScreen} />
       <AgentStack.Screen name="AgentAbsenceForm" component={AgentAbsenceFormScreen} />
       <AgentStack.Screen name="AgentChangePassword" component={AgentChangePasswordScreen} />
@@ -135,7 +135,7 @@ export function AppNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
         {showOnboarding ? (
           <RootStack.Screen name="Onboarding">
             {(props) => <OnboardingScreen {...props} onFinish={markOnboardingDone} />}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Image, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/config/theme';
 import { Button } from '@/components/ui/Button';
 import { AnomalyType } from '@/types/anomaly';
@@ -43,9 +44,12 @@ export const ProblemModal: React.FC<ProblemModalProps> = ({
     <View style={styles.modalOverlay}>
       <View style={styles.modalContent}>
         <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Signaler un problème</Text>
+          <View style={styles.modalTitleRow}>
+            <Ionicons name="warning-outline" size={20} color={theme.colors.danger} style={styles.modalTitleIcon} />
+            <Text style={styles.modalTitle}>Signaler un problème</Text>
+          </View>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonLabel}>×</Text>
+            <Ionicons name="close-circle-outline" size={20} color={theme.colors.ink} />
           </TouchableOpacity>
         </View>
         <Text style={styles.modalLabel}>Type d'anomalie</Text>
@@ -93,6 +97,7 @@ export const ProblemModal: React.FC<ProblemModalProps> = ({
         </View>
         <Button
           title={submitting ? 'Envoi…' : 'Envoyer'}
+          icon="checkmark-circle-outline"
           onPress={onSubmit}
           disabled={submitting}
         />
@@ -119,6 +124,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalTitleIcon: {
+    marginRight: 6,
+  },
   modalTitle: {
     fontSize: 18,
     fontFamily: theme.fonts.bodyBold,
@@ -130,10 +142,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.clay,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeButtonLabel: {
-    fontSize: 20,
-    color: theme.colors.ink,
   },
   modalLabel: {
     fontFamily: theme.fonts.bodySemiBold,

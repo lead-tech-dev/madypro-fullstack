@@ -1,11 +1,13 @@
 import React from 'react';
-import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
 import { Button } from '@/components/ui/Button';
 import { theme } from '@/config/theme';
 import { useAuthContext } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import {
   Availability,
   AvailabilityType,
@@ -22,6 +24,7 @@ const formatDateLabel = (value: string) => {
 
 export default function AgentAvailabilityScreen() {
   const { token } = useAuthContext();
+  const { showToast } = useToast();
   const [items, setItems] = React.useState<Availability[]>([]);
   const [isLoading, setLoading] = React.useState(true);
   const [pickerOpen, setPickerOpen] = React.useState(false);
@@ -55,7 +58,7 @@ export default function AgentAvailabilityScreen() {
       setNote('');
       await load();
     } catch (error: any) {
-      Alert.alert('Erreur', error?.message ?? "Impossible d'enregistrer cette disponibilité.");
+      showToast('Erreur', error?.message ?? "Impossible d'enregistrer cette disponibilité.", 'error');
     } finally {
       setSaving(false);
     }
@@ -67,14 +70,17 @@ export default function AgentAvailabilityScreen() {
       await removeAvailability(token, id);
       setItems((prev) => prev.filter((item) => item.id !== id));
     } catch {
-      Alert.alert('Erreur', 'Impossible de supprimer cette entrée.');
+      showToast('Erreur', 'Impossible de supprimer cette entrée.', 'error');
     }
   };
 
   return (
     <HeaderLayout title="Mes disponibilités" subtitle="Déclarez vos jours disponibles ou indisponibles" accent="Planning">
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Nouvelle déclaration</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Ionicons name="add-circle-outline" size={18} color={theme.colors.ink} />
+          <Text style={styles.sectionTitle}>Nouvelle déclaration</Text>
+        </View>
         <View style={styles.typeRow}>
           {(['UNAVAILABLE', 'AVAILABLE'] as AvailabilityType[]).map((option) => {
             const active = type === option;
@@ -92,7 +98,10 @@ export default function AgentAvailabilityScreen() {
           })}
         </View>
         <TouchableOpacity style={styles.dateField} onPress={() => setPickerOpen(true)}>
-          <Text style={styles.dateLabel}>Date</Text>
+          <View style={styles.dateLabelRow}>
+            <Ionicons name="calendar-outline" size={14} color={theme.colors.muted} />
+            <Text style={styles.dateLabel}>Date</Text>
+          </View>
           <Text style={styles.dateValue}>{formatDateLabel(date.toISOString())}</Text>
         </TouchableOpacity>
         {pickerOpen && (
@@ -108,7 +117,12 @@ export default function AgentAvailabilityScreen() {
           />
         )}
         {pickerOpen && Platform.OS === 'ios' && (
-          <Button title="Valider la date" variant="ghost" onPress={() => setPickerOpen(false)} />
+          <Button
+            title="Valider la date"
+            variant="ghost"
+            icon="checkmark-circle-outline"
+            onPress={() => setPickerOpen(false)}
+          />
         )}
         <TextInput
           style={styles.input}
@@ -117,26 +131,44 @@ export default function AgentAvailabilityScreen() {
           value={note}
           onChangeText={setNote}
         />
-        <Button title={isSaving ? 'Enregistrement…' : 'Enregistrer'} onPress={handleSubmit} disabled={isSaving} />
+        <Button
+          title={isSaving ? 'Enregistrement…' : 'Enregistrer'}
+          icon="checkmark-circle-outline"
+          onPress={handleSubmit}
+          disabled={isSaving}
+        />
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Déclarations à venir</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Ionicons name="calendar-outline" size={18} color={theme.colors.ink} />
+          <Text style={styles.sectionTitle}>Déclarations à venir</Text>
+        </View>
         {isLoading ? (
           <ActivityIndicator color={theme.colors.primary} />
         ) : items.length === 0 ? (
-          <Text style={styles.empty}>Aucune disponibilité déclarée.</Text>
+          <View style={styles.emptyRow}>
+            <Ionicons name="calendar-outline" size={16} color={theme.colors.muted} />
+            <Text style={styles.empty}>Aucune disponibilité déclarée.</Text>
+          </View>
         ) : (
           items.map((item) => (
             <View key={item.id} style={styles.item}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.itemDate}>{formatDateLabel(item.date)}</Text>
-                <Text style={[styles.itemType, item.type === 'AVAILABLE' ? styles.itemTypeAvailable : styles.itemTypeUnavailable]}>
-                  {item.type === 'AVAILABLE' ? 'Disponible' : 'Indisponible'}
-                </Text>
+                <View style={styles.itemTypeRow}>
+                  <Ionicons
+                    name={item.type === 'AVAILABLE' ? 'checkmark-circle-outline' : 'close-circle-outline'}
+                    size={14}
+                    color={item.type === 'AVAILABLE' ? theme.colors.status.onTime : theme.colors.status.absent}
+                  />
+                  <Text style={[styles.itemType, item.type === 'AVAILABLE' ? styles.itemTypeAvailable : styles.itemTypeUnavailable]}>
+                    {item.type === 'AVAILABLE' ? 'Disponible' : 'Indisponible'}
+                  </Text>
+                </View>
                 {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
               </View>
-              <Button title="Retirer" variant="ghost" size="sm" onPress={() => handleRemove(item.id)} />
+              <Button title="Retirer" variant="ghost" size="sm" icon="trash-outline" onPress={() => handleRemove(item.id)} />
             </View>
           ))
         )}
@@ -157,6 +189,11 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.ink,
     fontSize: 16,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
   },
   typeRow: {
     flexDirection: 'row',
@@ -187,6 +224,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.md,
     padding: theme.spacing.md,
   },
+  dateLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   dateLabel: {
     color: theme.colors.muted,
     fontSize: 12,
@@ -209,6 +251,11 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     fontStyle: 'italic',
   },
+  emptyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,10 +270,15 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bodySemiBold,
     textTransform: 'capitalize',
   },
+  itemTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
   itemType: {
     fontSize: 12,
     fontFamily: theme.fonts.bodySemiBold,
-    marginTop: 2,
   },
   itemTypeAvailable: {
     color: theme.colors.status.onTime,

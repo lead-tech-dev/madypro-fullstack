@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
 import { InterventionCard } from '@/components/cards/InterventionCard';
@@ -7,6 +8,7 @@ import { theme } from '@/config/theme';
 import { Intervention } from '@/types/intervention';
 import { fetchInterventions } from '@/services/api/interventions.api';
 import { useAuthContext } from '@/context/AuthContext';
+import { useStaggeredFadeIn } from '@/hooks/useStaggeredFadeIn';
 
 type ViewMode = 'liste' | 'calendrier';
 type CalendarMode = 'semaine' | 'mois';
@@ -59,6 +61,7 @@ export default function AgentPlanningScreen() {
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const { getItemStyle } = useStaggeredFadeIn();
 
   const { rangeStart, rangeEnd } = useMemo(() => {
     if (viewMode === 'calendrier' && calendarMode === 'semaine') {
@@ -125,9 +128,16 @@ export default function AgentPlanningScreen() {
             style={[styles.toggleButton, viewMode === mode && styles.toggleButtonActive]}
             onPress={() => setViewMode(mode)}
           >
-            <Text style={[styles.toggleLabel, viewMode === mode && styles.toggleLabelActive]}>
-              {mode === 'liste' ? 'Liste' : 'Calendrier'}
-            </Text>
+            <View style={styles.toggleContent}>
+              <Ionicons
+                name={mode === 'liste' ? 'list-outline' : 'calendar-outline'}
+                size={16}
+                color={viewMode === mode ? '#fff' : theme.colors.muted}
+              />
+              <Text style={[styles.toggleLabel, viewMode === mode && styles.toggleLabelActive]}>
+                {mode === 'liste' ? 'Liste' : 'Calendrier'}
+              </Text>
+            </View>
           </Pressable>
         ))}
       </View>
@@ -155,10 +165,15 @@ export default function AgentPlanningScreen() {
           {isLoading ? (
             <ActivityIndicator color={theme.colors.primary} />
           ) : sorted.length === 0 ? (
-            <Text style={styles.empty}>Aucune intervention sur cette période.</Text>
+            <View style={styles.emptyRow}>
+              <Ionicons name="calendar-outline" size={18} color={theme.colors.muted} />
+              <Text style={styles.empty}>Aucune intervention sur cette période.</Text>
+            </View>
           ) : (
-            sorted.map((intervention) => (
-              <InterventionCard key={intervention.id} intervention={intervention} onPress={goToIntervention} />
+            sorted.map((intervention, index) => (
+              <Animated.View key={intervention.id} style={[getItemStyle(index), { marginBottom: theme.spacing.sm }]}>
+                <InterventionCard intervention={intervention} onPress={goToIntervention} />
+              </Animated.View>
             ))
           )}
         </View>
@@ -183,9 +198,15 @@ export default function AgentPlanningScreen() {
               const dayItems = byDate.get(iso) ?? [];
               return (
                 <View key={iso} style={styles.daySection}>
-                  <Text style={styles.dayHeading}>{dayLabel(day)}</Text>
+                  <View style={styles.dayHeadingRow}>
+                    <Ionicons name="calendar-outline" size={16} color={theme.colors.ink} />
+                    <Text style={styles.dayHeading}>{dayLabel(day)}</Text>
+                  </View>
                   {dayItems.length === 0 ? (
-                    <Text style={styles.emptySmall}>Aucune intervention.</Text>
+                    <View style={styles.emptyRow}>
+                      <Ionicons name="calendar-outline" size={14} color={theme.colors.muted} />
+                      <Text style={styles.emptySmall}>Aucune intervention.</Text>
+                    </View>
                   ) : (
                     dayItems
                       .sort((a, b) => a.startTime.localeCompare(b.startTime))
@@ -245,9 +266,15 @@ export default function AgentPlanningScreen() {
 
           {selectedDate && (
             <View style={styles.daySection}>
-              <Text style={styles.dayHeading}>{dayLabel(new Date(`${selectedDate}T00:00:00`))}</Text>
+              <View style={styles.dayHeadingRow}>
+                <Ionicons name="calendar-outline" size={16} color={theme.colors.ink} />
+                <Text style={styles.dayHeading}>{dayLabel(new Date(`${selectedDate}T00:00:00`))}</Text>
+              </View>
               {selectedDayInterventions.length === 0 ? (
-                <Text style={styles.emptySmall}>Aucune intervention.</Text>
+                <View style={styles.emptyRow}>
+                  <Ionicons name="calendar-outline" size={14} color={theme.colors.muted} />
+                  <Text style={styles.emptySmall}>Aucune intervention.</Text>
+                </View>
               ) : (
                 selectedDayInterventions
                   .sort((a, b) => a.startTime.localeCompare(b.startTime))
@@ -293,6 +320,11 @@ const styles = StyleSheet.create({
   toggleLabelActive: {
     color: '#fff',
   },
+  toggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
   stack: {
     gap: theme.spacing.md,
   },
@@ -308,6 +340,11 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     fontStyle: 'italic',
     fontSize: 13,
+  },
+  emptyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
   },
   navRow: {
     flexDirection: 'row',
@@ -334,6 +371,11 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bodySemiBold,
     color: theme.colors.ink,
     textTransform: 'capitalize',
+  },
+  dayHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
   },
   weekdayRow: {
     flexDirection: 'row',

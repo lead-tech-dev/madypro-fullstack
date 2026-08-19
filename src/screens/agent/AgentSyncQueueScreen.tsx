@@ -1,9 +1,16 @@
 import React from 'react';
 import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { HeaderLayout } from '@/components/layout/HeaderLayout';
 import { useSyncContext } from '@/context/SyncContext';
 import { Button } from '@/components/ui/Button';
 import { theme } from '@/config/theme';
+
+const STATUS_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  pending: 'time-outline',
+  sending: 'sync-outline',
+  failed: 'close-circle-outline',
+};
 
 export default function AgentSyncQueueScreen() {
   const { pendingEvents, flush, clearQueue, removeEvent, isOnline, lastError } = useSyncContext();
@@ -16,15 +23,26 @@ export default function AgentSyncQueueScreen() {
   };
 
   return (
-    <HeaderLayout title="File d'attente" subtitle="Actions hors ligne" accent="Synchronisation">
+    <HeaderLayout
+      title="File d'attente"
+      subtitle="Actions hors ligne"
+      accent="Synchronisation"
+      trailing={<Ionicons name="sync-outline" size={28} color={theme.colors.primary} />}
+    >
       <View style={styles.container}>
         <View style={styles.statusRow}>
           <Text style={styles.statusText}>Réseau : {isOnline ? 'en ligne' : 'hors ligne'}</Text>
           {lastError ? <Text style={styles.errorText}>{lastError}</Text> : null}
         </View>
         <View style={styles.actionsRow}>
-          <Button title="Synchroniser" onPress={flush} disabled={!pendingEvents.length} />
-          <Button title="Vider la file" variant="ghost" onPress={clearQueue} disabled={!pendingEvents.length} />
+          <Button title="Synchroniser" icon="sync-outline" onPress={flush} disabled={!pendingEvents.length} />
+          <Button
+            title="Vider la file"
+            variant="ghost"
+            icon="trash-outline"
+            onPress={clearQueue}
+            disabled={!pendingEvents.length}
+          />
         </View>
         <FlatList
           data={pendingEvents}
@@ -41,10 +59,17 @@ export default function AgentSyncQueueScreen() {
               </View>
               <Text style={styles.subtitle}>Intervention : {item.interventionId}</Text>
               <Text style={styles.subtitle}>Site : {item.siteId}</Text>
-              <Text style={styles.status}>Statut : {item.status ?? 'pending'}</Text>
+              <View style={styles.statusInlineRow}>
+                <Ionicons
+                  name={STATUS_ICONS[item.status ?? 'pending'] ?? 'time-outline'}
+                  size={16}
+                  color={item.status === 'failed' ? '#c62828' : theme.colors.muted}
+                />
+                <Text style={styles.status}>Statut : {item.status ?? 'pending'}</Text>
+              </View>
               {item.error ? <Text style={styles.errorText}>{item.error}</Text> : null}
               <View style={styles.actionsRow}>
-                <Button title="Retirer" variant="ghost" onPress={() => removeEvent(item.id)} />
+                <Button title="Retirer" variant="ghost" icon="close-circle-outline" onPress={() => removeEvent(item.id)} />
               </View>
             </View>
           )}
@@ -118,5 +143,10 @@ const styles = StyleSheet.create({
   status: {
     fontWeight: '600',
     color: theme.colors.ink,
+  },
+  statusInlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
 });

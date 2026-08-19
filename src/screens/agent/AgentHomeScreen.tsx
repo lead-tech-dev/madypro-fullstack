@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -291,8 +292,9 @@ export default function AgentHomeScreen() {
             <Text style={styles.sectionTitle}>
               {scope === 'today' ? 'Planning du jour' : 'Planning à venir'}
             </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('AgentPlanning')}>
-              <Text style={styles.inlineLink}>Voir tout →</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('AgentPlanning')} style={styles.inlineLinkRow}>
+              <Text style={styles.inlineLink}>Voir tout</Text>
+              <Ionicons name="chevron-forward" size={14} color={theme.colors.primary} />
             </TouchableOpacity>
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -314,8 +316,9 @@ export default function AgentHomeScreen() {
           )}
         </View>
 
-        <TouchableOpacity onPress={() => navigation.navigate('AgentRequests')}>
-          <Text style={styles.link}>Déclarer une absence →</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('AgentRequests')} style={styles.linkRow}>
+          <Text style={styles.link}>Déclarer une absence</Text>
+          <Ionicons name="chevron-forward" size={14} color={theme.colors.muted} />
         </TouchableOpacity>
       </ScrollView>
     </HeaderLayout>
@@ -392,6 +395,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: theme.fonts.bodySemiBold,
   },
+  inlineLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
   inlineLink: {
     color: theme.colors.primary,
     fontFamily: theme.fonts.bodySemiBold,
@@ -400,10 +408,15 @@ const styles = StyleSheet.create({
   stack: {
     gap: theme.spacing.md,
   },
-  link: {
+  linkRow: {
     marginTop: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  link: {
     color: theme.colors.muted,
-    textAlign: 'center',
     textTransform: 'uppercase',
   },
   error: {

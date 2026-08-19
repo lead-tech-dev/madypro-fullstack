@@ -1,10 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { registerForPushNotificationsAsync } from '../services/notifications';
 import { NotificationItem } from '../types/notification';
 import { useAuthContext } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { listNotifications, markNotificationRead, registerNotificationToken } from '../services/api/notifications.api';
 import { navigationRef } from '../navigation/navigationRef';
 import { AgentTabParamList } from '../navigation/types';
@@ -23,6 +23,7 @@ const STORAGE_KEY = 'notification-center';
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, user } = useAuthContext();
+  const { showToast } = useToast();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [devicePushToken, setDevicePushToken] = useState<string | null>(null);
@@ -117,9 +118,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     });
     registerForPushNotificationsAsync().then((value) => {
       if (!value) {
-        Alert.alert(
+        showToast(
           'Notifications désactivées',
           "Activez les notifications pour être informé en temps réel des interventions. Vérifiez les autorisations système et utilisez un appareil physique.",
+          'error',
         );
         console.warn('[Push] Aucun token obtenu (permission refusée ou simulateur).');
         return;
@@ -147,7 +149,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         data: (content.data as Record<string, unknown>) ?? undefined,
       });
       if (content.body || content.title) {
-        Alert.alert(content.title ?? 'Notification', content.body ?? '');
+        showToast(content.title ?? 'Notification', content.body ?? '', 'info');
       }
     });
 
@@ -165,7 +167,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       receiveSub.remove();
       responseSub.remove();
     };
-  }, [addNotification, navigateFromPayload]);
+  }, [addNotification, navigateFromPayload, showToast]);
 
   const markAsRead = useCallback(
     (id: string) => {

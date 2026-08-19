@@ -1,15 +1,15 @@
 export const theme = {
   colors: {
-    ink: '#132420',
+    ink: '#0B1620',
     inkLight: '#7B8781',
     muted: '#5C6864',
-    primary: '#0E8E7C',
-    primarySoft: '#DFF1EC',
-    cream: '#F4F7F5',
+    primary: '#0f98eb',
+    primarySoft: '#E3F4FC',
+    cream: '#F4F8FC',
     shell: '#FFFFFF',
     sage: '#D3EAE4',
-    clay: '#D6DEDA',
-    accent: '#C7DAD3',
+    clay: '#D7E2EC',
+    accent: '#CFE8F7',
     danger: '#C24A3E',
     status: {
       onTime: '#2E8B57',

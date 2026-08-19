@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -29,6 +29,7 @@ export default function LoginScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      <Image source={require('../../../assets/images/logo-full.png')} style={styles.logo} resizeMode="contain" />
       <Header title="Connexion" subtitle="Accédez à vos missions et pointages du jour." />
       <Card style={styles.card}>
         {error && <Text style={styles.error}>{error}</Text>}
@@ -38,6 +39,7 @@ export default function LoginScreen({ navigation }: Props) {
           fullWidth
           variant="primary"
           title={loading ? 'Connexion...' : 'Se connecter'}
+          icon="log-in-outline"
           onPress={handleSubmit}
           disabled={loading || !email || !password}
         />
@@ -50,6 +52,12 @@ export default function LoginScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  logo: {
+    width: 260,
+    height: (260 * 1024) / 1536,
+    borderRadius: 18,
+    alignSelf: 'center',
+  },
   container: {
     flex: 1,
     justifyContent: 'center',

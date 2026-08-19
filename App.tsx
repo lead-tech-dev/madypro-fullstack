@@ -15,6 +15,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/context/AuthContext';
 import { SyncProvider } from './src/context/SyncContext';
 import { NotificationProvider } from './src/context/NotificationContext';
+import { ToastProvider } from './src/context/ToastContext';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -32,14 +33,16 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <SyncProvider>
-          <NotificationProvider>
-            <StatusBar barStyle="dark-content" />
-            <AppNavigator />
-          </NotificationProvider>
-        </SyncProvider>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <SyncProvider>
+            <NotificationProvider>
+              <StatusBar barStyle="dark-content" />
+              <AppNavigator />
+            </NotificationProvider>
+          </SyncProvider>
+        </AuthProvider>
+      </ToastProvider>
     </SafeAreaProvider>
   );
 }

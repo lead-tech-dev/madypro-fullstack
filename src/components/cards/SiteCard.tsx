@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Site } from '../../types/site';
 import { theme } from '../../config/theme';
 import { Card } from '../ui/Card';
@@ -8,7 +9,10 @@ import { StatusPill } from '../ui/StatusPill';
 export const SiteCard: React.FC<{ site: Site }> = ({ site }) => (
   <Card style={styles.card}>
     <View style={styles.header}>
-      <Text style={styles.title}>{site.name}</Text>
+      <View style={styles.titleRow}>
+        <Ionicons name="location-outline" size={18} color={theme.colors.primary} style={styles.titleIcon} />
+        <Text style={styles.title}>{site.name}</Text>
+      </View>
       <StatusPill label={site.active ? 'Actif' : 'Inactif'} tone={site.active ? 'success' : 'neutral'} />
     </View>
     <Text style={styles.meta}>{site.address}</Text>
@@ -29,6 +33,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  titleIcon: {
+    marginRight: 6,
   },
   title: {
     fontSize: 18,

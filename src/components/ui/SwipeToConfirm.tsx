@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../config/theme';
 
 type Props = {
@@ -84,8 +85,8 @@ export const SwipeToConfirm: React.FC<Props> = ({
         ]}
       >
         <View style={styles.chevrons}>
-          <Text style={[styles.chevron, { color: trackColor }]}>›</Text>
-          <Text style={[styles.chevron, styles.chevronSecond, { color: trackColor }]}>›</Text>
+          <Ionicons name="chevron-forward" size={20} color={trackColor} style={styles.chevron} />
+          <Ionicons name="chevron-forward" size={20} color={trackColor} style={[styles.chevron, styles.chevronSecond]} />
         </View>
       </Animated.View>
     </View>

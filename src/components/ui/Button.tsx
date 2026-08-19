@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../config/theme';
 
 type Props = {
@@ -11,6 +12,8 @@ type Props = {
   disabled?: boolean;
   size?: 'md' | 'sm';
   fullWidth?: boolean;
+  icon?: keyof typeof Ionicons.glyphMap;
+  iconPosition?: 'left' | 'right';
 };
 
 export const Button: React.FC<Props> = ({
@@ -21,6 +24,8 @@ export const Button: React.FC<Props> = ({
   disabled,
   size = 'md',
   fullWidth,
+  icon,
+  iconPosition = 'left',
 }) => {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -49,7 +54,15 @@ export const Button: React.FC<Props> = ({
       onPress={disabled ? undefined : onPress}
       accessibilityState={disabled ? { disabled: true } : undefined}
     >
-      <Animated.View style={{ transform: [{ scale }] }}>
+      <Animated.View style={[styles.content, { transform: [{ scale }] }]}>
+        {icon && iconPosition === 'left' && (
+          <Ionicons
+            name={icon}
+            size={size === 'sm' ? 14 : 16}
+            color={variant === 'ghost' ? theme.colors.ink : '#fff'}
+            style={styles.icon}
+          />
+        )}
         <Text
           style={[
             styles.label,
@@ -61,12 +74,27 @@ export const Button: React.FC<Props> = ({
         >
           {label ?? title}
         </Text>
+        {icon && iconPosition === 'right' && (
+          <Ionicons
+            name={icon}
+            size={size === 'sm' ? 14 : 16}
+            color={variant === 'ghost' ? theme.colors.ink : '#fff'}
+            style={styles.icon}
+          />
+        )}
       </Animated.View>
     </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  icon: {
+    marginHorizontal: 6,
+  },
   base: {
     backgroundColor: theme.colors.ink,
     paddingVertical: theme.spacing.sm,
