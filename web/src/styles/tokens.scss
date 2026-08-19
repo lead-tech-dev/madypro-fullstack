@@ -6,27 +6,29 @@
   --font-body: 'Cabin', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-heading: 'Fjalla One', 'Cabin', sans-serif;
 
-  // Couleurs de base
+  // Couleurs de base (neutres refroidis pour s'accorder avec le bleu de la marque)
   --color-ink: #020912;
   --color-muted: #565656;
-  --color-cream: #f8f4ed;
-  --color-shell: #fdfbf5;
+  --color-cream: #f4f8fc;
+  --color-shell: #fbfcfe;
   --color-sage: #dbe9e0;
-  --color-mist: #e4f6ff;
-  --color-border: #e3e1da;
+  --color-mist: #e8f5fd;
+  --color-border: #dde5ef;
 
-  // Accent (repris de l'ancienne tentative de design system dans abstracts/_colors.scss)
-  --color-accent: #2764ff;
-  --color-accent-dark: #1f4ed8;
+  // Accent — bleu extrait du logo Mady Proclean
+  --color-accent: #0f98eb;
+  --color-accent-dark: #1b5ca0;
   --color-focus: var(--color-accent);
 
   // Couleurs sémantiques (alignées sur .status-chip existant pour rester cohérent visuellement)
+  // Conservées telles quelles : ce sont des conventions de statut (succès/alerte/danger),
+  // pas de l'identité de marque.
   --color-success: #1f4634;
   --color-success-bg: #dbe9e0;
   --color-warning: #9c5a18;
   --color-warning-bg: #fff2df;
-  --color-info: #0b4b71;
-  --color-info-bg: #e0f2ff;
+  --color-info: #0d366e;
+  --color-info-bg: #e3f3fc;
   --color-danger: #c2410c;
   --color-danger-bg: #fdece3;
 
