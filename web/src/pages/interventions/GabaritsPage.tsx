@@ -442,7 +442,7 @@ export const GabaritsPage: React.FC<GabaritsPageProps> = ({ embedded, restrictTo
                 return (
                   <tr key={template.id}>
                     <td>{template.label}</td>
-                    <td>{siteNames[template.siteId] ?? template.siteId}</td>
+                    <td>{siteNames[template.siteId] ?? '…'}</td>
                     <td>{template.stops.length} arrêt(s)</td>
                     <td>{summaryLabel}</td>
                     <td>
