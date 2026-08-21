@@ -15,7 +15,7 @@ function getNotificationIcon(item: NotificationItem): keyof typeof Ionicons.glyp
 }
 
 export default function NotificationsScreen() {
-  const { notifications, markAsRead, markAllAsRead, refresh } = useNotificationCenter();
+  const { notifications, openNotification, markAllAsRead, refresh } = useNotificationCenter();
   const { getItemStyle } = useStaggeredFadeIn();
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function NotificationsScreen() {
           ItemSeparatorComponent={() => <View style={{ height: theme.spacing.md }} />}
           renderItem={({ item, index }) => (
             <Animated.View style={getItemStyle(index)}>
-              <TouchableOpacity style={[styles.card, !item.read && styles.cardUnread]} onPress={() => markAsRead(item.id)}>
+              <TouchableOpacity style={[styles.card, !item.read && styles.cardUnread]} onPress={() => openNotification(item)}>
                 <View style={styles.cardHeader}>
                   <View style={styles.cardTitleRow}>
                     <Ionicons name={getNotificationIcon(item)} size={16} color={theme.colors.primary} />

@@ -7,12 +7,21 @@ import { useAuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { listNotifications, markNotificationRead, registerNotificationToken } from '../services/api/notifications.api';
 import { navigationRef } from '../navigation/navigationRef';
-import { AgentTabParamList } from '../navigation/types';
+import { AgentTabParamList, AgentStackParamList } from '../navigation/types';
+
+const AGENT_TAB_SCREENS = new Set<keyof AgentTabParamList>([
+  'AgentHome',
+  'AgentHistory',
+  'AgentRequests',
+  'AgentNotifications',
+  'AgentProfile',
+]);
 
 type NotificationContextValue = {
   notifications: NotificationItem[];
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  openNotification: (item: NotificationItem) => void;
   pushMockNotification: (notification: Partial<NotificationItem>) => void;
   refresh: () => Promise<void>;
   unreadCount: number;
@@ -44,12 +53,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const navigateFromPayload = useCallback(
     (data: unknown) => {
+      console.log('[DeepLink] navigateFromPayload called with', JSON.stringify(data), 'ready=', navigationRef.isReady());
       if (!navigationRef.isReady() || !data || typeof data !== 'object') {
         return;
       }
       const payload = data as { path?: string; interventionId?: string | number; anomalyId?: string };
       if (payload.path) {
-        navigateToAgentTab('AgentHome');
+        if (AGENT_TAB_SCREENS.has(payload.path as keyof AgentTabParamList)) {
+          navigateToAgentTab(payload.path as keyof AgentTabParamList);
+        } else {
+          navigationRef.navigate('Agent', { screen: payload.path as keyof AgentStackParamList } as never);
+        }
         return;
       }
       if (payload.interventionId) {
@@ -116,6 +130,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         shouldSetBadge: false,
       }),
     });
+    // Cas "cold start" : l'app était fermée (tuée par le système) et le tap sur la
+    // notification vient de la relancer — addNotificationResponseReceivedListener n'a pas eu
+    // le temps de s'enregistrer avant que l'OS ait délivré l'événement, donc on le récupère
+    // explicitement une fois au montage. navigationRef n'est pas forcément prêt tout de suite
+    // (NavigationContainer pas encore monté), d'où le petit polling borné.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      const data = response.notification.request.content.data;
+      console.log('[DeepLink] cold-start response found, data=', JSON.stringify(data));
+      let attempts = 0;
+      const tryNavigate = () => {
+        attempts += 1;
+        if (navigationRef.isReady()) {
+          navigateFromPayload(data);
+          return;
+        }
+        if (attempts < 20) setTimeout(tryNavigate, 150);
+      };
+      tryNavigate();
+    });
+
     registerForPushNotificationsAsync().then((value) => {
       if (!value) {
         showToast(
@@ -155,6 +190,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const content = response.notification.request.content;
+      console.log('[DeepLink] response listener fired, content.data=', JSON.stringify(content.data));
       navigateFromPayload(content.data);
       const serverId = resolveServerId(response.notification.request);
       setItems((prev) => prev.map((item) => (item.id === serverId ? { ...item, read: true } : item)));
@@ -177,6 +213,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     },
     [token],
+  );
+
+  const openNotification = useCallback(
+    (item: NotificationItem) => {
+      markAsRead(item.id);
+      navigateFromPayload(item.data);
+    },
+    [markAsRead, navigateFromPayload],
   );
 
   const markAllAsRead = useCallback(() => {
@@ -219,11 +263,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       notifications: items,
       markAsRead,
       markAllAsRead,
+      openNotification,
       pushMockNotification,
       refresh,
       unreadCount,
     }),
-    [items, markAsRead, markAllAsRead, pushMockNotification, refresh, unreadCount],
+    [items, markAsRead, markAllAsRead, openNotification, pushMockNotification, refresh, unreadCount],
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

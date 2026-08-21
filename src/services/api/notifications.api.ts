@@ -11,6 +11,7 @@ export async function listNotifications(token: string) {
     read: notification.read ?? false,
     audience: notification.audience,
     targetName: notification.targetName,
+    data: notification.data,
   } satisfies NotificationItem));
 }
 
@@ -42,4 +43,5 @@ type ServerNotification = {
   targetName?: string;
   createdAt: string;
   read?: boolean;
+  data?: Record<string, unknown>;
 };
