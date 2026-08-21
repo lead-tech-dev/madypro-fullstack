@@ -9,5 +9,6 @@ export class NotificationEntity {
   targetName?: string;
   category?: string;
   priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  data?: Record<string, unknown>;
   createdAt!: Date;
 }

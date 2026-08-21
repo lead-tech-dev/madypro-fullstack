@@ -599,6 +599,8 @@ model Notification {
   targetName           String?
   category             String?
   priority             NotificationPriority @default(NORMAL)
+  /// Payload transmis au client mobile pour la navigation au tap (ex: { interventionId } ou { path }).
+  data                 Json?
   scheduledFor         DateTime?
   sentAt               DateTime?
   escalateAfterMinutes Int?

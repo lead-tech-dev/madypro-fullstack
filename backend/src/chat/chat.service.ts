@@ -51,6 +51,7 @@ export class ChatService {
         audience: 'AGENT',
         targetId: threadUserId,
         category: 'chat',
+        data: { path: 'AgentChat' },
       });
     }
     return message;

@@ -206,6 +206,7 @@ export class InterventionsService implements OnModuleInit {
             message: `${(record as any).site?.name ?? 'Site'} · ${record.startTime}-${record.endTime}`,
             audience: 'AGENT',
             targetId: assignment.userId,
+            data: { interventionId: record.id },
           });
         } catch (err) {
           this.logger.warn(`Notif début imminent échouée (${record.id} -> ${assignment.userId}): ${err?.message || err}`);
@@ -264,6 +265,7 @@ export class InterventionsService implements OnModuleInit {
               message: `${agentName} n'a pas pointé pour ${(intervention as any).site?.name ?? 'le site'} (prévu à ${intervention.startTime}).`,
               audience: 'AGENT',
               targetId: supervisor.userId,
+              data: { interventionId: intervention.id },
             });
           } catch (err) {
             this.logger.warn(`Alerte oubli pointage échouée (${intervention.id} -> ${supervisor.userId}): ${err?.message || err}`);
@@ -450,6 +452,7 @@ export class InterventionsService implements OnModuleInit {
             message: `${record.site?.name ?? 'Site'} · fin prévue à ${record.endTime}`,
             audience: 'AGENT',
             targetId: assignment.userId,
+            data: { interventionId: record.id },
           });
         } catch (err) {
           this.logger.warn(
@@ -528,6 +531,7 @@ export class InterventionsService implements OnModuleInit {
                 targetId: agentId,
                 title: 'Intervention à valider',
                 message,
+                data: { interventionId: intervention.id },
               }),
             ),
             this.notifications.send({
@@ -535,6 +539,7 @@ export class InterventionsService implements OnModuleInit {
               targetId: intervention.siteId,
               title: 'Intervention à valider',
               message,
+              data: { interventionId: intervention.id },
             }),
           ]);
         } catch (err) {
@@ -632,6 +637,7 @@ export class InterventionsService implements OnModuleInit {
           message,
           audience: 'AGENT',
           targetId: agentId,
+          data: { interventionId: intervention.id },
         }),
       ),
     );

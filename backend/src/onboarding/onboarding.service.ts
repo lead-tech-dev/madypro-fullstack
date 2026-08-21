@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateTemplateItemDto } from './dto/create-template-item.dto';
 
 @Injectable()
 export class OnboardingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   findTemplate() {
     return this.prisma.onboardingTemplateItem.findMany({ orderBy: { order: 'asc' } });
@@ -36,6 +40,12 @@ export class OnboardingService {
     }
     await this.prisma.userOnboardingItem.createMany({
       data: template.map((item) => ({ userId, label: item.label, order: item.order })),
+    });
+    await this.notifications.send({
+      title: "Parcours d'intégration disponible",
+      message: `Votre parcours d'intégration est prêt (${template.length} étape(s)).`,
+      audience: 'AGENT',
+      targetId: userId,
     });
     return this.findForUser(userId);
   }

@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import fetch from 'node-fetch';
 import { NotificationEntity, NotificationAudience } from './entities/notification.entity';
 import { SendNotificationDto } from './dto/send-notification.dto';
@@ -147,6 +148,7 @@ export class NotificationsService implements OnModuleInit {
         targetName,
         category: dto.category,
         priority: dto.priority ?? 'NORMAL',
+        data: dto.data as Prisma.InputJsonValue | undefined,
         scheduledFor,
         sentAt: isFuture ? null : new Date(),
         escalateAfterMinutes: dto.escalateAfterMinutes,
@@ -167,6 +169,7 @@ export class NotificationsService implements OnModuleInit {
         audience: notification.audience as NotificationAudience,
         targetId: notification.targetId ?? undefined,
         targetName,
+        data: (notification.data as Record<string, unknown>) ?? undefined,
         createdAt: notification.createdAt,
       });
     }
@@ -186,6 +189,7 @@ export class NotificationsService implements OnModuleInit {
         audience: notification.audience as NotificationAudience,
         targetId: notification.targetId ?? undefined,
         targetName: notification.targetName ?? undefined,
+        data: (notification.data as Record<string, unknown>) ?? undefined,
         createdAt: notification.createdAt,
       });
     }
@@ -321,6 +325,7 @@ export class NotificationsService implements OnModuleInit {
       title: notification.title,
       body: notification.message,
       data: {
+        ...notification.data,
         notificationId: notification.id,
       },
     }));
@@ -364,7 +369,13 @@ export class NotificationsService implements OnModuleInit {
                 title: notification.title,
                 body: notification.message,
               },
-              data: { notificationId: notification.id },
+              // FCM exige des valeurs string pour data
+              data: Object.fromEntries(
+                Object.entries({ ...notification.data, notificationId: notification.id }).map(([k, v]) => [
+                  k,
+                  String(v),
+                ]),
+              ),
             },
           };
           try {

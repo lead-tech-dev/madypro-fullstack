@@ -9,6 +9,7 @@ import { UpdateAbsenceStatusDto } from './dto/update-absence-status.dto';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../database/prisma.service';
 import { BadRequestException } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 
 type AbsenceFilters = {
   status?: AbsenceStatus | 'all';
@@ -51,6 +52,7 @@ export class AbsencesService {
     private readonly usersService: UsersService,
     private readonly sitesService: SitesService,
     private readonly auditService: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private toDateOnly(value: string) {
@@ -349,6 +351,18 @@ export class AbsencesService {
       entityId: id,
       details: dto.status,
     });
+    if (dto.status === 'APPROVED' || dto.status === 'REJECTED') {
+      await this.notifications.send({
+        title: dto.status === 'APPROVED' ? 'Absence approuvée' : 'Absence refusée',
+        message:
+          dto.status === 'APPROVED'
+            ? `Votre demande d'absence du ${record.from.toLocaleDateString('fr-FR')} au ${record.to.toLocaleDateString('fr-FR')} a été approuvée.`
+            : `Votre demande d'absence du ${record.from.toLocaleDateString('fr-FR')} au ${record.to.toLocaleDateString('fr-FR')} a été refusée.${dto.comment ? ` Motif : ${dto.comment}` : ''}`,
+        audience: 'AGENT',
+        targetId: record.userId,
+        data: { path: 'AgentRequests' },
+      });
+    }
     return this.toView(this.toEntity(record));
   }
 

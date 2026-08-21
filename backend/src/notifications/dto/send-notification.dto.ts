@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
 import type { NotificationAudience } from '../entities/notification.entity';
 
 export class SendNotificationDto {
@@ -31,4 +31,9 @@ export class SendNotificationDto {
   @IsInt()
   @Min(1)
   escalateAfterMinutes?: number;
+
+  /** Payload de navigation pour le tap mobile, ex: { interventionId: '...' } ou { path: 'AgentChat' }. */
+  @IsOptional()
+  @IsObject()
+  data?: Record<string, unknown>;
 }
