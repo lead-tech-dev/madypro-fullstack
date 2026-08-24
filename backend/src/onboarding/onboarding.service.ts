@@ -46,6 +46,7 @@ export class OnboardingService {
       message: `Votre parcours d'intégration est prêt (${template.length} étape(s)).`,
       audience: 'AGENT',
       targetId: userId,
+      data: { path: 'AgentOnboardingChecklist' },
     });
     return this.findForUser(userId);
   }

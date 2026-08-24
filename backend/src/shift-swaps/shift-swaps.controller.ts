@@ -14,6 +14,11 @@ export class ShiftSwapsController {
     return this.shiftSwapsService.findAll(userId);
   }
 
+  @Get('colleagues')
+  listColleagues(@Query('search') search: string | undefined, @Req() req: Request) {
+    return this.shiftSwapsService.listColleagues((req.user as any)?.sub, search);
+  }
+
   @Post()
   create(@Body() dto: CreateShiftSwapDto, @Req() req: Request) {
     return this.shiftSwapsService.create((req.user as any)?.sub, dto);

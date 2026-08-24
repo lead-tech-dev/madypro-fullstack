@@ -28,6 +28,7 @@ export class TeamFeedService {
       audience: 'ALL_AGENTS',
       title: `${post.author.firstName} ${post.author.lastName} — fil d'actualité`,
       message: dto.message,
+      data: { path: 'AgentTeamFeed' },
     });
     return post;
   }

@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
 import { CreateShiftSwapDto } from './dto/create-shift-swap.dto';
 
 @Injectable()
@@ -8,11 +9,36 @@ export class ShiftSwapsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly usersService: UsersService,
   ) {}
+
+  listColleagues(userId: string, search?: string) {
+    // Sans terme de recherche, on ne renvoie qu'un aperçu court : avec des centaines d'agents,
+    // renvoyer la liste complète serait à la fois inutilisable côté mobile et coûteux côté serveur.
+    const { items } = this.usersService.findAll({
+      role: 'AGENT',
+      status: 'active',
+      search: search?.trim() || undefined,
+      pageSize: 20,
+    });
+    return items
+      .filter((u) => u.id !== userId)
+      .map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }));
+  }
 
   findAll(userId?: string) {
     return this.prisma.shiftSwapRequest.findMany({
-      where: userId ? { OR: [{ requesterId: userId }, { targetUserId: userId }] } : undefined,
+      where: userId
+        ? {
+            OR: [
+              { requesterId: userId },
+              { targetUserId: userId },
+              // demandes ouvertes (sans destinataire précis) : visibles par tout agent, pour qu'il
+              // puisse potentiellement les accepter — sinon accept() n'est jamais atteignable.
+              { targetUserId: null, status: 'PENDING' },
+            ],
+          }
+        : undefined,
       orderBy: { createdAt: 'desc' },
       include: {
         intervention: { select: { id: true, date: true, startTime: true, endTime: true, siteId: true } },
@@ -23,11 +49,20 @@ export class ShiftSwapsService {
   }
 
   async create(requesterId: string, dto: CreateShiftSwapDto) {
+    if (dto.targetUserId && dto.targetUserId === requesterId) {
+      throw new BadRequestException('Vous ne pouvez pas vous proposer un échange à vous-même');
+    }
     const assignment = await this.prisma.interventionAssignment.findUnique({
       where: { interventionId_userId: { interventionId: dto.interventionId, userId: requesterId } },
     });
     if (!assignment) {
       throw new BadRequestException("Vous n'êtes pas affecté à cette intervention");
+    }
+    const intervention = await this.prisma.intervention.findUnique({ where: { id: dto.interventionId } });
+    if (!intervention || intervention.status !== 'PLANNED') {
+      throw new BadRequestException(
+        "Cette mission n'est plus proposable à l'échange (déjà démarrée, terminée ou annulée)",
+      );
     }
     const request = await this.prisma.shiftSwapRequest.create({
       data: {
@@ -43,6 +78,7 @@ export class ShiftSwapsService {
         message: 'Un collègue vous propose un échange de mission.',
         audience: 'AGENT',
         targetId: dto.targetUserId,
+        data: { path: 'AgentShiftSwaps' },
       });
     }
     return request;
@@ -59,6 +95,10 @@ export class ShiftSwapsService {
     return request;
   }
 
+  private combine(dateStr: string, time: string) {
+    return new Date(`${dateStr}T${time}:00`);
+  }
+
   async accept(id: string, userId: string) {
     const request = await this.ensureRequest(id);
     if (request.targetUserId && request.targetUserId !== userId) {
@@ -68,8 +108,47 @@ export class ShiftSwapsService {
       throw new BadRequestException('Vous ne pouvez pas accepter votre propre demande');
     }
 
+    const intervention = await this.prisma.intervention.findUnique({ where: { id: request.interventionId } });
+    if (!intervention) {
+      throw new NotFoundException('Intervention introuvable');
+    }
+    // La mission a pu démarrer, être terminée ou annulée entre la création de la demande et son
+    // acceptation : on ne réaffecte jamais une mission qui n'est plus au statut PLANNED.
+    if (intervention.status !== 'PLANNED') {
+      throw new BadRequestException(
+        "Cette mission n'est plus disponible pour un échange (déjà démarrée, terminée ou annulée)",
+      );
+    }
+
+    const dateStr = intervention.date.toISOString().slice(0, 10);
+    const newStart = this.combine(dateStr, intervention.startTime);
+    const newEnd = this.combine(dateStr, intervention.endTime);
+    const sameDayInterventions = await this.prisma.intervention.findMany({
+      where: {
+        date: intervention.date,
+        id: { not: intervention.id },
+        status: { notIn: ['CANCELLED'] },
+        assignments: { some: { userId } },
+      },
+    });
+    for (const other of sameDayInterventions) {
+      const otherStart = this.combine(dateStr, other.startTime);
+      const otherEnd = this.combine(dateStr, other.endTime);
+      const overlaps = newStart < otherEnd && otherStart < newEnd;
+      if (overlaps) {
+        throw new BadRequestException(
+          `Vous êtes déjà planifié sur une autre mission le ${dateStr} de ${other.startTime} à ${other.endTime}`,
+        );
+      }
+    }
+
     await this.prisma.$transaction([
       this.prisma.interventionAssignment.deleteMany({
+        where: { interventionId: request.interventionId, userId: request.requesterId },
+      }),
+      // Le demandeur n'est plus responsable de cette mission : son éventuel pointage (arrivée...)
+      // devient obsolète et ne doit pas rester orphelin en base.
+      this.prisma.attendance.deleteMany({
         where: { interventionId: request.interventionId, userId: request.requesterId },
       }),
       this.prisma.interventionAssignment.upsert({
@@ -89,6 +168,7 @@ export class ShiftSwapsService {
       message: 'Votre demande d’échange de mission a été acceptée.',
       audience: 'AGENT',
       targetId: request.requesterId,
+      data: { path: 'AgentShiftSwaps' },
     });
 
     return updated;
@@ -108,6 +188,7 @@ export class ShiftSwapsService {
       message: 'Votre demande d’échange de mission a été refusée.',
       audience: 'AGENT',
       targetId: request.requesterId,
+      data: { path: 'AgentShiftSwaps' },
     });
     return updated;
   }
