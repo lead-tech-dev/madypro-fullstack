@@ -22,6 +22,9 @@ import AgentAvailabilityScreen from '@/screens/agent/AgentAvailabilityScreen';
 import AgentChatScreen from '@/screens/agent/AgentChatScreen';
 import AgentInventoryScannerScreen from '@/screens/agent/AgentInventoryScannerScreen';
 import AgentPlanningScreen from '@/screens/agent/AgentPlanningScreen';
+import AgentShiftSwapsScreen from '@/screens/agent/AgentShiftSwapsScreen';
+import AgentTeamFeedScreen from '@/screens/agent/AgentTeamFeedScreen';
+import AgentOnboardingChecklistScreen from '@/screens/agent/AgentOnboardingChecklistScreen';
 import OnboardingScreen from '@/screens/OnboardingScreen';
 import LoginScreen from '@/screens/auth/LoginScreen';
 import ForgotPasswordScreen from '@/screens/auth/ForgotPasswordScreen';
@@ -97,6 +100,9 @@ function AgentNavigator() {
       <AgentStack.Screen name="AgentChat" component={AgentChatScreen} />
       <AgentStack.Screen name="AgentInventoryScanner" component={AgentInventoryScannerScreen} />
       <AgentStack.Screen name="AgentPlanning" component={AgentPlanningScreen} />
+      <AgentStack.Screen name="AgentShiftSwaps" component={AgentShiftSwapsScreen} />
+      <AgentStack.Screen name="AgentTeamFeed" component={AgentTeamFeedScreen} />
+      <AgentStack.Screen name="AgentOnboardingChecklist" component={AgentOnboardingChecklistScreen} />
     </AgentStack.Navigator>
   );
 }

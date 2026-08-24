@@ -845,6 +845,22 @@ export default function InterventionDetailScreen() {
             tone="danger"
           />
         )}
+        {isPlanned && !hasStarted && (
+          <Button
+            title="Proposer un échange"
+            variant="ghost"
+            icon="swap-horizontal-outline"
+            onPress={() =>
+              navigation.navigate('AgentShiftSwaps', {
+                interventionId: intervention.id,
+                siteName: intervention.siteName,
+                date: intervention.date,
+                startTime: intervention.startTime,
+                endTime: intervention.endTime,
+              })
+            }
+          />
+        )}
         <Button title="Signaler un problème" variant="ghost" icon="alert-circle-outline" onPress={handleProblem} />
       </Animated.View>
       <ProblemModal

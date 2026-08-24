@@ -154,6 +154,16 @@ export default function AgentHomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  const wasOnlineRef = React.useRef(isOnline);
+  React.useEffect(() => {
+    // Retour de connexion pendant que l'écran est déjà affiché : on ne veut pas attendre un
+    // pull-to-refresh manuel ou un changement de focus pour faire disparaître le bandeau hors ligne.
+    if (isOnline && !wasOnlineRef.current) {
+      loadInterventions();
+    }
+    wasOnlineRef.current = isOnline;
+  }, [isOnline, loadInterventions]);
+
   const priority = React.useMemo(
     () => computePriorityMoment(interventions.today, user?.id),
     [interventions.today, user?.id],
@@ -318,6 +328,21 @@ export default function AgentHomeScreen() {
 
         <TouchableOpacity onPress={() => navigation.navigate('AgentRequests')} style={styles.linkRow}>
           <Text style={styles.link}>Déclarer une absence</Text>
+          <Ionicons name="chevron-forward" size={14} color={theme.colors.muted} />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => navigation.navigate('AgentShiftSwaps')} style={styles.linkRow}>
+          <Text style={styles.link}>Échanges de shift</Text>
+          <Ionicons name="chevron-forward" size={14} color={theme.colors.muted} />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => navigation.navigate('AgentTeamFeed')} style={styles.linkRow}>
+          <Text style={styles.link}>Fil d'actualité</Text>
+          <Ionicons name="chevron-forward" size={14} color={theme.colors.muted} />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => navigation.navigate('AgentOnboardingChecklist')} style={styles.linkRow}>
+          <Text style={styles.link}>Parcours d'intégration</Text>
           <Ionicons name="chevron-forward" size={14} color={theme.colors.muted} />
         </TouchableOpacity>
       </ScrollView>

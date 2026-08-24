@@ -92,6 +92,12 @@ export default function AgentPlanningScreen() {
     }, [load]),
   );
 
+  useEffect(() => {
+    // Une sélection de jour (vue mois) ne doit pas survivre à un changement de mois/semaine ou
+    // de mode : sinon le panneau de détail affiche un jour qui n'est plus visible dans la grille.
+    setSelectedDate(null);
+  }, [anchorDate, calendarMode]);
+
   const sorted = useMemo(
     () => [...interventions].sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`)),
     [interventions],

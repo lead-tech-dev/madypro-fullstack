@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { listNotifications, markNotificationRead, registerNotificationToken } from '../services/api/notifications.api';
 import { navigationRef } from '../navigation/navigationRef';
 import { AgentTabParamList, AgentStackParamList } from '../navigation/types';
+import { NOTIFICATION_STORAGE_KEY } from '../config/storage';
 
 const AGENT_TAB_SCREENS = new Set<keyof AgentTabParamList>([
   'AgentHome',
@@ -28,7 +29,7 @@ type NotificationContextValue = {
 };
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
-const STORAGE_KEY = 'notification-center';
+const STORAGE_KEY = NOTIFICATION_STORAGE_KEY;
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, user } = useAuthContext();

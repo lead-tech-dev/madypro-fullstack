@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthUser } from '../types/auth';
-import { AUTH_STORAGE_KEY } from '../config/storage';
+import { AUTH_STORAGE_KEY, NOTIFICATION_STORAGE_KEY } from '../config/storage';
 import { secureStorage } from '../services/secureStorage';
 import { setUnauthorizedHandler } from '../services/api/client';
+import { useToast } from './ToastContext';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -19,9 +20,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
-    setUnauthorizedHandler(() => logout());
+    // Déconnexion forcée par le backend (token expiré/invalide) : distincte d'un logout manuel,
+    // l'utilisateur doit comprendre pourquoi il se retrouve sur l'écran de connexion.
+    setUnauthorizedHandler(() => {
+      logout();
+      showToast('Session expirée', 'Merci de vous reconnecter.', 'error');
+    });
     return () => setUnauthorizedHandler(null);
   }, []);
 
@@ -62,7 +69,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // purge les données locales liées à l'utilisateur précédent
     AsyncStorage.getAllKeys()
       .then((keys) => {
-        const keysToRemove = keys.filter((key) => key === 'syncQueue' || key.startsWith('intervention:start:'));
+        const keysToRemove = keys.filter(
+          (key) => key === 'syncQueue' || key === NOTIFICATION_STORAGE_KEY || key.startsWith('intervention:start:'),
+        );
         if (keysToRemove.length) {
           AsyncStorage.multiRemove(keysToRemove).catch(() => {});
         }

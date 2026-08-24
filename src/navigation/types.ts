@@ -23,6 +23,11 @@ export type AgentStackParamList = {
   AgentChat: undefined;
   AgentInventoryScanner: undefined;
   AgentPlanning: undefined;
+  AgentShiftSwaps:
+    | { interventionId: string; siteName?: string; date?: string; startTime?: string; endTime?: string }
+    | undefined;
+  AgentTeamFeed: undefined;
+  AgentOnboardingChecklist: undefined;
 };
 
 export type RootStackParamList = {
