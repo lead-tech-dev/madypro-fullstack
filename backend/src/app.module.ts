@@ -10,7 +10,6 @@ import { AssignmentsModule } from './assignments/assignments.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { AbsencesModule } from './absences/absences.module';
 import { ReportsModule } from './reports/reports.module';
-import { DevicesModule } from './devices/devices.module';
 import { SettingsModule } from './settings/settings.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AuditModule } from './audit/audit.module';
@@ -48,7 +47,6 @@ import { CategoriesModule } from './categories/categories.module';
     AttendanceModule,
     AbsencesModule,
     ReportsModule,
-    DevicesModule,
     SettingsModule,
     NotificationsModule,
     AuditModule,
