@@ -76,7 +76,7 @@ const EMPTY_MANUAL_FORM: ManualFormState = {
 };
 
 export const AbsencesListPage: React.FC = () => {
-  const { token, notify } = useAuthContext();
+  const { token, user, notify } = useAuthContext();
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [pageData, setPageData] = useState<AbsencePage>({
@@ -223,7 +223,7 @@ export const AbsencesListPage: React.FC = () => {
     try {
       await updateAbsenceStatus(token, absence.id, {
         status,
-        validatedBy: 'Admin Madypro',
+        validatedBy: user?.name ?? 'ADMIN',
         comment: comment || undefined,
       });
       notify(status === 'APPROVED' ? 'Demande approuvée' : 'Demande rejetée');

@@ -30,7 +30,7 @@ const STATUS_LABELS: Record<AbsenceStatus, string> = {
 
 export const AbsenceDetailPage: React.FC = () => {
   const { id } = useParams();
-  const { token, notify } = useAuthContext();
+  const { token, user, notify } = useAuthContext();
   const [absence, setAbsence] = useState<Absence | null>(null);
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<ReplacementSuggestion | null>(null);
@@ -78,7 +78,7 @@ export const AbsenceDetailPage: React.FC = () => {
     const status = decisionPrompt;
     setDecisionPrompt(null);
     try {
-      await updateAbsenceStatus(token, id, { status, validatedBy: 'Admin Madypro', comment: comment || undefined });
+      await updateAbsenceStatus(token, id, { status, validatedBy: user?.name ?? 'ADMIN', comment: comment || undefined });
       notify(status === 'APPROVED' ? 'Demande approuvée' : 'Demande rejetée');
       loadDetail();
     } catch (err) {
