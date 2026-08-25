@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
 import { CreateShiftSwapDto } from './dto/create-shift-swap.dto';
+import { checkAssignmentConflicts } from '../common/utils/assignment-conflicts.util';
 
 @Injectable()
 export class ShiftSwapsService {
@@ -15,14 +16,17 @@ export class ShiftSwapsService {
   listColleagues(userId: string, search?: string) {
     // Sans terme de recherche, on ne renvoie qu'un aperçu court : avec des centaines d'agents,
     // renvoyer la liste complète serait à la fois inutilisable côté mobile et coûteux côté serveur.
+    // +1 pour compenser le cas où l'appelant lui-même fait partie de la page récupérée,
+    // sinon la liste promise jusqu'à 20 résultats peut silencieusement tomber à 19.
     const { items } = this.usersService.findAll({
       role: 'AGENT',
       status: 'active',
       search: search?.trim() || undefined,
-      pageSize: 20,
+      pageSize: 21,
     });
     return items
       .filter((u) => u.id !== userId)
+      .slice(0, 20)
       .map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }));
   }
 
@@ -95,10 +99,6 @@ export class ShiftSwapsService {
     return request;
   }
 
-  private combine(dateStr: string, time: string) {
-    return new Date(`${dateStr}T${time}:00`);
-  }
-
   async accept(id: string, userId: string) {
     const request = await this.ensureRequest(id);
     if (request.targetUserId && request.targetUserId !== userId) {
@@ -121,46 +121,36 @@ export class ShiftSwapsService {
     }
 
     const dateStr = intervention.date.toISOString().slice(0, 10);
-    const newStart = this.combine(dateStr, intervention.startTime);
-    const newEnd = this.combine(dateStr, intervention.endTime);
-    const sameDayInterventions = await this.prisma.intervention.findMany({
-      where: {
-        date: intervention.date,
-        id: { not: intervention.id },
-        status: { notIn: ['CANCELLED'] },
-        assignments: { some: { userId } },
-      },
-    });
-    for (const other of sameDayInterventions) {
-      const otherStart = this.combine(dateStr, other.startTime);
-      const otherEnd = this.combine(dateStr, other.endTime);
-      const overlaps = newStart < otherEnd && otherStart < newEnd;
-      if (overlaps) {
-        throw new BadRequestException(
-          `Vous êtes déjà planifié sur une autre mission le ${dateStr} de ${other.startTime} à ${other.endTime}`,
-        );
-      }
-    }
+    // Même contrôle que l'affectation classique (chevauchement + absence approuvée), pour ne pas
+    // laisser l'échange de shift réaffecter un agent en congé ou déjà planifié ailleurs.
+    await checkAssignmentConflicts(this.prisma, [userId], dateStr, intervention.startTime, intervention.endTime, intervention.id);
 
-    await this.prisma.$transaction([
-      this.prisma.interventionAssignment.deleteMany({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Verrou optimiste : ne bascule ACCEPTED que si la demande est encore PENDING, pour empêcher
+      // deux agents d'accepter la même demande ouverte en même temps (double affectation).
+      const claim = await tx.shiftSwapRequest.updateMany({
+        where: { id, status: 'PENDING' },
+        data: { status: 'ACCEPTED', targetUserId: userId, respondedAt: new Date() },
+      });
+      if (claim.count === 0) {
+        throw new BadRequestException('Cette demande a déjà été traitée');
+      }
+
+      await tx.interventionAssignment.deleteMany({
         where: { interventionId: request.interventionId, userId: request.requesterId },
-      }),
+      });
       // Le demandeur n'est plus responsable de cette mission : son éventuel pointage (arrivée...)
       // devient obsolète et ne doit pas rester orphelin en base.
-      this.prisma.attendance.deleteMany({
+      await tx.attendance.deleteMany({
         where: { interventionId: request.interventionId, userId: request.requesterId },
-      }),
-      this.prisma.interventionAssignment.upsert({
+      });
+      await tx.interventionAssignment.upsert({
         where: { interventionId_userId: { interventionId: request.interventionId, userId } },
         update: {},
         create: { interventionId: request.interventionId, userId },
-      }),
-    ]);
+      });
 
-    const updated = await this.prisma.shiftSwapRequest.update({
-      where: { id },
-      data: { status: 'ACCEPTED', targetUserId: userId, respondedAt: new Date() },
+      return tx.shiftSwapRequest.findUniqueOrThrow({ where: { id } });
     });
 
     await this.notifications.send({
@@ -176,13 +166,18 @@ export class ShiftSwapsService {
 
   async reject(id: string, userId: string) {
     const request = await this.ensureRequest(id);
-    if (request.targetUserId && request.targetUserId !== userId) {
+    // Une demande ouverte (sans destinataire précis) n'est adressée à personne en particulier :
+    // seul le demandeur peut la retirer (via cancel()), un agent tiers ne peut pas la rejeter.
+    if (!request.targetUserId || request.targetUserId !== userId) {
       throw new ForbiddenException("Cette demande ne vous est pas destinée");
     }
-    const updated = await this.prisma.shiftSwapRequest.update({
-      where: { id },
+    const claim = await this.prisma.shiftSwapRequest.updateMany({
+      where: { id, status: 'PENDING' },
       data: { status: 'REJECTED', respondedAt: new Date() },
     });
+    if (claim.count === 0) {
+      throw new BadRequestException('Cette demande a déjà été traitée');
+    }
     await this.notifications.send({
       title: 'Échange de shift refusé',
       message: 'Votre demande d’échange de mission a été refusée.',
@@ -190,7 +185,7 @@ export class ShiftSwapsService {
       targetId: request.requesterId,
       data: { path: 'AgentShiftSwaps' },
     });
-    return updated;
+    return this.prisma.shiftSwapRequest.findUniqueOrThrow({ where: { id } });
   }
 
   async cancel(id: string, userId: string) {

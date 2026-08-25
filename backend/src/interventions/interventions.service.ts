@@ -29,6 +29,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { haversineDistanceMeters } from '../common/utils/geo';
+import { checkAssignmentConflicts as checkAssignmentConflictsShared } from '../common/utils/assignment-conflicts.util';
 import { checkAttendanceCompleteness } from './attendance-completeness.util';
 import { computeTemplateOccurrences, findStopConflicts, TemplateStopLike, TemplateGroup } from './recurrence.util';
 import { ApprovalsService } from '../approvals/approvals.service';
@@ -194,10 +195,7 @@ export class InterventionsService implements OnModuleInit {
         if (this.upcomingNotified.has(key)) continue;
         this.upcomingNotified.add(key);
         try {
-          const tokens =
-            (this as any).notifications?.['deviceTokens']?.get(assignment.userId)?.size ||
-            (this as any).notifications?.['expoTokens']?.get(assignment.userId)?.size ||
-            0;
+          const tokens = await this.prisma.pushToken.count({ where: { userId: assignment.userId } });
           if (!tokens) {
             this.logger.warn(`[Push] Aucun token pour agent ${assignment.userId} (intervention ${record.id})`);
           }
@@ -308,53 +306,7 @@ export class InterventionsService implements OnModuleInit {
     endTime: string,
     excludeInterventionId?: string,
   ) {
-    if (!agentIds.length) return;
-
-    const dayStart = this.toDateOnly(dateStr);
-    const dayEnd = this.endOfDay(dateStr);
-    const newStart = this.combine(dateStr, startTime);
-    const newEnd = this.combine(dateStr, endTime);
-
-    const sameDayInterventions = await this.prisma.intervention.findMany({
-      where: {
-        date: dayStart,
-        ...(excludeInterventionId ? { id: { not: excludeInterventionId } } : {}),
-        status: { notIn: ['CANCELLED'] },
-        assignments: { some: { userId: { in: agentIds } } },
-      },
-      include: { assignments: true, site: true },
-    });
-
-    for (const other of sameDayInterventions) {
-      const otherStart = this.combine(dateStr, other.startTime);
-      const otherEnd = this.combine(dateStr, other.endTime);
-      const overlaps = newStart < otherEnd && otherStart < newEnd;
-      if (!overlaps) continue;
-      const conflictingIds = new Set(other.assignments.map((a) => a.userId));
-      const conflictingAgentIds = agentIds.filter((id) => conflictingIds.has(id));
-      if (!conflictingAgentIds.length) continue;
-      const agents = await this.prisma.user.findMany({ where: { id: { in: conflictingAgentIds } } });
-      const names = agents.map((a) => `${a.firstName} ${a.lastName}`.trim()).join(', ');
-      throw new BadRequestException(
-        `Conflit d'affectation : ${names || 'un agent'} déjà planifié sur "${other.site?.name ?? other.siteId}" de ${other.startTime} à ${other.endTime} le ${dateStr}.`,
-      );
-    }
-
-    const absences = await this.prisma.absence.findMany({
-      where: {
-        userId: { in: agentIds },
-        status: 'APPROVED',
-        from: { lte: dayEnd },
-        to: { gte: dayStart },
-      },
-      include: { user: true },
-    });
-    if (absences.length) {
-      const names = Array.from(new Set(absences.map((a) => `${a.user.firstName} ${a.user.lastName}`.trim()))).join(
-        ', ',
-      );
-      throw new BadRequestException(`Conflit d'affectation : ${names} en absence validée le ${dateStr}.`);
-    }
+    return checkAssignmentConflictsShared(this.prisma, agentIds, dateStr, startTime, endTime, excludeInterventionId);
   }
 
   /**

@@ -10,8 +10,12 @@ export class ShiftSwapsController {
   constructor(private readonly shiftSwapsService: ShiftSwapsService) {}
 
   @Get()
-  findAll(@Query('userId') userId?: string) {
-    return this.shiftSwapsService.findAll(userId);
+  findAll(@Query('userId') userId: string | undefined, @Req() req: Request) {
+    const user = req.user as any;
+    // Un agent ne peut voir que ses propres demandes (le paramètre userId est ignoré pour lui) ;
+    // admin/superviseur gardent la vue globale nécessaire à l'arbitrage (userId optionnel).
+    const effectiveUserId = user?.role === 'AGENT' ? user?.sub : userId;
+    return this.shiftSwapsService.findAll(effectiveUserId);
   }
 
   @Get('colleagues')
