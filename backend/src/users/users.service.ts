@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { Role, User } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -10,7 +11,9 @@ import { AuditService } from '../audit/audit.service';
 
 type PublicUser = Omit<UserEntity, 'password' | 'twoFactorSecret'> & { name: string };
 
-const generatePassword = () => Math.random().toString(36).slice(-10);
+// crypto.randomBytes (pas Math.random, un PRNG non cryptographique) : ce mot de passe généré est
+// un vrai secret temporaire, au même titre que les tokens de reset (auth.service.ts).
+const generatePassword = () => randomBytes(8).toString('base64url');
 
 interface UserFilters {
   search?: string;
