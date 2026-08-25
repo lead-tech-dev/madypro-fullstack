@@ -92,11 +92,26 @@ export class AuthService {
     };
   }
 
+  private readonly TWO_FACTOR_MAX_ATTEMPTS = 5;
+  private readonly TWO_FACTOR_LOCKOUT_WINDOW_MS = 10 * 60 * 1000;
+
   async loginTwoFactor(userId: string, code: string, context: LoginContext = {}) {
     const user = this.usersService.findEntityById(userId);
     if (!user.twoFactorEnabled || !user.twoFactorSecret) {
       throw new BadRequestException("La double authentification n'est pas activée pour ce compte.");
     }
+
+    // Le code 2FA n'est qu'un secret à 6 chiffres : sans frein, ce endpoint (accessible sans mot de
+    // passe une fois userId connu) serait force-brutable en quelques minutes.
+    const since = new Date(Date.now() - this.TWO_FACTOR_LOCKOUT_WINDOW_MS);
+    const recentFailures = await this.prisma.loginEvent.count({
+      where: { userId: user.id, success: false, reason: 'Code 2FA invalide', createdAt: { gte: since } },
+    });
+    if (recentFailures >= this.TWO_FACTOR_MAX_ATTEMPTS) {
+      await this.recordLoginEvent(user.email, false, 'Verrouillage 2FA (trop de tentatives)', user.id, context);
+      throw new UnauthorizedException('Trop de tentatives, réessayez dans quelques minutes.');
+    }
+
     const result = await otplib.verify({ token: code, secret: user.twoFactorSecret });
     if (!result.valid) {
       await this.recordLoginEvent(user.email, false, 'Code 2FA invalide', user.id, context);
