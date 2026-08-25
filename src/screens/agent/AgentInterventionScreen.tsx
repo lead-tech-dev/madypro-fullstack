@@ -259,17 +259,28 @@ export default function InterventionDetailScreen() {
       if (!intervention) {
         return;
       }
+      // isVerifying reste true pendant toute la durée de onSuccess() (photo + appel réseau), pas
+      // seulement pendant le check GPS : sinon le bouton swipe redevient actif pendant que
+      // l'action est encore en vol, permettant un double pointage via un second swipe rapide.
+      const runAction = async () => {
+        setIsVerifying(true);
+        try {
+          await onSuccess();
+        } finally {
+          setIsVerifying(false);
+        }
+      };
       if (typeof site?.latitude !== 'number' || typeof site?.longitude !== 'number') {
-        onSuccess();
+        await runAction();
         return;
       }
       setIsVerifying(true);
       const result = await verifyProximityToSite(site.latitude, site.longitude, 120);
-      setIsVerifying(false);
       if (result.ok) {
-        await onSuccess();
+        await runAction();
         return;
       }
+      setIsVerifying(false);
       const distanceInfo =
         typeof result.distance === 'number' ? `\nDistance estimée : ${Math.round(result.distance)} m.` : '';
       Alert.alert(
@@ -277,7 +288,7 @@ export default function InterventionDetailScreen() {
         `${result.message ?? 'Vous semblez trop loin du site.'}${distanceInfo}`,
         [
           { text: 'Réessayer', style: 'cancel' },
-          { text: 'Continuer', style: 'default', onPress: () => { onSuccess(); } },
+          { text: 'Continuer', style: 'default', onPress: () => { runAction(); } },
         ],
       );
     },
