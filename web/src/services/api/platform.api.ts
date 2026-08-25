@@ -1,4 +1,4 @@
-import { ApiKey, PortalToken } from '../../types/platform';
+import { ApiKey, CreatedApiKey, PortalToken } from '../../types/platform';
 import { apiFetch } from './client';
 
 export async function listApiKeys(token: string) {
@@ -6,7 +6,7 @@ export async function listApiKeys(token: string) {
 }
 
 export async function createApiKey(token: string, label: string, scopes: string[] = []) {
-  return apiFetch<ApiKey>({
+  return apiFetch<CreatedApiKey>({
     path: 'platform/api-keys',
     token,
     options: { method: 'POST', body: JSON.stringify({ label, scopes }) },

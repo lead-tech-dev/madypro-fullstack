@@ -8,7 +8,13 @@ export class PlatformService {
   constructor(private readonly prisma: PrismaService) {}
 
   listApiKeys() {
-    return this.prisma.apiKey.findMany({ orderBy: { createdAt: 'desc' } });
+    // La clé en clair n'est retournée qu'à la création (voir createApiKey) : ne jamais la
+    // réexposer ici, sinon n'importe quelle session admin peut relire indéfiniment toutes les
+    // clés actives.
+    return this.prisma.apiKey.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, label: true, scopes: true, active: true, createdAt: true, lastUsedAt: true },
+    });
   }
 
   createApiKey(dto: CreateApiKeyDto) {
