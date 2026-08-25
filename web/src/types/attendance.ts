@@ -31,6 +31,8 @@ export type Attendance = {
     checkIn?: AttendanceLocation;
     checkOut?: AttendanceLocation;
   };
+  checkInPhoto?: string;
+  checkOutPhoto?: string;
 };
 
 export type AttendanceAnomaly =

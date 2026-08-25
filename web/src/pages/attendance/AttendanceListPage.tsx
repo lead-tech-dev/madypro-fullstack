@@ -741,6 +741,35 @@ export const AttendanceListPage: React.FC = () => {
               </div>
             </div>
 
+            {(selected.checkInPhoto || selected.checkOutPhoto) && (
+              <div className="detail-grid">
+                <div className="detail-grid__item">
+                  <span>Photo arrivée</span>
+                  {selected.checkInPhoto ? (
+                    <img
+                      src={selected.checkInPhoto}
+                      alt="Photo de pointage à l'arrivée"
+                      style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 8, marginTop: '0.25rem' }}
+                    />
+                  ) : (
+                    <strong>—</strong>
+                  )}
+                </div>
+                <div className="detail-grid__item">
+                  <span>Photo départ</span>
+                  {selected.checkOutPhoto ? (
+                    <img
+                      src={selected.checkOutPhoto}
+                      alt="Photo de pointage au départ"
+                      style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 8, marginTop: '0.25rem' }}
+                    />
+                  ) : (
+                    <strong>—</strong>
+                  )}
+                </div>
+              </div>
+            )}
+
             <Textarea id="editNote" name="note" label="Note" value={editForm.note} onChange={handleEditChange} />
 
             <div className="form-row">
