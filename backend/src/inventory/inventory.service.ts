@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 
@@ -43,14 +43,24 @@ export class InventoryService {
   }
 
   async adjustQuantity(id: string, delta: number) {
-    const existing = await this.prisma.inventoryItem.findUnique({ where: { id } });
-    if (!existing) {
-      throw new NotFoundException('Article introuvable');
+    // Compare-and-swap sur la quantité observée : deux ajustements concurrents (deux agents qui
+    // scannent le même article) ne doivent jamais s'écraser l'un l'autre (lecture-puis-écriture
+    // naïve perdrait silencieusement un décrément).
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const existing = await this.prisma.inventoryItem.findUnique({ where: { id } });
+      if (!existing) {
+        throw new NotFoundException('Article introuvable');
+      }
+      const nextQuantity = Math.max(0, existing.quantity + delta);
+      const result = await this.prisma.inventoryItem.updateMany({
+        where: { id, quantity: existing.quantity },
+        data: { quantity: nextQuantity },
+      });
+      if (result.count > 0) {
+        return this.prisma.inventoryItem.findUniqueOrThrow({ where: { id } });
+      }
     }
-    return this.prisma.inventoryItem.update({
-      where: { id },
-      data: { quantity: Math.max(0, existing.quantity + delta) },
-    });
+    throw new BadRequestException('Ajustement impossible (article modifié en parallèle), réessayez.');
   }
 
   async remove(id: string) {
