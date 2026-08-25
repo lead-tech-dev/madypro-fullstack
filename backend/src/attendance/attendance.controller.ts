@@ -77,27 +77,29 @@ export class AttendanceController {
     return this.service.cancel(id, dto);
   }
 
+  // Le pointage est toujours celui de l'appelant : `dto.userId` est ignoré au profit du JWT,
+  // sinon n'importe quel agent authentifié pourrait pointer (ou heartbeat) pour un collègue.
   @Roles('AGENT', 'ADMIN', 'SUPERVISOR')
   @Post('check-in')
-  checkIn(@Body() dto: CheckInDto) {
-    return this.service.checkIn(dto);
+  checkIn(@Req() req: any, @Body() dto: CheckInDto) {
+    return this.service.checkIn({ ...dto, userId: req.user?.sub });
   }
 
   @Roles('AGENT', 'ADMIN', 'SUPERVISOR')
   @Post('arrival')
-  markArrival(@Body() dto: MarkArrivalDto) {
-    return this.service.markArrival(dto);
+  markArrival(@Req() req: any, @Body() dto: MarkArrivalDto) {
+    return this.service.markArrival({ ...dto, userId: req.user?.sub });
   }
 
   @Roles('AGENT', 'ADMIN', 'SUPERVISOR')
   @Post('check-out')
-  checkOut(@Body() dto: CheckOutDto) {
-    return this.service.checkOut(dto);
+  checkOut(@Req() req: any, @Body() dto: CheckOutDto) {
+    return this.service.checkOut({ ...dto, userId: req.user?.sub });
   }
 
   @Roles('AGENT', 'ADMIN', 'SUPERVISOR')
   @Post('heartbeat')
-  heartbeat(@Body() dto: HeartbeatDto) {
-    return this.service.heartbeat(dto);
+  heartbeat(@Req() req: any, @Body() dto: HeartbeatDto) {
+    return this.service.heartbeat({ ...dto, userId: req.user?.sub });
   }
 }
