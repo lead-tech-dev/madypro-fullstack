@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateTemplateItemDto } from './dto/create-template-item.dto';
@@ -51,10 +51,14 @@ export class OnboardingService {
     return this.findForUser(userId);
   }
 
-  async setDone(id: string, done: boolean) {
+  async setDone(id: string, done: boolean, actor: { userId?: string; role?: string }) {
     const existing = await this.prisma.userOnboardingItem.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException('Étape introuvable');
+    }
+    const isPrivileged = actor.role === 'ADMIN' || actor.role === 'SUPERVISOR';
+    if (!isPrivileged && existing.userId !== actor.userId) {
+      throw new ForbiddenException("Vous ne pouvez cocher que votre propre parcours d'intégration");
     }
     return this.prisma.userOnboardingItem.update({
       where: { id },
