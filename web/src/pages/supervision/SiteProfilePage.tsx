@@ -13,6 +13,7 @@ import {
 import { listInventory } from '../../services/api/inventory.api';
 import { listInterventions, getSiteRoster } from '../../services/api/interventions.api';
 import { listAttendance } from '../../services/api/attendance.api';
+import { PhotoGrid } from '../../components/ui/PhotoGrid';
 import { listAbsences } from '../../services/api/absences.api';
 import { Site } from '../../types/site';
 import { SiteCategory, SiteRoster } from '../../types/category';
@@ -228,10 +229,8 @@ export const SiteProfilePage: React.FC = () => {
           Superviseurs : {site.supervisors?.map((s) => s.name).join(', ') || 'Aucun'}
         </p>
         {site.photos && site.photos.length > 0 && (
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-            {site.photos.map((url) => (
-              <img key={url} src={url} alt="Site" style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8 }} />
-            ))}
+          <div style={{ marginTop: '0.5rem' }}>
+            <PhotoGrid images={site.photos} onAdd={() => {}} onRemove={() => {}} disabled />
           </div>
         )}
         <div style={{ marginTop: '0.75rem' }}>

@@ -7,6 +7,8 @@ import { Checkbox } from '../../components/ui/Checkbox';
 import { ChipGroup } from '../../components/ui/ChipGroup';
 import { Modal, ModalHeader, ModalBody } from '../../components/ui/Modal';
 import { Tabs, TabPanel } from '../../components/ui/Tabs';
+import { PhotoGrid } from '../../components/ui/PhotoGrid';
+import { compressImageFile } from '../../utils/image';
 import { SitesTable } from './SitesTable';
 import { useAuthContext } from '../../context/AuthContext';
 import {
@@ -153,6 +155,7 @@ export const SiteFormPage: React.FC = () => {
   const [zones, setZones] = useState<SiteZone[]>([]);
   const [newZone, setNewZone] = useState({ label: '', floor: '' });
   const [planImageUrl, setPlanImageUrl] = useState<string | null>(null);
+  const [sitePhotos, setSitePhotos] = useState<string[]>([]);
   const [incidents, setIncidents] = useState<SiteIncident[]>([]);
   const [qualityScore, setQualityScore] = useState<SiteQualityScore | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -236,6 +239,7 @@ export const SiteFormPage: React.FC = () => {
           });
           setSelectedSupervisors(siteData.supervisorIds);
           setPlanImageUrl((siteData as any).planImageUrl ?? null);
+          setSitePhotos(siteData.photos ?? []);
           setFormVisible(true);
           loadSiteExtras(siteData.id);
         } else {
@@ -415,6 +419,7 @@ export const SiteFormPage: React.FC = () => {
       gpsDistanceMeters: form.gpsDistanceMeters ? Number(form.gpsDistanceMeters) : undefined,
       toleranceMinutes: form.toleranceMinutes ? Number(form.toleranceMinutes) : undefined,
       minimumDurationMinutes: form.minimumDurationMinutes ? Number(form.minimumDurationMinutes) : undefined,
+      photos: sitePhotos,
     };
 
     try {
@@ -624,6 +629,12 @@ export const SiteFormPage: React.FC = () => {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleSitePhotosUpload = (files: FileList) => {
+    Promise.all(Array.from(files).map((file) => compressImageFile(file)))
+      .then((base64) => setSitePhotos((prev) => [...prev, ...base64]))
+      .catch(() => notify('Impossible de charger les photos', 'error'));
   };
 
   const submitInventoryItem = async (event: React.FormEvent) => {
@@ -944,6 +955,15 @@ export const SiteFormPage: React.FC = () => {
                     )}
                   </div>
                 )}
+
+                <div className="form-field">
+                  <span>Photos du site</span>
+                  <PhotoGrid
+                    images={sitePhotos}
+                    onAdd={handleSitePhotosUpload}
+                    onRemove={(index) => setSitePhotos((prev) => prev.filter((_, i) => i !== index))}
+                  />
+                </div>
               </TabPanel>
 
               <TabPanel active={activeTab === 'gps'}>
