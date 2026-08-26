@@ -30,7 +30,7 @@ export default function LoginScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <Image source={require('../../../assets/images/logo-full.png')} style={styles.logo} resizeMode="contain" />
-      <Header title="Connexion" subtitle="Accédez à vos missions et pointages du jour." />
+      <Header title="Connexion" subtitle="Accédez à vos missions et pointages du jour." accent="" />
       <Card style={styles.card}>
         {error && <Text style={styles.error}>{error}</Text>}
         <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" />

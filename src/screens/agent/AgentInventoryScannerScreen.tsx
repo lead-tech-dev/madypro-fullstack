@@ -52,7 +52,7 @@ export default function AgentInventoryScannerScreen() {
 
   if (!permission) {
     return (
-      <HeaderLayout title="Scanner l'inventaire" subtitle="Chargement" accent="Inventaire">
+      <HeaderLayout title="Scanner l'inventaire" subtitle="Chargement" accent="Inventaire" showBack>
         <ActivityIndicator color={theme.colors.primary} />
       </HeaderLayout>
     );
@@ -60,7 +60,7 @@ export default function AgentInventoryScannerScreen() {
 
   if (!permission.granted) {
     return (
-      <HeaderLayout title="Scanner l'inventaire" subtitle="Autorisation requise" accent="Inventaire">
+      <HeaderLayout title="Scanner l'inventaire" subtitle="Autorisation requise" accent="Inventaire" showBack>
         <Ionicons name="barcode-outline" size={22} color={theme.colors.primary} style={styles.headerIcon} />
         <Text style={styles.empty}>L'accès à l'appareil photo est nécessaire pour scanner un code-barres.</Text>
         <Button title="Autoriser l'appareil photo" icon="barcode-outline" onPress={requestPermission} />
@@ -69,7 +69,7 @@ export default function AgentInventoryScannerScreen() {
   }
 
   return (
-    <HeaderLayout title="Scanner l'inventaire" subtitle="Visez un code-barres d'article" accent="Inventaire" scrollable={false}>
+    <HeaderLayout title="Scanner l'inventaire" subtitle="Visez un code-barres d'article" accent="Inventaire" scrollable={false} showBack>
       {isScanning ? (
         <View style={styles.cameraWrap}>
           <View style={styles.scanHint}>

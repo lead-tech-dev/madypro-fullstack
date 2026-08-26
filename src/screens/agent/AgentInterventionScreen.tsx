@@ -239,6 +239,8 @@ export default function InterventionDetailScreen() {
 
   const actualStartDisplay = React.useMemo(() => {
     if (intervention?.actualStartTime) return intervention.actualStartTime;
+    // intervention.agents[].checkInTime (contrairement à l'endpoint /attendance) est une date ISO
+    // complète, pas une chaîne "HH:mm" — même format que ce qu'utilise déjà AssignedAgentsList.
     if (userAttendance?.checkInTime) return formatTime(new Date(userAttendance.checkInTime));
     return null;
   }, [intervention?.actualStartTime, userAttendance?.checkInTime]);
@@ -636,7 +638,7 @@ export default function InterventionDetailScreen() {
 
   if (isLoading) {
     return (
-      <HeaderLayout title="Intervention" subtitle="Chargement en cours" accent="Planning">
+      <HeaderLayout title="Intervention" subtitle="Chargement en cours" accent="Planning" showBack>
         <ActivityIndicator color={theme.colors.primary} />
       </HeaderLayout>
     );
@@ -644,7 +646,7 @@ export default function InterventionDetailScreen() {
 
   if (!intervention) {
     return (
-      <HeaderLayout title="Intervention" subtitle="Introuvable" accent="Planning">
+      <HeaderLayout title="Intervention" subtitle="Introuvable" accent="Planning" showBack>
         <View style={styles.iconRow}>
           <Ionicons name="alert-circle-outline" size={18} color={theme.colors.muted} />
           <Text style={styles.empty}>Impossible de trouver cette intervention.</Text>
@@ -659,6 +661,7 @@ export default function InterventionDetailScreen() {
       title={intervention.siteName}
       subtitle={`${TYPE_LABELS[intervention.type]} • ${STATUS_LABELS[intervention.status]}`}
       accent="Détail intervention"
+      showBack
       trailing={
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
           {isMarkingArrival && <ActivityIndicator color={theme.colors.primary} />}
@@ -781,7 +784,6 @@ export default function InterventionDetailScreen() {
         </Section>
 
         <Section title="Agents assignés">
-          <Ionicons name="person-outline" size={16} color={theme.colors.muted} style={styles.sectionIcon} />
           <AssignedAgentsList agents={intervention.agents} currentUserId={user?.id} />
         </Section>
 
@@ -814,7 +816,6 @@ export default function InterventionDetailScreen() {
 
         {isRunning && (
           <Section title="Checklist">
-            <Ionicons name="checkmark-circle-outline" size={16} color={theme.colors.muted} style={styles.sectionIcon} />
             <InterventionChecklist interventionId={intervention.id} />
           </Section>
         )}
@@ -970,9 +971,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
-  },
-  sectionIcon: {
-    marginBottom: theme.spacing.xs,
   },
   actions: {
     gap: theme.spacing.md,

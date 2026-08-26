@@ -126,7 +126,7 @@ export default function AgentPlanningScreen() {
   const selectedDayInterventions = selectedDate ? byDate.get(selectedDate) ?? [] : [];
 
   return (
-    <HeaderLayout title="Mon planning" subtitle="Vos interventions passées et à venir" accent="Planning">
+    <HeaderLayout title="Mon planning" subtitle="Vos interventions passées et à venir" accent="Planning" showBack>
       <View style={styles.toggleRow}>
         {(['liste', 'calendrier'] as ViewMode[]).map((mode) => (
           <Pressable

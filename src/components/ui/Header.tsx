@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { theme } from '../../config/theme';
 
 export type HeaderProps = {
@@ -7,13 +9,38 @@ export type HeaderProps = {
   subtitle?: string;
   accent?: string;
   trailing?: React.ReactNode;
+  /** Écran secondaire (accessible seulement par navigation, pas par un onglet) : affiche un
+   * bouton retour explicite, pour ne pas dépendre du seul geste/bouton matériel Android — qui
+   * peut sortir de l'app entièrement une fois la pile de navigation épuisée. */
+  showBack?: boolean;
 };
 
-export const Header: React.FC<HeaderProps> = ({ title, subtitle, accent, trailing }) => {
+export const Header: React.FC<HeaderProps> = ({ title, subtitle, accent, trailing, showBack }) => {
+  const navigation = useNavigation();
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.accent}>{accent ?? 'Madypro Clean'}</Text>
+        {(accent !== '' || showBack) && (
+          <View style={styles.topRow}>
+            {accent !== '' ? (
+              <Text style={styles.accent}>{accent ?? 'Madypro Clean'}</Text>
+            ) : (
+              <View />
+            )}
+            {showBack && (
+              <Pressable
+                onPress={() => navigation.goBack()}
+                style={styles.backButton}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Retour"
+              >
+                <Ionicons name="chevron-back" size={18} color={theme.colors.primary} />
+                <Text style={styles.backLabel}>Retour</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
         <Text style={styles.title}>{title}</Text>
         {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
@@ -31,6 +58,21 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: 4,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  backLabel: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontFamily: theme.fonts.bodySemiBold,
   },
   accent: {
     textTransform: 'uppercase',

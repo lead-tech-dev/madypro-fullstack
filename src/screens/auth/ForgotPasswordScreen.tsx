@@ -34,7 +34,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <Header title="Mot de passe oublié" subtitle="Recevez un lien pour réinitialiser votre mot de passe." />
+      <Header title="Mot de passe oublié" subtitle="Recevez un lien pour réinitialiser votre mot de passe." showBack />
       <Card style={styles.card}>
         {submitted ? (
           <>

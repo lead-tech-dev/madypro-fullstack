@@ -53,7 +53,7 @@ export default function AgentChatScreen() {
   };
 
   return (
-    <HeaderLayout title="Messages" subtitle="Échangez avec vos superviseurs" accent="Communication" scrollable={false}>
+    <HeaderLayout title="Messages" subtitle="Échangez avec vos superviseurs" accent="Communication" scrollable={false} showBack>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

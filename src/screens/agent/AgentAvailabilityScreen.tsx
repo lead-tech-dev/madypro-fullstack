@@ -75,7 +75,7 @@ export default function AgentAvailabilityScreen() {
   };
 
   return (
-    <HeaderLayout title="Mes disponibilités" subtitle="Déclarez vos jours disponibles ou indisponibles" accent="Planning">
+    <HeaderLayout title="Mes disponibilités" subtitle="Déclarez vos jours disponibles ou indisponibles" accent="Planning" showBack>
       <View style={styles.card}>
         <View style={styles.sectionHeaderRow}>
           <Ionicons name="add-circle-outline" size={18} color={theme.colors.ink} />

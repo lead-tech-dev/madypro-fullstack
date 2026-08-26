@@ -27,6 +27,7 @@ export default function AgentSyncQueueScreen() {
       title="File d'attente"
       subtitle="Actions hors ligne"
       accent="Synchronisation"
+      showBack
       trailing={<Ionicons name="sync-outline" size={28} color={theme.colors.primary} />}
     >
       <View style={styles.container}>
