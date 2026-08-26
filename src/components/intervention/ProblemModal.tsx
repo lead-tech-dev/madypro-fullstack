@@ -1,8 +1,9 @@
 import React from 'react';
-import { Image, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/config/theme';
 import { Button } from '@/components/ui/Button';
+import { PhotoGrid } from '@/components/ui/PhotoGrid';
 import { AnomalyType } from '@/types/anomaly';
 
 export const ANOMALY_OPTIONS: Array<{ value: AnomalyType; label: string }> = [
@@ -79,22 +80,7 @@ export const ProblemModal: React.FC<ProblemModalProps> = ({
           onChangeText={onDescriptionChange}
         />
         <Text style={styles.modalLabel}>Photos</Text>
-        <View style={styles.photoGrid}>
-          {photos.map((uri) => (
-            <View key={uri} style={styles.photoWrapper}>
-              <Image source={{ uri }} style={styles.photo} />
-              <TouchableOpacity
-                style={styles.photoRemove}
-                onPress={() => onRemovePhoto(uri)}
-              >
-                <Text style={styles.photoRemoveLabel}>×</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-          <TouchableOpacity style={styles.addPhoto} onPress={onAddPhoto}>
-            <Text style={styles.addPhotoLabel}>Ajouter une photo</Text>
-          </TouchableOpacity>
-        </View>
+        <PhotoGrid photos={photos} onAddPhoto={onAddPhoto} onRemovePhoto={onRemovePhoto} />
         <Button
           title={submitting ? 'Envoi…' : 'Envoyer'}
           icon="checkmark-circle-outline"
@@ -176,45 +162,5 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     textAlignVertical: 'top',
     color: theme.colors.ink,
-  },
-  photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.md,
-  },
-  photoWrapper: {
-    position: 'relative',
-  },
-  photo: {
-    width: 80,
-    height: 80,
-    borderRadius: theme.radii.md,
-  },
-  photoRemove: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#00000080',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoRemoveLabel: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  addPhoto: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.radii.md,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    borderStyle: 'dashed',
-  },
-  addPhotoLabel: {
-    color: theme.colors.primary,
-    fontFamily: theme.fonts.bodySemiBold,
   },
 });
