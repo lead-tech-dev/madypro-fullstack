@@ -15,7 +15,7 @@ import { Checkbox } from '../ui/Checkbox';
 import { ChipGroup } from '../ui/ChipGroup';
 import { Modal, ModalHeader, ModalBody } from '../ui/Modal';
 import { RichTextEditor } from '../ui/RichTextEditor';
-import { ImageSlider } from '../ui/ImageSlider';
+import { PhotoGrid } from '../ui/PhotoGrid';
 import { interventionStatusLabel } from '../ui/StatusChip';
 
 const TERMINAL_STATUSES = ['COMPLETED', 'NO_SHOW', 'CANCELLED'];
@@ -43,6 +43,7 @@ export const InterventionViewModal: React.FC<InterventionViewModalProps> = ({
   const [savingAgents, setSavingAgents] = useState(false);
   const [savingObservation, setSavingObservation] = useState(false);
   const [signatureUploading, setSignatureUploading] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const fetchAttendance = (current: Intervention) => {
     if (!token) return;
@@ -178,6 +179,7 @@ export const InterventionViewModal: React.FC<InterventionViewModalProps> = ({
   const isTerminal = TERMINAL_STATUSES.includes(viewing.status);
 
   return (
+    <>
     <Modal open={Boolean(viewing)} onClose={onClose} maxWidth={800} labelledBy="intervention-view-title">
       <ModalHeader
         eyebrow="Intervention"
@@ -252,6 +254,7 @@ export const InterventionViewModal: React.FC<InterventionViewModalProps> = ({
                   <th>Arrivée</th>
                   <th>Début</th>
                   <th>Fin</th>
+                  <th>Photos</th>
                 </tr>
               </thead>
               <tbody>
@@ -291,12 +294,37 @@ export const InterventionViewModal: React.FC<InterventionViewModalProps> = ({
                           formatHour(agent.checkOutTime ?? fallback?.checkOutTime)
                         )}
                       </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.35rem' }}>
+                          {fallback?.checkInPhoto && (
+                            <img
+                              src={fallback.checkInPhoto}
+                              alt="Photo arrivée"
+                              title="Photo arrivée — cliquer pour agrandir"
+                              onClick={() => setLightboxSrc(fallback.checkInPhoto!)}
+                              style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }}
+                            />
+                          )}
+                          {fallback?.checkOutPhoto && (
+                            <img
+                              src={fallback.checkOutPhoto}
+                              alt="Photo départ"
+                              title="Photo départ — cliquer pour agrandir"
+                              onClick={() => setLightboxSrc(fallback.checkOutPhoto!)}
+                              style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }}
+                            />
+                          )}
+                          {!fallback?.checkInPhoto && !fallback?.checkOutPhoto && (
+                            <span style={{ color: 'var(--color-muted)' }}>—</span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
                 {!viewing.agents.length && (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
                       Aucun agent associé
                     </td>
                   </tr>
@@ -332,8 +360,11 @@ export const InterventionViewModal: React.FC<InterventionViewModalProps> = ({
               <RichTextEditor value={observationDraft} onChange={setObservationDraft} placeholder="Ajouter une observation" />
               <div style={{ display: 'grid', gap: '0.35rem' }}>
                 <p className="card__meta">Photos</p>
-                <input type="file" accept="image/*" multiple onChange={(e) => handlePhotoUpload(e.target.files)} />
-                {photoDraft.length > 0 && <ImageSlider images={photoDraft} />}
+                <PhotoGrid
+                  images={photoDraft}
+                  onAdd={handlePhotoUpload}
+                  onRemove={(index) => setPhotoDraft((prev) => prev.filter((_, i) => i !== index))}
+                />
               </div>
               {viewing.status === 'COMPLETED' && (
                 <div style={{ display: 'grid', gap: '0.35rem' }}>
@@ -370,7 +401,7 @@ export const InterventionViewModal: React.FC<InterventionViewModalProps> = ({
               {photoDraft.length > 0 ? (
                 <div style={{ flex: 1 }}>
                   <h4 style={{ marginBottom: '0.5rem' }}>Photos</h4>
-                  <ImageSlider images={photoDraft} />
+                  <PhotoGrid images={photoDraft} onAdd={() => {}} onRemove={() => {}} disabled />
                 </div>
               ) : (
                 <div />
@@ -383,5 +414,14 @@ export const InterventionViewModal: React.FC<InterventionViewModalProps> = ({
         </div>
       </ModalBody>
     </Modal>
+    <Modal open={Boolean(lightboxSrc)} onClose={() => setLightboxSrc(null)} maxWidth={640} labelledBy="attendance-photo-title">
+      <ModalHeader eyebrow="Pointage" title="Photo" titleId="attendance-photo-title" onClose={() => setLightboxSrc(null)} />
+      <ModalBody>
+        {lightboxSrc && (
+          <img src={lightboxSrc} alt="Photo de pointage" style={{ width: '100%', borderRadius: 8, display: 'block' }} />
+        )}
+      </ModalBody>
+    </Modal>
+    </>
   );
 };
