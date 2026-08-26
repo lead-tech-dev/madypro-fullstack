@@ -125,7 +125,11 @@ export class ReportsService implements OnModuleInit {
       const siteId = (att as any).intervention?.siteId;
       if (!att.userId || !siteId) return;
       const key = `${att.userId}::${siteId}`;
-      const checkIn = att.checkInTime ? new Date(att.checkInTime).toISOString().slice(11, 16) : undefined;
+      // toISOString().slice(11, 16) renverrait l'heure UTC brute (décalée vs l'heure de Paris affichée
+      // partout ailleurs, cf. attendance.service.ts#formatTime) — même correctif ici.
+      const checkIn = att.checkInTime
+        ? new Date(att.checkInTime).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' })
+        : undefined;
       const status = att.status;
       attendanceMap.set(key, { checkIn, status });
     });

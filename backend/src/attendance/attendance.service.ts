@@ -67,9 +67,6 @@ export class AttendanceService implements OnModuleInit {
   }
 
   private readonly OUTSIDE_GRACE_MS = 5 * 60 * 1000;
-  private readonly TZ_OFFSET_MINUTES = Number.isFinite(Number(process.env.TIMEZONE_OFFSET_MINUTES))
-    ? Number(process.env.TIMEZONE_OFFSET_MINUTES)
-    : 120; // default Europe/Paris (UTC+1/+2)
   private TIME_DRIFT_MS = 60 * 60 * 1000; // 60 minutes tolérance hors créneau
   private START_REMINDER_MS = 5 * 60 * 1000;
   private readonly startReminderSent = new Set<string>(); // attendanceId
@@ -685,8 +682,8 @@ export class AttendanceService implements OnModuleInit {
       intervention.date instanceof Date
         ? intervention.date.toISOString().slice(0, 10)
         : new Date(intervention.date as any).toISOString().slice(0, 10);
-    const plannedStart = this.combineFromParts(dateStr, intervention.startTime, this.TZ_OFFSET_MINUTES);
-    const plannedEnd = this.combineFromParts(dateStr, intervention.endTime, this.TZ_OFFSET_MINUTES);
+    const plannedStart = this.combineFromParts(dateStr, intervention.startTime);
+    const plannedEnd = this.combineFromParts(dateStr, intervention.endTime);
     const windowStart = new Date(plannedStart.getTime() - 30 * 60 * 1000);
     const windowEnd = new Date(plannedEnd.getTime() + 60 * 60 * 1000);
     if (now < windowStart) {
@@ -957,8 +954,8 @@ export class AttendanceService implements OnModuleInit {
         intervention.date instanceof Date
           ? intervention.date.toISOString().slice(0, 10)
           : new Date(intervention.date as any).toISOString().slice(0, 10);
-      const plannedStart = this.combineFromParts(dateStr, intervention.startTime, this.TZ_OFFSET_MINUTES);
-      const plannedEnd = this.combineFromParts(dateStr, intervention.endTime, this.TZ_OFFSET_MINUTES);
+      const plannedStart = this.combineFromParts(dateStr, intervention.startTime);
+      const plannedEnd = this.combineFromParts(dateStr, intervention.endTime);
       const windowStart = new Date(
         plannedStart.getTime() - (options.allowBeforeStart ? 30 * 60 * 1000 : 0),
       );
@@ -990,17 +987,33 @@ export class AttendanceService implements OnModuleInit {
     throw new BadRequestException("Aucune intervention en cours pour ce créneau.");
   }
 
-  private combineFromParts(dateStr: string, time: string, offsetMinutes = 0) {
+  /**
+   * Convertit une date + heure "murale" en Europe/Paris (ex: "12:00") en le véritable instant UTC
+   * correspondant, sans dépendre du fuseau horaire système du process (correct que le serveur
+   * tourne en UTC — cas de prod habituel — ou en Europe/Paris — cas de cet environnement de dev —
+   * et correct été comme hiver grâce à Intl plutôt qu'un décalage fixe).
+   */
+  private combineFromParts(dateStr: string, time: string) {
     const [hours, minutes] = time.split(':').map((v) => parseInt(v, 10) || 0);
-    const localDate = new Date(
-      `${dateStr}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`,
-    );
-    // If schedules are expressed in a local timezone (e.g., Europe/Paris), shift them back to UTC for comparisons
-    return new Date(localDate.getTime() - offsetMinutes * 60 * 1000);
+    const [year, month, day] = dateStr.split('-').map((v) => parseInt(v, 10));
+    const guessUtc = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+    const parisString = guessUtc.toLocaleString('en-US', {
+      timeZone: 'Europe/Paris',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    const parisAsUtc = new Date(`${parisString.replace(',', '')} UTC`);
+    const offsetMs = guessUtc.getTime() - parisAsUtc.getTime();
+    return new Date(guessUtc.getTime() + offsetMs);
   }
 
   private combine(date: string, time: string) {
-    return new Date(`${date}T${time}`);
+    return this.combineFromParts(date, time);
   }
 
   private formatDate(date?: Date) {
@@ -1010,7 +1023,10 @@ export class AttendanceService implements OnModuleInit {
 
   private formatTime(date?: Date) {
     if (!date) return undefined;
-    return date.toISOString().slice(11, 16);
+    // toISOString().slice(11, 16) renvoie l'heure UTC brute : décalée de l'heure de Paris (CET/CEST),
+    // ce qui désynchronisait cet affichage web (basé sur cette API) de l'écran mobile (qui, lui,
+    // reconvertit correctement une date ISO en heure locale via toLocaleTimeString côté device).
+    return date.toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
   }
 
   private computeDistance(coords: { latitude: number; longitude: number }, site: ReturnType<SitesService['findOne']>) {
