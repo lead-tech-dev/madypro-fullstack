@@ -10,6 +10,7 @@ export type InterventionFilters = {
   subType?: string;
   agentId?: string;
   status?: InterventionStatus | 'all';
+  pageSize?: number;
 };
 
 const formatLocalDate = (date: Date) => {
@@ -48,6 +49,11 @@ export async function fetchInterventions(token: string, filters: InterventionFil
     params.set('userId', String(filters.agentId));
   }
   if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+  // Le backend trie par date décroissante avec pageSize=20 par défaut : sur une fenêtre large
+  // (planning agent), ça coupe silencieusement les missions les plus proches (dont celles du
+  // jour) au profit des plus lointaines. Ces écrans affichent tout côté client, pas de
+  // pagination UI : on demande explicitement assez de résultats pour couvrir la fenêtre.
+  params.set('pageSize', String(filters.pageSize ?? 200));
   const query = params.toString();
   const path = query ? `/interventions?${query}` : '/interventions';
   const response = await apiFetch<Array<ApiIntervention> | { data?: ApiIntervention[] } | null>({
