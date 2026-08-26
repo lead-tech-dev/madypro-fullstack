@@ -118,6 +118,7 @@ const styles = StyleSheet.create({
   },
   iconWrapperActive: {
     backgroundColor: theme.colors.primary,
+    borderRadius: '50%',
   },
   badge: {
     position: 'absolute',
