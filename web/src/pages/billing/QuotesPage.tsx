@@ -1,38 +1,52 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Check, X, Trash2 } from 'lucide-react';
+import { Plus, Check, X, Trash2, Download, Send, FileOutput } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import { Quote, QuoteStatus } from '../../types/quote';
-import { listQuotes, createQuote, setQuoteStatus, deleteQuote, CreateQuotePayload } from '../../services/api/quotes.api';
+import {
+  listQuotes,
+  createQuote,
+  setQuoteStatus,
+  deleteQuote,
+  sendQuote,
+  convertQuoteToInvoice,
+  CreateQuotePayload,
+} from '../../services/api/quotes.api';
 import { listSites } from '../../services/api/sites.api';
 import { Site } from '../../types/site';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
+import { LineItemsEditor } from '../../components/billing/LineItemsEditor';
+import { emptyLineItem } from '../../utils/lineItems';
 import { formatDateTime } from '../../utils/datetime';
+import { openPdfInNewTab } from '../../utils/downloadPdf';
 
 const STATUS_OPTIONS: { value: QuoteStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'Tous statuts' },
   { value: 'DRAFT', label: 'Brouillon' },
   { value: 'SENT', label: 'Envoyé' },
-  { value: 'PAID', label: 'Payé' },
+  { value: 'ACCEPTED', label: 'Accepté' },
+  { value: 'REJECTED', label: 'Refusé' },
   { value: 'CANCELLED', label: 'Annulé' },
 ];
 
 const STATUS_LABELS: Record<QuoteStatus, string> = {
   DRAFT: 'Brouillon',
   SENT: 'Envoyé',
-  PAID: 'Payé',
+  ACCEPTED: 'Accepté',
+  REJECTED: 'Refusé',
   CANCELLED: 'Annulé',
 };
 
-const NEXT_STATUS: Record<QuoteStatus, QuoteStatus | null> = {
-  DRAFT: 'SENT',
-  SENT: 'PAID',
-  PAID: null,
-  CANCELLED: null,
+const defaultForm: CreateQuotePayload = {
+  siteId: '',
+  label: '',
+  clientName: '',
+  clientAddress: '',
+  clientEmail: '',
+  dueAt: '',
+  lineItems: [emptyLineItem()],
 };
-
-const defaultForm: CreateQuotePayload = { siteId: '', label: '', amount: 0, dueAt: '' };
 
 export const QuotesPage: React.FC = () => {
   const { token, notify } = useAuthContext();
@@ -69,13 +83,14 @@ export const QuotesPage: React.FC = () => {
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!token || !form.siteId || !form.label.trim() || form.amount <= 0) {
-      notify('Site, libellé et montant requis', 'error');
+    const validLines = form.lineItems.filter((l) => l.description.trim());
+    if (!token || !form.siteId || !form.label.trim() || !form.clientName.trim() || !validLines.length) {
+      notify('Site, libellé, client et au moins une ligne sont requis', 'error');
       return;
     }
     setCreating(true);
     try {
-      await createQuote(token, { ...form, label: form.label.trim(), dueAt: form.dueAt || undefined });
+      await createQuote(token, { ...form, label: form.label.trim(), dueAt: form.dueAt || undefined, lineItems: validLines });
       notify('Devis créé');
       setForm(defaultForm);
       setFormVisible(false);
@@ -87,25 +102,13 @@ export const QuotesPage: React.FC = () => {
     }
   };
 
-  const advanceStatus = async (quote: Quote) => {
+  const changeStatus = async (quote: Quote, status: QuoteStatus) => {
     if (!token) return;
-    const next = NEXT_STATUS[quote.status];
-    if (!next) return;
     try {
-      await setQuoteStatus(token, quote.id, next);
+      await setQuoteStatus(token, quote.id, status);
       load();
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Mise à jour impossible', 'error');
-    }
-  };
-
-  const cancelQuote = async (quote: Quote) => {
-    if (!token) return;
-    try {
-      await setQuoteStatus(token, quote.id, 'CANCELLED');
-      load();
-    } catch (err) {
-      notify(err instanceof Error ? err.message : 'Annulation impossible', 'error');
     }
   };
 
@@ -120,12 +123,47 @@ export const QuotesPage: React.FC = () => {
     }
   };
 
+  const downloadPdf = async (quote: Quote) => {
+    if (!token) return;
+    try {
+      await openPdfInNewTab(token, `quotes/${quote.id}/pdf`);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Téléchargement du PDF impossible', 'error');
+    }
+  };
+
+  const emailQuote = async (quote: Quote) => {
+    if (!token) return;
+    if (!quote.clientEmail) {
+      notify('Aucun email client renseigné sur ce devis', 'error');
+      return;
+    }
+    try {
+      await sendQuote(token, quote.id);
+      notify('Devis envoyé par email');
+      load();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Envoi de l'email impossible", 'error');
+    }
+  };
+
+  const convertToInvoice = async (quote: Quote) => {
+    if (!token) return;
+    try {
+      const invoice = await convertQuoteToInvoice(token, quote.id);
+      notify(`Facture ${invoice.number} créée`);
+      load();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Conversion impossible', 'error');
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <span className="pill">Devis & facturation</span>
         <h2>Devis clients</h2>
-        <p>Suivez vos devis du brouillon jusqu’au paiement.</p>
+        <p>Suivez vos devis du brouillon jusqu’à l’acceptation.</p>
         <Button type="button" icon={Plus} onClick={() => setFormVisible((v) => !v)}>
           {formVisible ? 'Fermer' : 'Nouveau devis'}
         </Button>
@@ -176,22 +214,40 @@ export const QuotesPage: React.FC = () => {
           />
           <div className="form-row">
             <Input
-              id="quoteAmount"
-              label="Montant (€)"
-              type="number"
-              min={0}
-              step="0.01"
-              value={form.amount}
-              onChange={(event) => setForm((prev) => ({ ...prev, amount: Number(event.target.value) }))}
+              id="quoteClientName"
+              label="Client (raison sociale)"
+              placeholder="SARL Exemple"
+              value={form.clientName}
+              onChange={(event) => setForm((prev) => ({ ...prev, clientName: event.target.value }))}
             />
             <Input
-              id="quoteDueAt"
-              label="Échéance"
-              type="date"
-              value={form.dueAt}
-              onChange={(event) => setForm((prev) => ({ ...prev, dueAt: event.target.value }))}
+              id="quoteClientEmail"
+              label="Email client"
+              type="email"
+              placeholder="contact@client.fr"
+              value={form.clientEmail}
+              onChange={(event) => setForm((prev) => ({ ...prev, clientEmail: event.target.value }))}
             />
           </div>
+          <Input
+            id="quoteClientAddress"
+            label="Adresse de facturation client"
+            value={form.clientAddress}
+            onChange={(event) => setForm((prev) => ({ ...prev, clientAddress: event.target.value }))}
+          />
+          <Input
+            id="quoteDueAt"
+            label="Échéance"
+            type="date"
+            value={form.dueAt}
+            onChange={(event) => setForm((prev) => ({ ...prev, dueAt: event.target.value }))}
+          />
+
+          <p className="card__meta" style={{ marginTop: '0.5rem' }}>
+            Lignes
+          </p>
+          <LineItemsEditor items={form.lineItems} onChange={(lineItems) => setForm((prev) => ({ ...prev, lineItems }))} />
+
           <div className="form-actions">
             <Button type="submit" icon={Plus} loading={creating}>
               Créer le devis
@@ -211,9 +267,11 @@ export const QuotesPage: React.FC = () => {
             <table className="table" aria-label="devis">
               <thead>
                 <tr>
+                  <th>N°</th>
+                  <th>Client</th>
                   <th>Site</th>
                   <th>Libellé</th>
-                  <th>Montant</th>
+                  <th>Total TTC</th>
                   <th>Statut</th>
                   <th>Échéance</th>
                   <th>Émis le</th>
@@ -223,15 +281,17 @@ export const QuotesPage: React.FC = () => {
               <tbody>
                 {filteredQuotes.map((quote) => (
                   <tr key={quote.id}>
+                    <td>{quote.number}</td>
+                    <td>{quote.clientName}</td>
                     <td>{quote.site?.name ?? quote.siteId}</td>
                     <td>{quote.label}</td>
-                    <td>{quote.amount.toFixed(2)} €</td>
+                    <td>{quote.totalTTC.toFixed(2)} €</td>
                     <td>
                       <span
                         className={`status-chip ${
-                          quote.status === 'PAID'
+                          quote.status === 'ACCEPTED'
                             ? 'status-chip--success'
-                            : quote.status === 'CANCELLED'
+                            : quote.status === 'REJECTED' || quote.status === 'CANCELLED'
                             ? 'status-chip--info'
                             : 'status-chip--warning'
                         }`}
@@ -243,17 +303,88 @@ export const QuotesPage: React.FC = () => {
                     <td>{formatDateTime(quote.issuedAt)}</td>
                     <td>
                       <div className="table-actions">
-                        {NEXT_STATUS[quote.status] && (
-                          <Button type="button" variant="ghost" className="btn--compact" icon={Check} onClick={() => advanceStatus(quote)}>
-                            {quote.status === 'DRAFT' ? 'Marquer envoyé' : 'Marquer payé'}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="btn--compact"
+                          icon={Download}
+                          onClick={() => downloadPdf(quote)}
+                        >
+                          PDF
+                        </Button>
+                        {quote.status === 'DRAFT' && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="btn--compact"
+                              icon={Send}
+                              onClick={() => emailQuote(quote)}
+                            >
+                              Envoyer par email
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="btn--compact"
+                              icon={Check}
+                              onClick={() => changeStatus(quote, 'SENT')}
+                            >
+                              Marquer envoyé
+                            </Button>
+                          </>
+                        )}
+                        {quote.status === 'ACCEPTED' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="btn--compact"
+                            icon={FileOutput}
+                            onClick={() => convertToInvoice(quote)}
+                          >
+                            Convertir en facture
                           </Button>
                         )}
-                        {quote.status !== 'CANCELLED' && quote.status !== 'PAID' && (
-                          <Button type="button" variant="ghost" className="btn--compact" icon={X} onClick={() => cancelQuote(quote)}>
+                        {quote.status === 'SENT' && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="btn--compact"
+                              icon={Check}
+                              onClick={() => changeStatus(quote, 'ACCEPTED')}
+                            >
+                              Accepté
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="btn--compact"
+                              icon={X}
+                              onClick={() => changeStatus(quote, 'REJECTED')}
+                            >
+                              Refusé
+                            </Button>
+                          </>
+                        )}
+                        {quote.status !== 'CANCELLED' && quote.status !== 'ACCEPTED' && quote.status !== 'REJECTED' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="btn--compact"
+                            icon={X}
+                            onClick={() => changeStatus(quote, 'CANCELLED')}
+                          >
                             Annuler
                           </Button>
                         )}
-                        <Button type="button" variant="ghost" className="btn--compact" icon={Trash2} onClick={() => removeQuote(quote)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="btn--compact"
+                          icon={Trash2}
+                          onClick={() => removeQuote(quote)}
+                        >
                           Supprimer
                         </Button>
                       </div>

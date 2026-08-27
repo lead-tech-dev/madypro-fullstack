@@ -3,12 +3,14 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { useAuthContext } from '../../context/AuthContext';
-import { AttendanceRules, SettingsSummary, AbsenceTypeConfig } from '../../types/settings';
+import { AttendanceRules, CompanyInfo, SettingsSummary, AbsenceTypeConfig } from '../../types/settings';
 import {
   getSettings,
   updateAttendanceRules,
   createAbsenceType,
   updateAbsenceType,
+  getCompanyInfo,
+  updateCompanyInfo,
 } from '../../services/api/settings.api';
 import { Save, Plus } from 'lucide-react';
 
@@ -27,6 +29,8 @@ export const SettingsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [savingRules, setSavingRules] = useState(false);
   const [creatingType, setCreatingType] = useState(false);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+  const [savingCompanyInfo, setSavingCompanyInfo] = useState(false);
 
   const fetchSettings = () => {
     if (!token) return;
@@ -47,6 +51,33 @@ export const SettingsPage: React.FC = () => {
   useEffect(() => {
     fetchSettings();
   }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    getCompanyInfo(token)
+      .then(setCompanyInfo)
+      .catch(() => setCompanyInfo(null));
+  }, [token]);
+
+  const handleCompanyInfoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    setCompanyInfo((prev) => (prev ? { ...prev, [name]: value } : prev));
+  };
+
+  const saveCompanyInfo = async () => {
+    if (!token || !companyInfo) return;
+    setSavingCompanyInfo(true);
+    try {
+      const updated = await updateCompanyInfo(token, companyInfo);
+      notify('Informations légales mises à jour');
+      setCompanyInfo(updated);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Mise à jour impossible';
+      notify(message, 'error');
+    } finally {
+      setSavingCompanyInfo(false);
+    }
+  };
 
   const handleAttendanceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -230,6 +261,86 @@ export const SettingsPage: React.FC = () => {
               {creatingType ? 'Ajout...' : 'Ajouter'}
             </Button>
           </form>
+        </article>
+
+        <article className="settings-card" style={{ gridColumn: 'span 2' }}>
+          <span className="card__meta">Devis & facturation</span>
+          <h3>Informations légales de l'entreprise</h3>
+          <p className="card__meta">
+            Utilisées sur les devis et factures PDF (mentions légales obligatoires).
+          </p>
+          {companyInfo && (
+            <>
+              <div className="form-row">
+                <Input
+                  id="companyLegalName"
+                  name="legalName"
+                  label="Raison sociale"
+                  value={companyInfo.legalName}
+                  onChange={handleCompanyInfoChange}
+                />
+                <Input
+                  id="companySiret"
+                  name="siret"
+                  label="SIRET"
+                  value={companyInfo.siret}
+                  onChange={handleCompanyInfoChange}
+                />
+                <Input
+                  id="companyVat"
+                  name="vatNumber"
+                  label="N° TVA intracommunautaire"
+                  value={companyInfo.vatNumber}
+                  onChange={handleCompanyInfoChange}
+                />
+              </div>
+              <Input
+                id="companyAddress"
+                name="address"
+                label="Adresse"
+                value={companyInfo.address}
+                onChange={handleCompanyInfoChange}
+              />
+              <div className="form-row">
+                <Input
+                  id="companyIban"
+                  name="iban"
+                  label="IBAN"
+                  value={companyInfo.iban}
+                  onChange={handleCompanyInfoChange}
+                />
+                <Input
+                  id="companyBic"
+                  name="bic"
+                  label="BIC"
+                  value={companyInfo.bic}
+                  onChange={handleCompanyInfoChange}
+                />
+              </div>
+              <div className="form-row">
+                <Input
+                  id="companyPhone"
+                  name="phone"
+                  label="Téléphone"
+                  value={companyInfo.phone}
+                  onChange={handleCompanyInfoChange}
+                />
+                <Input
+                  id="companyEmail"
+                  name="email"
+                  label="Email"
+                  type="email"
+                  value={companyInfo.email}
+                  onChange={handleCompanyInfoChange}
+                />
+              </div>
+              <div className="form-actions" style={{ marginTop: '1rem' }}>
+                <Button type="button" icon={Save} onClick={saveCompanyInfo} disabled={savingCompanyInfo}>
+                  {savingCompanyInfo ? 'Enregistrement...' : 'Mettre à jour'}
+                </Button>
+              </div>
+            </>
+          )}
         </article>
 
         <article className="settings-card" style={{ gridColumn: 'span 2' }}>

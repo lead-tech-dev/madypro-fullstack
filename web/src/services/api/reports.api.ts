@@ -1,5 +1,6 @@
 import { BillingReportRow, PayrollBreakdownRow, PeriodComparison, ReportsPerformance, SiteBenchmarkRow } from '../../types/report';
 import { DashboardSummary } from '../../types/dashboard';
+import { InvoicingKpis } from '../../types/invoice';
 import { apiFetch, API_BASE_URL } from './client';
 
 export async function getDashboardSummary(token: string): Promise<DashboardSummary> {
@@ -94,6 +95,10 @@ export async function getBillingReport(
   const query = params.toString();
   const path = `reports/billing${query ? `?${query}` : ''}`;
   return apiFetch<BillingReportRow[]>({ path, token });
+}
+
+export async function getInvoicingReport(token: string): Promise<InvoicingKpis> {
+  return apiFetch<InvoicingKpis>({ path: 'reports/invoicing', token });
 }
 
 export async function getSiteBenchmark(token: string): Promise<SiteBenchmarkRow[]> {

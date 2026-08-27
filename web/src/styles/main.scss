@@ -359,6 +359,11 @@ p {
   color: #0b4b71;
 }
 
+.status-chip--danger {
+  background: #fbe0e0;
+  color: #9c1f1f;
+}
+
 .page-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(260px, 420px);

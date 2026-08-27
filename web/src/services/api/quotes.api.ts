@@ -1,14 +1,20 @@
-import { Quote, QuoteStatus } from '../../types/quote';
+import { LineItem, Quote, QuoteStatus } from '../../types/quote';
 import { apiFetch } from './client';
 
 export type CreateQuotePayload = {
   siteId: string;
   interventionId?: string;
   label: string;
-  amount: number;
+  clientName: string;
+  clientAddress?: string;
+  clientEmail?: string;
+  notes?: string;
   dueAt?: string;
   documentUrl?: string;
+  lineItems: LineItem[];
 };
+
+export type UpdateQuotePayload = Partial<Omit<CreateQuotePayload, 'siteId' | 'interventionId'>>;
 
 export async function listQuotes(token: string, siteId?: string) {
   const path = siteId ? `quotes?siteId=${encodeURIComponent(siteId)}` : 'quotes';
@@ -20,6 +26,14 @@ export async function createQuote(token: string, payload: CreateQuotePayload) {
     path: 'quotes',
     token,
     options: { method: 'POST', body: JSON.stringify(payload) },
+  });
+}
+
+export async function updateQuote(token: string, id: string, payload: UpdateQuotePayload) {
+  return apiFetch<Quote>({
+    path: `quotes/${id}`,
+    token,
+    options: { method: 'PATCH', body: JSON.stringify(payload) },
   });
 }
 
@@ -36,5 +50,21 @@ export async function deleteQuote(token: string, id: string) {
     path: `quotes/${id}`,
     token,
     options: { method: 'DELETE' },
+  });
+}
+
+export async function sendQuote(token: string, id: string) {
+  return apiFetch<Quote>({
+    path: `quotes/${id}/send`,
+    token,
+    options: { method: 'POST' },
+  });
+}
+
+export async function convertQuoteToInvoice(token: string, id: string) {
+  return apiFetch<{ id: string; number: string }>({
+    path: `quotes/${id}/convert-to-invoice`,
+    token,
+    options: { method: 'POST' },
   });
 }

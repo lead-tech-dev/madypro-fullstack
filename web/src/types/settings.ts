@@ -22,3 +22,15 @@ export type SettingsSummary = {
   absenceTypes: AbsenceTypeConfig[];
   roles: RolePermission[];
 };
+
+export type CompanyInfo = {
+  legalName: string;
+  siret: string;
+  vatNumber: string;
+  address: string;
+  iban: string;
+  bic: string;
+  phone: string;
+  email: string;
+  logoUrl: string;
+};

@@ -19,6 +19,7 @@ import { SecuritySettingsPage } from '../pages/settings/SecuritySettingsPage';
 import { WebhooksPage } from '../pages/settings/WebhooksPage';
 import { ApiKeysPage } from '../pages/settings/ApiKeysPage';
 import { QuotesPage } from '../pages/billing/QuotesPage';
+import { InvoicesPage } from '../pages/billing/InvoicesPage';
 import { FormsPage } from '../pages/forms/FormsPage';
 import { ShiftSwapsPage } from '../pages/team/ShiftSwapsPage';
 import { TeamFeedPage } from '../pages/team/TeamFeedPage';
@@ -58,6 +59,7 @@ export const AdminRoutes = () => (
       <Route path="/settings/api-keys" element={<ApiKeysPage />} />
       <Route path="/settings/categories" element={<CategoriesPage />} />
       <Route path="/devis" element={<QuotesPage />} />
+      <Route path="/factures" element={<InvoicesPage />} />
       <Route path="/formulaires" element={<FormsPage />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/audit" element={<AuditPage />} />

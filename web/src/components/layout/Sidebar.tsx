@@ -49,7 +49,15 @@ const ADMIN_MENU: NavItem[] = [
   { type: 'link', to: '/absences', label: 'Absences', icon: CalendarX },
   { type: 'link', to: '/notifications', label: 'Notifications', icon: Bell },
   { type: 'link', to: '/reports', label: 'Rapports', icon: BarChart3 },
-  { type: 'link', to: '/devis', label: 'Devis & facturation', icon: FileText },
+  {
+    type: 'group',
+    label: 'Devis & facturation',
+    icon: FileText,
+    children: [
+      { to: '/devis', label: 'Devis' },
+      { to: '/factures', label: 'Factures' },
+    ],
+  },
   { type: 'link', to: '/formulaires', label: 'Formulaires', icon: FileEdit },
   {
     type: 'group',
