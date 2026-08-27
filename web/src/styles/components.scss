@@ -792,6 +792,58 @@
   font-family: inherit;
   background: var(--color-shell);
 }
+
+.line-items-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.line-items-table th,
+.line-items-table td {
+  vertical-align: middle;
+}
+
+.line-items-table__input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--color-shell);
+  box-sizing: border-box;
+}
+
+.line-items-table__input--number {
+  text-align: right;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.line-items-table__input--number::-webkit-outer-spin-button,
+.line-items-table__input--number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.line-items-table__total {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.line-items-table__remove {
+  text-align: center;
+}
+
+.line-items-editor__totals {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.5rem;
+  padding-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
 .toast-container {
   position: fixed;
   top: 1rem;

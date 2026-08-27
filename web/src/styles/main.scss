@@ -169,6 +169,10 @@ p {
   gap: 1rem;
 }
 
+.form-card--wide {
+  width: min(920px, 100%);
+}
+
 .form-field {
   display: flex;
   flex-direction: column;

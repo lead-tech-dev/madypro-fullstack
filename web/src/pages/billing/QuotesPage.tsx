@@ -197,7 +197,7 @@ export const QuotesPage: React.FC = () => {
       </div>
 
       {formVisible && (
-        <form className="form-card" onSubmit={handleCreate} style={{ marginBottom: '1.5rem' }}>
+        <form className="form-card form-card--wide" onSubmit={handleCreate} style={{ marginBottom: '1.5rem' }}>
           <Select
             id="quoteSite"
             label="Site"
