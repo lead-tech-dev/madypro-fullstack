@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, OnModuleInit } from
 import { UpdateAttendanceRulesDto } from './dto/update-attendance-rules.dto';
 import { CreateAbsenceTypeDto } from './dto/create-absence-type.dto';
 import { UpdateAbsenceTypeDto } from './dto/update-absence-type.dto';
+import { UpdateCompanyInfoDto } from './dto/update-company-info.dto';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../database/prisma.service';
 
@@ -24,8 +25,33 @@ export type RolePermission = {
   permissions: string[];
 };
 
+export type CompanyInfo = {
+  legalName: string;
+  siret: string;
+  vatNumber: string;
+  address: string;
+  iban: string;
+  bic: string;
+  phone: string;
+  email: string;
+  logoUrl: string;
+};
+
 const ATTENDANCE_RULES_KEY = 'attendanceRules';
 const ABSENCE_TYPES_KEY = 'absenceTypes';
+const COMPANY_INFO_KEY = 'companyInfo';
+
+const DEFAULT_COMPANY_INFO: CompanyInfo = {
+  legalName: '',
+  siret: '',
+  vatNumber: '',
+  address: '',
+  iban: '',
+  bic: '',
+  phone: '',
+  email: '',
+  logoUrl: '',
+};
 
 const DEFAULT_ATTENDANCE_RULES: AttendanceRules = {
   gpsDistanceMeters: 100,
@@ -44,6 +70,7 @@ const DEFAULT_ABSENCE_TYPES: AbsenceTypeConfig[] = [
 export class SettingsService implements OnModuleInit {
   private attendanceRules: AttendanceRules = DEFAULT_ATTENDANCE_RULES;
   private absenceTypes: AbsenceTypeConfig[] = DEFAULT_ABSENCE_TYPES;
+  private companyInfo: CompanyInfo = DEFAULT_COMPANY_INFO;
 
   private readonly roles: RolePermission[] = [
     {
@@ -69,15 +96,19 @@ export class SettingsService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    const [rulesRow, typesRow] = await Promise.all([
+    const [rulesRow, typesRow, companyRow] = await Promise.all([
       this.prisma.setting.findUnique({ where: { key: ATTENDANCE_RULES_KEY } }),
       this.prisma.setting.findUnique({ where: { key: ABSENCE_TYPES_KEY } }),
+      this.prisma.setting.findUnique({ where: { key: COMPANY_INFO_KEY } }),
     ]);
     if (rulesRow?.value) {
       this.attendanceRules = rulesRow.value as unknown as AttendanceRules;
     }
     if (typesRow?.value) {
       this.absenceTypes = typesRow.value as unknown as AbsenceTypeConfig[];
+    }
+    if (companyRow?.value) {
+      this.companyInfo = { ...DEFAULT_COMPANY_INFO, ...(companyRow.value as unknown as CompanyInfo) };
     }
   }
 
@@ -94,6 +125,14 @@ export class SettingsService implements OnModuleInit {
       where: { key: ABSENCE_TYPES_KEY },
       update: { value: this.absenceTypes as any },
       create: { key: ABSENCE_TYPES_KEY, value: this.absenceTypes as any },
+    });
+  }
+
+  private async persistCompanyInfo() {
+    await this.prisma.setting.upsert({
+      where: { key: COMPANY_INFO_KEY },
+      update: { value: this.companyInfo as any },
+      create: { key: COMPANY_INFO_KEY, value: this.companyInfo as any },
     });
   }
 
@@ -156,5 +195,21 @@ export class SettingsService implements OnModuleInit {
       details: `Mise à jour ${code}`,
     });
     return type;
+  }
+
+  getCompanyInfo() {
+    return this.companyInfo;
+  }
+
+  async updateCompanyInfo(dto: UpdateCompanyInfoDto) {
+    this.companyInfo = { ...this.companyInfo, ...dto };
+    await this.persistCompanyInfo();
+    this.auditService.record({
+      actorId: 'admin@madyproclean.com',
+      action: 'UPDATE_SETTINGS',
+      entityType: 'companyInfo',
+      details: JSON.stringify(dto),
+    });
+    return this.companyInfo;
   }
 }

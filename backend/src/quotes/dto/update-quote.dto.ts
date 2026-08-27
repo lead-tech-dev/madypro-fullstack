@@ -1,19 +1,14 @@
 import { IsArray, IsDateString, IsOptional, IsString } from 'class-validator';
 import { LineItemDto } from '../../documents/dto/line-item.dto';
 
-export class CreateQuoteDto {
+export class UpdateQuoteDto {
+  @IsOptional()
   @IsString()
-  siteId!: string;
+  label?: string;
 
   @IsOptional()
   @IsString()
-  interventionId?: string;
-
-  @IsString()
-  label!: string;
-
-  @IsString()
-  clientName!: string;
+  clientName?: string;
 
   @IsOptional()
   @IsString()
@@ -35,6 +30,7 @@ export class CreateQuoteDto {
   @IsString()
   documentUrl?: string;
 
+  @IsOptional()
   @IsArray()
-  lineItems!: LineItemDto[];
+  lineItems?: LineItemDto[];
 }

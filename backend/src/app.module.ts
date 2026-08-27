@@ -29,6 +29,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { PlatformModule } from './platform/platform.module';
 import { PublicApiModule } from './public-api/public-api.module';
 import { QuotesModule } from './quotes/quotes.module';
+import { InvoicesModule } from './invoices/invoices.module';
 import { FormsModule } from './forms/forms.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -66,6 +67,7 @@ import { CategoriesModule } from './categories/categories.module';
     PlatformModule,
     PublicApiModule,
     QuotesModule,
+    InvoicesModule,
     FormsModule,
     CategoriesModule,
   ],

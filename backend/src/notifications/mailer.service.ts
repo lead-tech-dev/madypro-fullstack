@@ -9,7 +9,7 @@ export class MailerService {
     to: string,
     subject: string,
     html: string,
-    attachment?: { filename: string; content: string; type?: string },
+    attachment?: { filename: string; content: string; type?: string; encoding?: 'utf8' | 'base64' },
   ) {
     const apiKey = process.env.SENDGRID_API_KEY;
     const from = process.env.SENDGRID_FROM || 'Madypro Clean <no-reply@madyproclean.com>';
@@ -33,7 +33,10 @@ export class MailerService {
         attachments: attachment
           ? [
               {
-                content: Buffer.from(attachment.content, 'utf-8').toString('base64'),
+                content:
+                  attachment.encoding === 'base64'
+                    ? attachment.content
+                    : Buffer.from(attachment.content, 'utf-8').toString('base64'),
                 filename: attachment.filename,
                 type: attachment.type ?? 'text/csv',
                 disposition: 'attachment',

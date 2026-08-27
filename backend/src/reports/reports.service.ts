@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { MailerService } from '../notifications/mailer.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { computeTotals } from '../documents/line-items.util';
 
 @Injectable()
 export class ReportsService implements OnModuleInit {
@@ -452,6 +453,55 @@ export class ReportsService implements OnModuleInit {
       billableHours: toHours(agg.billableMinutes),
       internalHours: toHours(agg.internalMinutes),
     }));
+  }
+
+  async getInvoicingReport() {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [invoicesThisMonth, sentInvoices, quotesThisMonth] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: { issuedAt: { gte: monthStart } },
+        include: { lineItems: true },
+      }),
+      this.prisma.invoice.findMany({
+        where: { status: 'SENT' },
+        include: { lineItems: true },
+      }),
+      this.prisma.quote.findMany({
+        where: { issuedAt: { gte: monthStart } },
+        select: { id: true, status: true },
+      }),
+    ]);
+
+    const invoiceTotal = (inv: { lineItems: { quantity: number; unitPriceHT: number; vatRatePercent: number }[] }) =>
+      computeTotals(inv.lineItems).totalTTC;
+
+    const revenueThisMonth = invoicesThisMonth.reduce((sum, inv) => sum + invoiceTotal(inv), 0);
+
+    let pendingAmount = 0;
+    let overdueAmount = 0;
+    for (const inv of sentInvoices) {
+      const outstanding = invoiceTotal(inv) - inv.amountPaidHT;
+      if (inv.dueAt && inv.dueAt < now) {
+        overdueAmount += outstanding;
+      } else {
+        pendingAmount += outstanding;
+      }
+    }
+
+    const decidedQuotes = quotesThisMonth.filter((q) => q.status === 'ACCEPTED' || q.status === 'REJECTED').length;
+    const acceptedQuotes = quotesThisMonth.filter((q) => q.status === 'ACCEPTED').length;
+    const conversionRate = decidedQuotes ? Math.round((acceptedQuotes / decidedQuotes) * 100) : null;
+
+    const round2 = (v: number) => Math.round(v * 100) / 100;
+    return {
+      revenueThisMonth: round2(revenueThisMonth),
+      pendingAmount: round2(pendingAmount),
+      overdueAmount: round2(overdueAmount),
+      conversionRate,
+      quotesThisMonth: quotesThisMonth.length,
+    };
   }
 
   async getDashboardLayout(userId: string) {

@@ -69,6 +69,11 @@ export class ReportsController {
     return this.service.getBillingReport(startDate, endDate);
   }
 
+  @Get('invoicing')
+  getInvoicingReport() {
+    return this.service.getInvoicingReport();
+  }
+
   @Get('dashboard-layout')
   getDashboardLayout(@Req() req: Request) {
     return this.service.getDashboardLayout((req.user as any)?.sub);

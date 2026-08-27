@@ -85,6 +85,16 @@ enum AuditAction {
   APPROVE_REQUEST
   REJECT_REQUEST
   SEND_CLIENT_PLANNING
+  CREATE_QUOTE
+  UPDATE_QUOTE
+  SEND_QUOTE
+  DELETE_QUOTE
+  CONVERT_QUOTE_TO_INVOICE
+  CREATE_INVOICE
+  UPDATE_INVOICE
+  SEND_INVOICE
+  RECORD_INVOICE_PAYMENT
+  DELETE_INVOICE
 }
 
 enum ShiftSwapStatus {
@@ -328,6 +338,7 @@ model Site {
   zones                  SiteZone[]
   inventoryItems         InventoryItem[]
   quotes                 Quote[]
+  invoices               Invoice[]
   clientPortalTokens     ClientPortalToken[]
 }
 
@@ -692,8 +703,21 @@ model AuditLog {
 enum QuoteStatus {
   DRAFT
   SENT
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
   PAID
   CANCELLED
+}
+
+enum DocumentType {
+  QUOTE
+  INVOICE
 }
 
 model ApiKey {
@@ -716,19 +740,79 @@ model ClientPortalToken {
 }
 
 model Quote {
-  id             String        @id @default(cuid())
+  id             String          @id @default(cuid())
+  number         String          @unique
   siteId         String
-  site           Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  site           Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
   interventionId String?
-  intervention   Intervention? @relation(fields: [interventionId], references: [id])
+  intervention   Intervention?   @relation(fields: [interventionId], references: [id])
   label          String
-  amount         Float
-  status         QuoteStatus   @default(DRAFT)
-  issuedAt       DateTime      @default(now())
+  clientName     String
+  clientAddress  String?
+  clientEmail    String?
+  notes          String?
+  status         QuoteStatus     @default(DRAFT)
+  issuedAt       DateTime        @default(now())
   dueAt          DateTime?
   documentUrl    String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  lineItems      QuoteLineItem[]
+  invoices       Invoice[]
+}
+
+model QuoteLineItem {
+  id             String @id @default(cuid())
+  quoteId        String
+  quote          Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  description    String
+  quantity       Float
+  unitPriceHT    Float
+  vatRatePercent Float  @default(20)
+  order          Int    @default(0)
+}
+
+model Invoice {
+  id            String            @id @default(cuid())
+  number        String            @unique
+  siteId        String
+  site          Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  quoteId       String?
+  quote         Quote?            @relation(fields: [quoteId], references: [id])
+  label         String
+  clientName    String
+  clientAddress String?
+  clientEmail   String?
+  notes         String?
+  status        InvoiceStatus     @default(DRAFT)
+  issuedAt      DateTime          @default(now())
+  dueAt         DateTime?
+  paidAt        DateTime?
+  paymentMethod String?
+  amountPaidHT  Float             @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  lineItems     InvoiceLineItem[]
+}
+
+model InvoiceLineItem {
+  id             String  @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description    String
+  quantity       Float
+  unitPriceHT    Float
+  vatRatePercent Float   @default(20)
+  order          Int     @default(0)
+}
+
+model DocumentSequence {
+  id         String       @id @default(cuid())
+  type       DocumentType
+  year       Int
+  lastNumber Int          @default(0)
+
+  @@unique([type, year])
 }
 
 model CustomForm {
