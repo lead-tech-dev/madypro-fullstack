@@ -13,6 +13,7 @@ dist/
 build/
 android/
 ios/
+*.tsbuildinfo
 
 Cache / OS / Editor
 
