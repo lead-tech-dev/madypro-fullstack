@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { Role, User } from '@prisma/client';
@@ -8,6 +8,7 @@ import { UserEntity } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { AuditService } from '../audit/audit.service';
+import { MailerService } from '../notifications/mailer.service';
 
 type PublicUser = Omit<UserEntity, 'password' | 'twoFactorSecret'> & { name: string };
 
@@ -25,11 +26,13 @@ interface UserFilters {
 
 @Injectable()
 export class UsersService implements OnModuleInit {
+  private readonly logger = new Logger(UsersService.name);
   private users: UserEntity[] = [];
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly mailer: MailerService,
   ) {}
 
   async onModuleInit() {
@@ -136,7 +139,38 @@ export class UsersService implements OnModuleInit {
       entityId: entity.id,
       details: `${entity.firstName} ${entity.lastName} (${entity.role})`,
     });
+    await this.sendWelcomeEmail(entity, password);
     return this.toPublic(entity);
+  }
+
+  private async sendWelcomeEmail(user: UserEntity, password: string) {
+    const webUrl = process.env.WEB_APP_URL || 'https://app.madyproclean.com';
+    const roleLabel: Record<Role, string> = {
+      ADMIN: 'administrateur',
+      SUPERVISOR: 'superviseur',
+      AGENT: 'agent',
+    };
+    const apkUrl = process.env.APK_DOWNLOAD_URL;
+    const apkSection =
+      user.role === 'AGENT' && apkUrl
+        ? `<p>Téléchargez l'application mobile MadyPro Clean pour pointer vos interventions :<br/><a href="${apkUrl}">${apkUrl}</a></p>`
+        : `<p>Accédez à l'espace ${roleLabel[user.role]} :<br/><a href="${webUrl}">${webUrl}</a></p>`;
+    try {
+      await this.mailer.send(
+        user.email,
+        'Bienvenue sur MadyPro Clean — vos identifiants de connexion',
+        `<p>Bonjour ${user.firstName},</p>
+<p>Un compte ${roleLabel[user.role]} a été créé pour vous sur MadyPro Clean.</p>
+<p>
+  Email : <strong>${user.email}</strong><br/>
+  Mot de passe temporaire : <strong>${password}</strong>
+</p>
+<p>Merci de le changer dès votre première connexion.</p>
+${apkSection}`,
+      );
+    } catch (err) {
+      this.logger.warn(`Email de bienvenue non envoyé à ${user.email}: ${(err as Error).message}`);
+    }
   }
 
   async update(id: string, dto: UpdateUserDto, actorId = 'system'): Promise<PublicUser> {
