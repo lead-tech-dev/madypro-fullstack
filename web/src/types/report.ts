@@ -58,6 +58,26 @@ export type HoursQuotaReport = {
   siteReports: HoursQuotaSiteReport[];
 };
 
+export type SiteDossierEntry = {
+  siteId: string;
+  siteName: string;
+  totalMinutes: number;
+  punctualityRate: number | null;
+  uncoveredDays: number;
+  agentsInvolved: string[];
+  interventionsTotal: number;
+  completionRate: number | null;
+  anomalyCount: number;
+  billableHours: number;
+  internalHours: number;
+  quota: { threshold: number; agents: HoursQuotaAgentReport[] };
+};
+
+export type SiteDossierReport = {
+  period: { startDate: string; endDate: string };
+  sites: SiteDossierEntry[];
+};
+
 export type PayrollBreakdownRow = {
   agentName: string;
   agentEmail: string;

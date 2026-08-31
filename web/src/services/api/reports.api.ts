@@ -1,4 +1,12 @@
-import { BillingReportRow, HoursQuotaReport, PayrollBreakdownRow, PeriodComparison, ReportsPerformance, SiteBenchmarkRow } from '../../types/report';
+import {
+  BillingReportRow,
+  HoursQuotaReport,
+  PayrollBreakdownRow,
+  PeriodComparison,
+  ReportsPerformance,
+  SiteBenchmarkRow,
+  SiteDossierReport,
+} from '../../types/report';
 import { DashboardSummary } from '../../types/dashboard';
 import { InvoicingKpis } from '../../types/invoice';
 import { apiFetch, API_BASE_URL } from './client';
@@ -138,6 +146,31 @@ export async function downloadHoursQuotaPdf(
   if (filters.siteId && filters.siteId !== 'all') params.set('siteId', filters.siteId);
   const query = params.toString();
   await openPdfInNewTab(token, `reports/hours-quota/pdf${query ? `?${query}` : ''}`);
+}
+
+export async function getSiteDossierReport(
+  token: string,
+  filters: { startDate?: string; endDate?: string; siteId?: string } = {},
+): Promise<SiteDossierReport> {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  if (filters.siteId && filters.siteId !== 'all') params.set('siteId', filters.siteId);
+  const query = params.toString();
+  const path = `reports/site-dossier${query ? `?${query}` : ''}`;
+  return apiFetch<SiteDossierReport>({ path, token });
+}
+
+export async function downloadSiteDossierPdf(
+  token: string,
+  filters: { startDate?: string; endDate?: string; siteId?: string } = {},
+): Promise<void> {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  if (filters.siteId && filters.siteId !== 'all') params.set('siteId', filters.siteId);
+  const query = params.toString();
+  await openPdfInNewTab(token, `reports/site-dossier/pdf${query ? `?${query}` : ''}`);
 }
 
 export type DashboardWidgetConfig = { id: string; visible: boolean; order: number };

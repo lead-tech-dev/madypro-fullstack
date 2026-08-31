@@ -22,6 +22,26 @@ export type HoursQuotaReportData = {
   agentReports: HoursQuotaReportAgent[];
 };
 
+export type SiteDossierEntry = {
+  siteId: string;
+  siteName: string;
+  totalMinutes: number;
+  punctualityRate: number | null;
+  uncoveredDays: number;
+  agentsInvolved: string[];
+  interventionsTotal: number;
+  completionRate: number | null;
+  anomalyCount: number;
+  billableHours: number;
+  internalHours: number;
+  quota: { threshold: number; agents: HoursQuotaReportAgent[] };
+};
+
+export type SiteDossierReportData = {
+  period: { startDate: string; endDate: string };
+  sites: SiteDossierEntry[];
+};
+
 export type PdfDocumentData = {
   kind: 'DEVIS' | 'FACTURE';
   number: string;
@@ -385,6 +405,105 @@ export class DocumentPdfService {
           .fillColor(INK);
         y += 16;
       });
+
+      doc.end();
+    });
+  }
+
+  generateSiteDossierReport(data: SiteDossierReportData, company: CompanyInfo): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const fmtHours = (minutes: number) => `${Math.floor(minutes / 60)}h${String(Math.round(minutes % 60)).padStart(2, '0')}`;
+      const fmtRate = (rate: number | null) => (rate === null ? '—' : `${rate}%`);
+
+      data.sites.forEach((site, index) => {
+        if (index > 0) doc.addPage();
+
+        doc.font('Helvetica-Bold').fontSize(16).fillColor(INK).text(company.legalName || 'Rapport', PAGE_LEFT, 50);
+        doc.font('Helvetica-Bold').fontSize(13).fillColor(BRAND_DARK).text('DOSSIER DE SITE', PAGE_LEFT, 80);
+        doc.font('Helvetica-Bold').fontSize(15).fillColor(INK).text(site.siteName, PAGE_LEFT, 100);
+        doc
+          .font('Helvetica')
+          .fontSize(9.5)
+          .fillColor(MUTED)
+          .text(`Période du ${data.period.startDate} au ${data.period.endDate}`, PAGE_LEFT, 120);
+
+        // --- KPIs ---
+        const kpis: [string, string][] = [
+          ['Heures réalisées', fmtHours(site.totalMinutes)],
+          ['Ponctualité', fmtRate(site.punctualityRate)],
+          ['Jours non couverts', String(site.uncoveredDays)],
+          ['Interventions', String(site.interventionsTotal)],
+          ['Taux de complétion', fmtRate(site.completionRate)],
+          ['Anomalies', String(site.anomalyCount)],
+          ['Heures facturables', `${site.billableHours} h`],
+          ['Heures internes', `${site.internalHours} h`],
+        ];
+        let ky = 150;
+        const kpiColWidth = PAGE_WIDTH / 2;
+        kpis.forEach(([label, value], i) => {
+          const x = PAGE_LEFT + (i % 2) * kpiColWidth;
+          const rowY = ky + Math.floor(i / 2) * 32;
+          doc.font('Helvetica').fontSize(8).fillColor(MUTED).text(label.toUpperCase(), x, rowY, { characterSpacing: 0.5 });
+          doc.font('Helvetica-Bold').fontSize(12).fillColor(INK).text(value, x, rowY + 12);
+        });
+        ky += Math.ceil(kpis.length / 2) * 32 + 15;
+
+        // --- Agents / quota ---
+        doc.font('Helvetica-Bold').fontSize(11).fillColor(BRAND_DARK).text('Agents — quota d\'heures', PAGE_LEFT, ky);
+        ky += 20;
+
+        const cols = {
+          agent: { x: 50, width: 180 },
+          planned: { x: 240, width: 75 },
+          realized: { x: 320, width: 75 },
+          rate: { x: 400, width: 55 },
+          penalty: { x: 460, width: 85 },
+        };
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(MUTED);
+        doc.text('AGENT', cols.agent.x, ky, { width: cols.agent.width, characterSpacing: 0.5 });
+        doc.text('PRÉVU', cols.planned.x, ky, { width: cols.planned.width, align: 'right' });
+        doc.text('RÉALISÉ', cols.realized.x, ky, { width: cols.realized.width, align: 'right' });
+        doc.text('%', cols.rate.x, ky, { width: cols.rate.width, align: 'right' });
+        doc.text('PÉNALITÉ', cols.penalty.x, ky, { width: cols.penalty.width, align: 'right' });
+        doc.fillColor(INK);
+        ky += 13;
+        doc.moveTo(PAGE_LEFT, ky).lineTo(PAGE_RIGHT, ky).lineWidth(0.75).strokeColor(BRAND).stroke();
+        doc.lineWidth(1);
+        ky += 10;
+
+        if (site.quota.agents.length === 0) {
+          doc.font('Helvetica').fontSize(9).fillColor(MUTED).text('Aucun agent sur la période.', cols.agent.x, ky);
+        }
+        site.quota.agents.forEach((agent) => {
+          if (ky > TABLE_BOTTOM_LIMIT) {
+            doc.addPage();
+            ky = 50;
+          }
+          doc.font('Helvetica').fontSize(9).fillColor(INK);
+          doc.text(agent.name, cols.agent.x, ky, { width: cols.agent.width });
+          doc.text(fmtHours(agent.plannedMinutes), cols.planned.x, ky, { width: cols.planned.width, align: 'right' });
+          doc.text(fmtHours(agent.realizedMinutes), cols.realized.x, ky, { width: cols.realized.width, align: 'right' });
+          doc.text(fmtRate(agent.accomplishmentRate), cols.rate.x, ky, { width: cols.rate.width, align: 'right' });
+          doc
+            .fillColor(agent.meetsQuota ? MUTED : '#c0392b')
+            .text(agent.meetsQuota ? '—' : fmtHours(agent.penaltyMinutes), cols.penalty.x, ky, {
+              width: cols.penalty.width,
+              align: 'right',
+            })
+            .fillColor(INK);
+          ky += 16;
+        });
+      });
+
+      if (data.sites.length === 0) {
+        doc.font('Helvetica').fontSize(11).fillColor(MUTED).text('Aucun site pour cette période.', PAGE_LEFT, 150);
+      }
 
       doc.end();
     });

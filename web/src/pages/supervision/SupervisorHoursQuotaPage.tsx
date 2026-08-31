@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
-import { downloadHoursQuotaPdf, getHoursQuotaReport } from '../../services/api/reports.api';
+import { downloadSiteDossierPdf, getSiteDossierReport } from '../../services/api/reports.api';
 import { listSites } from '../../services/api/sites.api';
-import { HoursQuotaReport } from '../../types/report';
+import { SiteDossierReport } from '../../types/report';
 import { Site } from '../../types/site';
 import { Button } from '../../components/ui/Button';
 
@@ -12,13 +12,14 @@ const today = new Date();
 const defaultStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
 const minutesToHoursLabel = (minutes: number) => `${(minutes / 60).toFixed(1)} h`;
+const pct = (value: number | null) => (value === null ? '—' : `${value}%`);
 
 export const SupervisorHoursQuotaPage: React.FC = () => {
   const { token, user, notify } = useAuthContext();
   const [filters, setFilters] = useState({ startDate: formatDate(defaultStart), endDate: formatDate(today) });
   const [siteId, setSiteId] = useState('all');
   const [sites, setSites] = useState<Site[]>([]);
-  const [data, setData] = useState<HoursQuotaReport | null>(null);
+  const [data, setData] = useState<SiteDossierReport | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -36,7 +37,7 @@ export const SupervisorHoursQuotaPage: React.FC = () => {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    getHoursQuotaReport(token, { ...filters, siteId })
+    getSiteDossierReport(token, { ...filters, siteId })
       .then(setData)
       .catch((err) => {
         const message = err instanceof Error ? err.message : 'Impossible de charger le rapport';
@@ -51,10 +52,10 @@ export const SupervisorHoursQuotaPage: React.FC = () => {
     setFilters((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (targetSiteId?: string) => {
     if (!token) return;
     try {
-      await downloadHoursQuotaPdf(token, { ...filters, siteId });
+      await downloadSiteDossierPdf(token, { ...filters, siteId: targetSiteId ?? siteId });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Impossible de générer le PDF';
       notify(message, 'error');
@@ -66,8 +67,8 @@ export const SupervisorHoursQuotaPage: React.FC = () => {
       <div className="page-hero">
         <div className="page-hero__content">
           <span className="pill">Rapports</span>
-          <h2>Quota d'heures — mes sites</h2>
-          <p>Heures planifiées vs réalisées pour les agents des sites dont vous avez la charge.</p>
+          <h2>Dossier de site — mes sites</h2>
+          <p>Heures, ponctualité, complétion, anomalies et facturation pour les sites dont vous avez la charge.</p>
         </div>
         <div className="page-hero__accent">
           <h3>Période</h3>
@@ -97,56 +98,93 @@ export const SupervisorHoursQuotaPage: React.FC = () => {
       {loading && <p>Chargement du rapport...</p>}
 
       {data && !loading && (
-        <section className="panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <p style={{ margin: 0, color: 'var(--color-muted)' }}>
-              Seuil d'accomplissement : {data.threshold}% — en dessous, les heures manquantes jusqu'au quota sont comptées en
-              pénalité.
-            </p>
-            <Button type="button" variant="ghost" icon={Download} onClick={handleDownloadPdf}>
-              Télécharger PDF
+        <>
+          <div className="form-actions" style={{ marginBottom: '1rem' }}>
+            <Button type="button" variant="ghost" icon={Download} onClick={() => handleDownloadPdf()}>
+              Télécharger le dossier PDF
             </Button>
           </div>
-          <div className="table-wrapper">
-            <table className="table" aria-label="quota d'heures mensuel">
-              <thead>
-                <tr>
-                  <th>Site</th>
-                  <th>Agent</th>
-                  <th>Heures prévues</th>
-                  <th>Heures réalisées</th>
-                  <th>% accompli</th>
-                  <th>Pénalité</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.agentReports.map((agent) => (
-                  <tr key={`${agent.siteId}-${agent.userId}`}>
-                    <td>{agent.siteName}</td>
-                    <td>{agent.name}</td>
-                    <td>{minutesToHoursLabel(agent.plannedMinutes)}</td>
-                    <td>{minutesToHoursLabel(agent.realizedMinutes)}</td>
-                    <td>{agent.accomplishmentRate === null ? '—' : `${agent.accomplishmentRate}%`}</td>
-                    <td>
-                      {agent.meetsQuota ? (
-                        <span style={{ color: '#16a34a', fontWeight: 600 }}>Quota atteint</span>
-                      ) : (
-                        <span style={{ color: '#dc2626', fontWeight: 600 }}>-{minutesToHoursLabel(agent.penaltyMinutes)}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {data.agentReports.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
-                      Aucune donnée pour cette période.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+
+          {data.sites.length === 0 && <p style={{ color: 'var(--color-muted)' }}>Aucune donnée pour cette période.</p>}
+
+          {data.sites.map((site) => (
+            <section className="panel" key={site.siteId} style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <h3>{site.siteName}</h3>
+                <Button type="button" variant="ghost" icon={Download} onClick={() => handleDownloadPdf(site.siteId)}>
+                  PDF de ce site
+                </Button>
+              </div>
+              <div className="page-grid">
+                <article className="card">
+                  <span className="card__meta">Heures réalisées</span>
+                  <p className="card__value">{minutesToHoursLabel(site.totalMinutes)}</p>
+                </article>
+                <article className="card">
+                  <span className="card__meta">Ponctualité</span>
+                  <p className="card__value">{pct(site.punctualityRate)}</p>
+                </article>
+                <article className="card">
+                  <span className="card__meta">Jours non couverts</span>
+                  <p className="card__value">{site.uncoveredDays}</p>
+                </article>
+                <article className="card">
+                  <span className="card__meta">Taux de complétion</span>
+                  <p className="card__value">{pct(site.completionRate)}</p>
+                </article>
+                <article className="card">
+                  <span className="card__meta">Anomalies</span>
+                  <p className="card__value">{site.anomalyCount}</p>
+                </article>
+                <article className="card">
+                  <span className="card__meta">Heures facturables / internes</span>
+                  <p className="card__value">
+                    {site.billableHours} h / {site.internalHours} h
+                  </p>
+                </article>
+              </div>
+              <div className="table-wrapper">
+                <table className="table" aria-label={`quota d'heures — ${site.siteName}`}>
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Heures prévues</th>
+                      <th>Heures réalisées</th>
+                      <th>% accompli</th>
+                      <th>Pénalité</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {site.quota.agents.map((agent) => (
+                      <tr key={agent.userId}>
+                        <td>{agent.name}</td>
+                        <td>{minutesToHoursLabel(agent.plannedMinutes)}</td>
+                        <td>{minutesToHoursLabel(agent.realizedMinutes)}</td>
+                        <td>{pct(agent.accomplishmentRate)}</td>
+                        <td>
+                          {agent.meetsQuota ? (
+                            <span style={{ color: '#16a34a', fontWeight: 600 }}>Quota atteint</span>
+                          ) : (
+                            <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                              -{minutesToHoursLabel(agent.penaltyMinutes)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {site.quota.agents.length === 0 && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                          Aucun agent sur la période.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))}
+        </>
       )}
     </div>
   );

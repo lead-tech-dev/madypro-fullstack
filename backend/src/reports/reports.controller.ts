@@ -91,6 +91,43 @@ export class ReportsController {
     res.send(buffer);
   }
 
+  @Get('site-dossier')
+  @Roles('ADMIN', 'SUPERVISOR')
+  siteDossier(
+    @Req() req: Request,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('siteId') siteId?: string,
+  ) {
+    const user = req.user as any;
+    return this.service.siteDossier(startDate, endDate, {
+      siteId,
+      requesterId: user?.sub,
+      requesterRole: user?.role,
+    });
+  }
+
+  @Get('site-dossier/pdf')
+  @Roles('ADMIN', 'SUPERVISOR')
+  async siteDossierPdf(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('siteId') siteId?: string,
+  ) {
+    const user = req.user as any;
+    const report = await this.service.siteDossier(startDate, endDate, {
+      siteId,
+      requesterId: user?.sub,
+      requesterRole: user?.role,
+    });
+    const buffer = await this.service.siteDossierPdf(report);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="dossier-site-${report.period.startDate}.pdf"`);
+    res.send(buffer);
+  }
+
   @Get('comparison')
   comparePeriods(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
     return this.service.comparePeriods(startDate, endDate);

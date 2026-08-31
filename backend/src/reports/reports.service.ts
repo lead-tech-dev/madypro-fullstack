@@ -293,12 +293,23 @@ export class ReportsService implements OnModuleInit {
       agents: Set<string>;
       days: Set<string>;
       coveredDays: Set<string>;
+      startedCount: number;
+      onTimeCount: number;
     };
     const siteMap = new Map<string, SiteAgg>();
     const ensureSite = (id: string, name: string) => {
       let site = siteMap.get(id);
       if (!site) {
-        site = { id, name, totalMinutes: 0, agents: new Set(), days: new Set(), coveredDays: new Set() };
+        site = {
+          id,
+          name,
+          totalMinutes: 0,
+          agents: new Set(),
+          days: new Set(),
+          coveredDays: new Set(),
+          startedCount: 0,
+          onTimeCount: 0,
+        };
         siteMap.set(id, site);
       }
       return site;
@@ -317,6 +328,13 @@ export class ReportsService implements OnModuleInit {
       if (att.checkOutTime) {
         site.totalMinutes += minutesBetween(new Date(att.checkInTime), new Date(att.checkOutTime));
       }
+      if (att.plannedStart) {
+        site.startedCount += 1;
+        const graceMs = toleranceMinutes * 60 * 1000;
+        if (att.checkInTime.getTime() <= att.plannedStart.getTime() + graceMs) {
+          site.onTimeCount += 1;
+        }
+      }
     });
 
     const siteReports = Array.from(siteMap.values())
@@ -326,6 +344,7 @@ export class ReportsService implements OnModuleInit {
         totalMinutes: Math.round(site.totalMinutes),
         agents: Array.from(site.agents),
         uncoveredDays: Array.from(site.days).filter((day) => !site.coveredDays.has(day)).length,
+        punctualityRate: site.startedCount ? Math.round((site.onTimeCount / site.startedCount) * 1000) / 10 : null,
       }))
       .sort((a, b) => b.totalMinutes - a.totalMinutes);
 
@@ -376,6 +395,28 @@ export class ReportsService implements OnModuleInit {
    * vs heures réalisées (pointages), avec pénalité si le taux d'accomplissement
    * passe sous le seuil configuré (settings.monthlyQuota).
    */
+  /**
+   * Restreint les sites accessibles à un superviseur (via SiteSupervisor). Retourne `null`
+   * pour un ADMIN (aucune restriction). Lève une 403 si un siteId explicite hors périmètre
+   * est demandé par un superviseur.
+   */
+  private async resolveSiteFilter(
+    requesterRole: string | undefined,
+    requesterId: string | undefined,
+    explicitSiteId: string | undefined,
+  ): Promise<string[] | null> {
+    if (requesterRole !== 'SUPERVISOR') return null;
+    const supervised = await this.prisma.siteSupervisor.findMany({
+      where: { userId: requesterId },
+      select: { siteId: true },
+    });
+    const allowedSiteIds = supervised.map((row) => row.siteId);
+    if (explicitSiteId && !allowedSiteIds.includes(explicitSiteId)) {
+      throw new ForbiddenException("Vous n'avez pas la charge de ce site");
+    }
+    return allowedSiteIds;
+  }
+
   async hoursQuota(
     startDate: string | undefined,
     endDate: string | undefined,
@@ -392,18 +433,7 @@ export class ReportsService implements OnModuleInit {
     const start = this.startOfDay(this.parseDate(period.startDate, 'startDate'));
     const end = this.endOfDay(this.parseDate(period.endDate, 'endDate'));
 
-    let allowedSiteIds: string[] | null = null;
-    if (options.requesterRole === 'SUPERVISOR') {
-      const supervised = await this.prisma.siteSupervisor.findMany({
-        where: { userId: options.requesterId },
-        select: { siteId: true },
-      });
-      allowedSiteIds = supervised.map((row) => row.siteId);
-      if (options.siteId && !allowedSiteIds.includes(options.siteId)) {
-        throw new ForbiddenException("Vous n'avez pas la charge de ce site");
-      }
-    }
-
+    const allowedSiteIds = await this.resolveSiteFilter(options.requesterRole, options.requesterId, options.siteId);
     const siteFilter = options.siteId ? [options.siteId] : allowedSiteIds;
 
     const [interventions, attendances] = await Promise.all([
@@ -517,6 +547,66 @@ export class ReportsService implements OnModuleInit {
   async hoursQuotaPdf(report: Awaited<ReturnType<ReportsService['hoursQuota']>>): Promise<Buffer> {
     const company = this.settingsService.getCompanyInfo();
     return this.documentPdfService.generateHoursQuotaReport(report, company);
+  }
+
+  /**
+   * Dossier complet par site : combine performance() (heures, ponctualité, jours non
+   * couverts), getSiteBenchmark() (complétion, anomalies), getBillingReport() (facturable/
+   * interne) et hoursQuota() (quota/pénalité par agent) — sans dupliquer leurs calculs.
+   */
+  async siteDossier(
+    startDate: string | undefined,
+    endDate: string | undefined,
+    options: { siteId?: string; requesterId?: string; requesterRole?: string } = {},
+  ) {
+    const allowedSiteIds = await this.resolveSiteFilter(options.requesterRole, options.requesterId, options.siteId);
+    const targetSiteIds = options.siteId ? [options.siteId] : allowedSiteIds;
+
+    const [performance, benchmark, billing, quota] = await Promise.all([
+      this.performance(startDate, endDate),
+      this.getSiteBenchmark(startDate, endDate),
+      this.getBillingReport(startDate, endDate),
+      this.hoursQuota(startDate, endDate, options),
+    ]);
+
+    const inScope = (siteId: string) => !targetSiteIds || targetSiteIds.includes(siteId);
+
+    const benchmarkBySite = new Map(benchmark.map((row) => [row.siteId, row]));
+    const billingBySite = new Map(billing.map((row) => [row.siteId, row]));
+    const quotaBySite = new Map(quota.siteReports.map((row) => [row.siteId, row]));
+
+    const sites = performance.siteReports
+      .filter((site) => inScope(site.id))
+      .map((site) => {
+        const bm = benchmarkBySite.get(site.id);
+        const bill = billingBySite.get(site.id);
+        const q = quotaBySite.get(site.id);
+        return {
+          siteId: site.id,
+          siteName: site.name,
+          totalMinutes: site.totalMinutes,
+          punctualityRate: site.punctualityRate,
+          uncoveredDays: site.uncoveredDays,
+          agentsInvolved: site.agents,
+          interventionsTotal: bm?.interventionsTotal ?? 0,
+          completionRate: bm?.completionRate ?? null,
+          anomalyCount: bm?.anomalyCount ?? 0,
+          billableHours: bill?.billableHours ?? 0,
+          internalHours: bill?.internalHours ?? 0,
+          quota: {
+            threshold: quota.threshold,
+            agents: q?.agents ?? [],
+          },
+        };
+      })
+      .sort((a, b) => a.siteName.localeCompare(b.siteName));
+
+    return { period: performance.period, sites };
+  }
+
+  async siteDossierPdf(report: Awaited<ReturnType<ReportsService['siteDossier']>>): Promise<Buffer> {
+    const company = this.settingsService.getCompanyInfo();
+    return this.documentPdfService.generateSiteDossierReport(report, company);
   }
 
   async comparePeriods(startDate?: string, endDate?: string) {
