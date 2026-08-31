@@ -64,6 +64,14 @@ resource "aws_security_group" "madypro_prod" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "App ports directs (pas de domaine pour le moment) : web/api prod+dev"
+    from_port   = 8080
+    to_port     = 8083
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0

@@ -45,8 +45,9 @@ jobs:
           file: web/Dockerfile
           push: true
           # VITE_API_URL inliné au build → la SPA pointe sur l'API prod.
+          # Pas de nom de domaine pour le moment : URL AWS + port direct.
           build-args: |
-            VITE_API_URL=https://api.madyproclean.com
+            VITE_API_URL=http://ec2-15-237-203-194.eu-west-3.compute.amazonaws.com:8081
           tags: |
             ghcr.io/lead-tech-dev/madypro-fullstack/web:prod-${{ github.sha }}
             ghcr.io/lead-tech-dev/madypro-fullstack/web:prod-latest
@@ -93,14 +94,14 @@ jobs:
             # Smoke API
             ok=0
             for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-              if curl -sf --max-time 5 https://api.madyproclean.com/health >/dev/null; then echo "✓ Smoke API OK"; ok=1; break; fi
+              if curl -sf --max-time 5 http://localhost:8081/health >/dev/null; then echo "✓ Smoke API OK"; ok=1; break; fi
               sleep 4
             done
             if [ "$ok" -ne 1 ]; then echo "✗ Smoke API KO"; docker compose -p madypro-prod logs --tail 50 api; exit 1; fi
             # Smoke web
             ok=0
             for i in 1 2 3 4 5 6 7 8 9 10; do
-              if curl -sf --max-time 5 https://app.madyproclean.com >/dev/null; then echo "✓ Smoke web OK"; ok=1; break; fi
+              if curl -sf --max-time 5 http://localhost:8080 >/dev/null; then echo "✓ Smoke web OK"; ok=1; break; fi
               sleep 3
             done
             if [ "$ok" -ne 1 ]; then echo "✗ Smoke web KO"; docker compose -p madypro-prod logs --tail 30 web; exit 1; fi

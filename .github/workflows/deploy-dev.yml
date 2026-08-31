@@ -45,8 +45,9 @@ jobs:
           file: web/Dockerfile
           push: true
           # VITE_API_URL inliné au build → la SPA pointe sur l'API dev.
+          # Pas de nom de domaine pour le moment : URL AWS + port direct.
           build-args: |
-            VITE_API_URL=https://api-dev.madyproclean.com
+            VITE_API_URL=http://ec2-15-237-203-194.eu-west-3.compute.amazonaws.com:8083
           tags: |
             ghcr.io/lead-tech-dev/madypro-fullstack/web:dev-${{ github.sha }}
             ghcr.io/lead-tech-dev/madypro-fullstack/web:dev-latest
@@ -91,7 +92,7 @@ jobs:
             # Smoke API — migrate Prisma s'exécute au boot du conteneur.
             ok=0
             for i in $(seq 1 30); do
-              if curl -sf --max-time 5 https://api-dev.madyproclean.com/health >/dev/null; then
+              if curl -sf --max-time 5 http://localhost:8083/health >/dev/null; then
                 echo "✓ Smoke API OK"
                 ok=1
                 break
@@ -106,7 +107,7 @@ jobs:
             # Smoke web
             ok=0
             for i in 1 2 3 4 5 6 7 8 9 10; do
-              if curl -sf --max-time 5 https://dev.madyproclean.com >/dev/null; then
+              if curl -sf --max-time 5 http://localhost:8082 >/dev/null; then
                 echo "✓ Smoke web OK"
                 ok=1
                 break

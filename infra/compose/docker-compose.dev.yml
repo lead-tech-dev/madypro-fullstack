@@ -39,6 +39,8 @@ services:
       DATABASE_URL: postgresql://madypro:${POSTGRES_PASSWORD}@postgres:5432/madypro?schema=public
       PORT: 3000
       NODE_ENV: production
+    ports:
+      - "8083:3000"
     networks: [traefik_public, dev_internal]
     labels:
       - "traefik.enable=true"
@@ -55,6 +57,8 @@ services:
     image: ghcr.io/lead-tech-dev/madypro-fullstack/web:dev-latest
     container_name: dev-web
     restart: unless-stopped
+    ports:
+      - "8082:4173"
     networks: [traefik_public]
     labels:
       - "traefik.enable=true"
