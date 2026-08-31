@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AppController } from './app.controller';
 import { AppConfig } from './config/app.config';
 import { DbConfig } from './config/db.config';
 import { AuthConfig } from './config/auth.config';
@@ -71,5 +72,6 @@ import { CategoriesModule } from './categories/categories.module';
     FormsModule,
     CategoriesModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}

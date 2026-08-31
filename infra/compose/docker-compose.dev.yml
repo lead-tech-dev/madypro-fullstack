@@ -1,0 +1,68 @@
+# Stack DEV — déployée sur push develop (workflow deploy-dev.yml).
+#
+# Sous-domaines :
+#  - dev.madyproclean.com     → web (SPA Vite servie par `serve`)
+#  - api-dev.madyproclean.com → API NestJS
+#
+# Secrets attendus dans /srv/madypro/dev/.env sur le VPS.
+
+networks:
+  traefik_public: { external: true }
+  dev_internal:   { driver: bridge }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dev-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: madypro
+      POSTGRES_USER: madypro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes: [dev_pg_data:/var/lib/postgresql/data]
+    networks: [dev_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U madypro -d madypro"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    image: ghcr.io/lead-tech-dev/madypro-fullstack/api:dev-latest
+    container_name: dev-api
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    env_file:
+      - /srv/madypro/dev/.env
+    environment:
+      DATABASE_URL: postgresql://madypro:${POSTGRES_PASSWORD}@postgres:5432/madypro?schema=public
+      PORT: 3000
+      NODE_ENV: production
+    networks: [traefik_public, dev_internal]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_public"
+      - "traefik.http.routers.dev-api.rule=Host(`api-dev.madyproclean.com`)"
+      - "traefik.http.routers.dev-api.entrypoints=websecure"
+      - "traefik.http.routers.dev-api.tls.certresolver=le"
+      - "traefik.http.services.dev-api.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.dev-api-headers.headers.frameDeny=true"
+      - "traefik.http.middlewares.dev-api-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.routers.dev-api.middlewares=dev-api-headers@docker"
+
+  web:
+    image: ghcr.io/lead-tech-dev/madypro-fullstack/web:dev-latest
+    container_name: dev-web
+    restart: unless-stopped
+    networks: [traefik_public]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_public"
+      - "traefik.http.routers.dev-web.rule=Host(`dev.madyproclean.com`)"
+      - "traefik.http.routers.dev-web.entrypoints=websecure"
+      - "traefik.http.routers.dev-web.tls.certresolver=le"
+      - "traefik.http.services.dev-web.loadbalancer.server.port=4173"
+
+volumes:
+  dev_pg_data:
