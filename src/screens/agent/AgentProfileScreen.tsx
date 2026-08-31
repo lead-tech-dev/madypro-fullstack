@@ -42,7 +42,6 @@ export default function AgentProfileScreen() {
       title="Profil"
       subtitle="Informations personnelles et session"
       accent="Compte"
-      scrollable={false}
       contentStyle={styles.profileContent}
       trailing={<Ionicons name="person-circle-outline" size={32} color={theme.colors.primary} />}
     >
