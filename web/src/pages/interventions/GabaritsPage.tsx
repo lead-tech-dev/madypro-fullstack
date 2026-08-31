@@ -8,12 +8,13 @@ import {
   toggleTemplate,
   previewTemplate,
   generateTemplate,
+  getTemplateAgentSuggestions,
   CreateTemplatePayload,
   TemplateStopPayload,
 } from '../../services/api/interventions.api';
 import { listSites, listSiteCategories } from '../../services/api/sites.api';
 import { listUsers } from '../../services/api/users.api';
-import { InterventionTemplate, TemplatePreview } from '../../types/intervention';
+import { InterventionTemplate, TemplatePreview, TemplateAgentSuggestion } from '../../types/intervention';
 import { SiteCategory } from '../../types/category';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -117,6 +118,8 @@ export const GabaritsPage: React.FC<GabaritsPageProps> = ({ embedded, restrictTo
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
+  const [suggestionsByStop, setSuggestionsByStop] = useState<Record<number, TemplateAgentSuggestion>>({});
+  const [suggestionsLoadingStop, setSuggestionsLoadingStop] = useState<number | null>(null);
 
   const [generateTemplateId, setGenerateTemplateId] = useState<string | null>(null);
   const [generatePeriod, setGeneratePeriod] = useState<'day' | 'week' | 'custom'>('week');
@@ -208,6 +211,27 @@ export const GabaritsPage: React.FC<GabaritsPageProps> = ({ embedded, restrictTo
       ...prev,
       stops: prev.stops.map((stop, i) => (i === index ? { ...stop, ...patch } : stop)),
     }));
+  };
+
+  const fetchStopSuggestions = async (index: number) => {
+    if (!token || !form.siteId) return;
+    setSuggestionsLoadingStop(index);
+    try {
+      const result = await getTemplateAgentSuggestions(token, form.siteId, form.stops[index]?.agentIds ?? []);
+      setSuggestionsByStop((prev) => ({ ...prev, [index]: result }));
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible de charger les suggestions', 'error');
+    } finally {
+      setSuggestionsLoadingStop(null);
+    }
+  };
+
+  const addSuggestedAgent = (index: number, agentId: string) => {
+    updateStop(index, {
+      agentIds: form.stops[index]?.agentIds.includes(agentId)
+        ? form.stops[index].agentIds
+        : [...(form.stops[index]?.agentIds ?? []), agentId],
+    });
   };
 
   const handleSiteChange = (siteId: string) => {
@@ -640,6 +664,45 @@ export const GabaritsPage: React.FC<GabaritsPageProps> = ({ embedded, restrictTo
                           onChange={(agentIds) => updateStop(index, { agentIds })}
                           helperText={agentOptions.length === 0 ? 'Aucun agent disponible' : undefined}
                         />
+                        {form.siteId && (
+                          <div className="form-field">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => fetchStopSuggestions(index)}
+                              disabled={suggestionsLoadingStop === index}
+                            >
+                              {suggestionsLoadingStop === index ? 'Recherche...' : 'Suggérer des agents à proximité'}
+                            </Button>
+                            {suggestionsByStop[index] && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
+                                {suggestionsByStop[index].candidates.length === 0 && (
+                                  <small className="form-helper">Aucun candidat disponible.</small>
+                                )}
+                                {suggestionsByStop[index].candidates.map((candidate) => (
+                                  <div
+                                    key={candidate.id}
+                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}
+                                  >
+                                    <span>
+                                      {candidate.name}
+                                      {candidate.distanceMeters != null ? ` · ${(candidate.distanceMeters / 1000).toFixed(1)} km` : ''}
+                                      {candidate.positionSource === 'address' ? ' (adresse)' : ''}
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      className="btn--compact"
+                                      onClick={() => addSuggestedAgent(index, candidate.id)}
+                                    >
+                                      Ajouter
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </>
                     )}
                   />

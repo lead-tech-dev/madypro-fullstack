@@ -8,6 +8,7 @@ import {
   TemplatePreview,
   InterventionTemplate,
   PlanningEntry,
+  TemplateAgentSuggestion,
 } from '../../types/intervention';
 import { ApprovalRequest, isApprovalRequest } from '../../types/approval';
 import { SiteRoster } from '../../types/category';
@@ -271,6 +272,12 @@ export async function getPlanning(token: string, filters: PlanningFilters) {
 
 export async function getAssignmentSuggestions(token: string, interventionId: string) {
   return apiFetch<AssignmentSuggestion>({ path: `interventions/${interventionId}/assignment-suggestions`, token });
+}
+
+export async function getTemplateAgentSuggestions(token: string, siteId: string, excludeAgentIds: string[] = []) {
+  const params = new URLSearchParams({ siteId });
+  if (excludeAgentIds.length) params.set('excludeAgentIds', excludeAgentIds.join(','));
+  return apiFetch<TemplateAgentSuggestion>({ path: `interventions/templates/agent-suggestions?${params.toString()}`, token });
 }
 
 export async function getRouteOptimization(token: string, userId: string, date: string) {

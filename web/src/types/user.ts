@@ -6,6 +6,9 @@ export type User = {
   email: string;
   role: string;
   phone: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
   active: boolean;
   twoFactorEnabled?: boolean;
   permissions?: string[];

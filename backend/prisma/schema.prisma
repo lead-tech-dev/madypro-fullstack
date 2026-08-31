@@ -139,6 +139,9 @@ model User {
   lastName                    String
   email                       String                   @unique
   phone                       String?
+  address                     String?
+  latitude                    Float?
+  longitude                   Float?
   role                        Role
   password                    String
   active                      Boolean                  @default(true)

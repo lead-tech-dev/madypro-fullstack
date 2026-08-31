@@ -284,11 +284,19 @@ export class InterventionsService implements OnModuleInit {
   }
 
   private toDateOnly(value: string) {
-    return new Date(`${value}T00:00:00.000Z`);
+    const date = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException(`Date invalide : "${value}"`);
+    }
+    return date;
   }
 
   private endOfDay(value: string) {
-    return new Date(`${value}T23:59:59.999Z`);
+    const date = new Date(`${value}T23:59:59.999Z`);
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException(`Date invalide : "${value}"`);
+    }
+    return date;
   }
 
   private combine(dateStr: string, time: string) {
@@ -895,16 +903,18 @@ export class InterventionsService implements OnModuleInit {
       (data as any).photos = dto.photos ?? [];
     }
 
+    // Validé AVANT l'écriture : un PATCH refusé ne doit jamais avoir déjà modifié la ligne en base.
+    const finalType = dto.type ? this.normalizeTypeInput(dto.type) ?? original.type : original.type;
+    const finalSubType = dto.subType !== undefined ? dto.subType ?? null : original.subType;
+    if (finalType === 'PUNCTUAL' && !finalSubType) {
+      throw new BadRequestException('Le sous-type est obligatoire pour une intervention ponctuelle.');
+    }
+
     const record = await this.prisma.intervention.update({
       where: { id },
       data,
       include: { assignments: true, trucks: true, attendances: true },
     });
-    const finalType = dto.type ? this.normalizeTypeInput(dto.type) ?? record.type : record.type;
-    const finalSubType = dto.subType ?? record.subType;
-    if (finalType === 'PUNCTUAL' && !finalSubType) {
-      throw new BadRequestException('Le sous-type est obligatoire pour une intervention ponctuelle.');
-    }
 
     // Synchronise les attendances avec les agents assignés si agentIds fournis
     if (dto.agentIds) {
@@ -1598,6 +1608,22 @@ export class InterventionsService implements OnModuleInit {
     templateLabel: string | undefined,
     actorId: string,
   ) {
+    // Déduplication contre les interventions déjà générées pour ce gabarit/arrêt/date — sans ça, un
+    // second appel (double-clic sur « Générer », retry réseau, chevauchement avec le job automatique)
+    // crée des interventions en double plutôt que de les ignorer silencieusement comme prévu.
+    if (templateId && occurrences.length) {
+      const dates = occurrences.map((o) => this.toDateOnly(o.date));
+      const existing = await this.prisma.intervention.findMany({
+        where: {
+          generatedFromTemplateId: templateId,
+          generatedFromStopId: { in: occurrences.map((o) => o.stopId).filter((id): id is string => !!id) },
+          date: { in: dates },
+        },
+        select: { date: true, generatedFromStopId: true },
+      });
+      const covered = new Set(existing.map((i) => `${i.date.toISOString().slice(0, 10)}:${i.generatedFromStopId}`));
+      occurrences = occurrences.filter((o) => !covered.has(`${o.date}:${o.stopId}`));
+    }
     for (const occurrence of occurrences) {
       if (occurrence.agentIds?.length) {
         await this.checkAssignmentConflicts(occurrence.agentIds, occurrence.date, occurrence.startTime, occurrence.endTime);
@@ -1956,6 +1982,66 @@ export class InterventionsService implements OnModuleInit {
       });
 
     return { interventionId: id, candidates };
+  }
+
+  // Au-delà de cet âge, un dernier pointage GPS n'est plus jugé assez fiable pour
+  // représenter la position "habituelle" d'un agent — on se rabat sur son adresse enregistrée.
+  private readonly RECENT_ATTENDANCE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
+  async getTemplateAgentSuggestions(siteId: string, excludeAgentIds: string[] = []) {
+    const site = await this.prisma.site.findUnique({ where: { id: siteId } });
+    if (!site) {
+      throw new NotFoundException('Site introuvable');
+    }
+    if (site.latitude == null || site.longitude == null) {
+      return { siteId, candidates: [] };
+    }
+
+    const excluded = new Set(excludeAgentIds);
+    const agents = await this.prisma.user.findMany({ where: { role: 'AGENT', active: true } });
+    const recentAttendance = await this.prisma.attendance.findMany({
+      where: { userId: { in: agents.map((a) => a.id) }, lastSeenLatitude: { not: null } },
+      orderBy: { lastSeenAt: 'desc' },
+      distinct: ['userId'],
+    });
+    const lastKnown = new Map(recentAttendance.map((a) => [a.userId, a]));
+    const now = Date.now();
+
+    const candidates = agents
+      .filter((agent) => !excluded.has(agent.id))
+      .map((agent) => {
+        const attendance = lastKnown.get(agent.id);
+        const isRecent =
+          attendance?.lastSeenAt != null && now - attendance.lastSeenAt.getTime() <= this.RECENT_ATTENDANCE_THRESHOLD_MS;
+
+        let position: { latitude: number; longitude: number } | null = null;
+        let positionSource: 'attendance' | 'address' | null = null;
+        if (isRecent && attendance?.lastSeenLatitude != null && attendance?.lastSeenLongitude != null) {
+          position = { latitude: attendance.lastSeenLatitude, longitude: attendance.lastSeenLongitude };
+          positionSource = 'attendance';
+        } else if (agent.latitude != null && agent.longitude != null) {
+          position = { latitude: agent.latitude, longitude: agent.longitude };
+          positionSource = 'address';
+        }
+
+        const distanceMeters = position
+          ? haversineDistanceMeters(position, { latitude: site.latitude!, longitude: site.longitude! })
+          : null;
+
+        return {
+          id: agent.id,
+          name: `${agent.firstName} ${agent.lastName}`.trim(),
+          distanceMeters,
+          positionSource,
+        };
+      })
+      .sort((a, b) => {
+        if (a.distanceMeters == null) return 1;
+        if (b.distanceMeters == null) return -1;
+        return a.distanceMeters - b.distanceMeters;
+      });
+
+    return { siteId, candidates };
   }
 
   /**

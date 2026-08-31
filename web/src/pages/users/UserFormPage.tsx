@@ -23,7 +23,15 @@ import {
 } from '../../services/api/team.api';
 import { Certification, EmployeeDocument } from '../../types/team';
 import { useAuthContext } from '../../context/AuthContext';
+import { env } from '../../config/env';
 import { Save, Trash2, Plus } from 'lucide-react';
+
+type AddressSuggestion = {
+  id: string;
+  label: string;
+  longitude?: number;
+  latitude?: number;
+};
 
 const PERMISSION_OPTIONS = [
   { value: 'settings:manage', label: 'Gérer les paramètres' },
@@ -37,6 +45,7 @@ const DEFAULT_FORM: CreateUserPayload = {
   lastName: '',
   email: '',
   phone: '',
+  address: '',
   role: 'AGENT',
   password: '',
 };
@@ -55,6 +64,12 @@ export const UserFormPage: React.FC = () => {
   const [newCert, setNewCert] = useState({ label: '', expiresAt: '' });
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
   const [newDoc, setNewDoc] = useState({ type: 'CONTRACT', label: '', file: null as File | null });
+  const [coords, setCoords] = useState<{ latitude?: number; longitude?: number }>({});
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [addressSelected, setAddressSelected] = useState(false);
+  const mapboxToken = env.mapboxToken;
 
   const loadTeamExtras = React.useCallback(() => {
     if (!token || !id) return;
@@ -125,9 +140,12 @@ export const UserFormPage: React.FC = () => {
           lastName: user.lastName,
           email: user.email,
           phone: user.phone,
+          address: user.address ?? '',
           role: user.role.toUpperCase(),
           password: '',
         });
+        setCoords({ latitude: user.latitude, longitude: user.longitude });
+        setAddressSelected(Boolean(user.address));
         setPermissions(user.permissions ?? []);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Utilisateur introuvable'))
@@ -154,6 +172,73 @@ export const UserFormPage: React.FC = () => {
 
   const handleChange = (field: keyof CreateUserPayload, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (field === 'address') {
+      setAddressError(null);
+      setAddressSelected(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!mapboxToken) {
+      setAddressSuggestions([]);
+      setAddressError('Clé Mapbox absente : définissez VITE_MAPBOX_TOKEN dans web/.env ou .env.local');
+      return;
+    }
+    if (addressSelected) {
+      setAddressSuggestions([]);
+      return;
+    }
+    const query = (form.address ?? '').trim();
+    if (query.length < 3) {
+      setAddressSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setAddressLoading(true);
+      setAddressError(null);
+      try {
+        const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json`);
+        url.searchParams.set('access_token', mapboxToken);
+        url.searchParams.set('autocomplete', 'true');
+        url.searchParams.set('limit', '5');
+        url.searchParams.set('country', 'fr');
+        const response = await fetch(url.toString(), { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error('Adresse introuvable');
+        }
+        const data = await response.json();
+        const suggestions: AddressSuggestion[] = (data.features ?? []).map((feature: any) => ({
+          id: feature.id,
+          label: feature.place_name,
+          longitude: feature.center?.[0],
+          latitude: feature.center?.[1],
+        }));
+        setAddressSuggestions(suggestions);
+      } catch (fetchError) {
+        if ((fetchError as Error).name === 'AbortError') return;
+        const message = fetchError instanceof Error ? fetchError.message : 'Impossible de récupérer les suggestions.';
+        setAddressError(`Erreur récupération adresses : ${message}`);
+        setAddressSuggestions([]);
+      } finally {
+        setAddressLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [form.address, mapboxToken, addressSelected]);
+
+  const handleAddressSelection = (suggestion: AddressSuggestion) => {
+    setForm((prev) => ({ ...prev, address: suggestion.label }));
+    setCoords({
+      latitude: typeof suggestion.latitude === 'number' ? suggestion.latitude : coords.latitude,
+      longitude: typeof suggestion.longitude === 'number' ? suggestion.longitude : coords.longitude,
+    });
+    setAddressSelected(true);
+    setAddressSuggestions([]);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -162,13 +247,14 @@ export const UserFormPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      const payloadWithCoords = { ...form, latitude: coords.latitude, longitude: coords.longitude };
       if (isEdit && id) {
-        const payload: UpdateUserPayload = { ...form };
+        const payload: UpdateUserPayload = { ...payloadWithCoords };
         if (!payload.password) delete payload.password;
         await updateUser(token, id, payload);
         notify('Utilisateur mis à jour', 'success');
       } else {
-        await createUser(token, form);
+        await createUser(token, payloadWithCoords);
         notify('Utilisateur créé', 'success');
       }
       navigate('/users');
@@ -197,6 +283,43 @@ export const UserFormPage: React.FC = () => {
         isEdit={isEdit}
         submitting={loading}
       />
+
+      <article className="settings-card" style={{ marginTop: '1.5rem' }}>
+        <span className="card__meta">Localisation</span>
+        <h3>Adresse de l'agent</h3>
+        <p className="card__meta">
+          Utilisée pour suggérer cet agent lors de l'affectation à un gabarit, si aucun pointage récent n'est
+          disponible.
+        </p>
+        <Input
+          id="address"
+          name="address"
+          label="Adresse"
+          placeholder="Rue, ville, pays"
+          value={form.address ?? ''}
+          onChange={(event) => handleChange('address', event.target.value)}
+          helperText={mapboxToken ? addressError || (addressLoading ? 'Recherche en cours…' : undefined) : undefined}
+        />
+        {mapboxToken && addressSuggestions.length > 0 && (
+          <div className="address-suggestions">
+            {addressSuggestions.map((suggestion) => (
+              <button key={suggestion.id} type="button" onClick={() => handleAddressSelection(suggestion)}>
+                <strong>{suggestion.label}</strong>
+                {(suggestion.latitude !== undefined || suggestion.longitude !== undefined) && (
+                  <span>
+                    {suggestion.latitude !== undefined && `Lat ${suggestion.latitude.toFixed(4)}`}
+                    {suggestion.latitude !== undefined && suggestion.longitude !== undefined && ' · '}
+                    {suggestion.longitude !== undefined && `Lon ${suggestion.longitude.toFixed(4)}`}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+        {addressSelected && (coords.latitude || coords.longitude) && (
+          <small className="form-helper">Coordonnées GPS enregistrées automatiquement avec l'adresse choisie.</small>
+        )}
+      </article>
 
       {isEdit && form.role !== 'ADMIN' && (
         <article className="settings-card" style={{ marginTop: '1.5rem' }}>

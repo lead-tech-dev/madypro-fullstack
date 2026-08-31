@@ -27,6 +27,11 @@ export type AssignmentSuggestion = {
   candidates: { id: string; name: string; distanceMeters: number | null }[];
 };
 
+export type TemplateAgentSuggestion = {
+  siteId: string;
+  candidates: { id: string; name: string; distanceMeters: number | null; positionSource: 'attendance' | 'address' | null }[];
+};
+
 export type RouteOptimizationResult = {
   userId: string;
   date: string;

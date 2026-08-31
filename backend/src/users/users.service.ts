@@ -52,6 +52,9 @@ export class UsersService implements OnModuleInit {
       email: record.email,
       role: record.role,
       phone: record.phone ?? '',
+      address: record.address ?? undefined,
+      latitude: record.latitude ?? undefined,
+      longitude: record.longitude ?? undefined,
       password: record.password,
       active: record.active,
       twoFactorSecret: (record as any).twoFactorSecret ?? undefined,
@@ -127,6 +130,9 @@ export class UsersService implements OnModuleInit {
         email: dto.email,
         role: this.normalizeRole(dto.role),
         phone: dto.phone ?? '',
+        address: dto.address,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
         password: await bcrypt.hash(password, 10),
       },
     });
@@ -181,6 +187,9 @@ ${apkSection}`,
     if (dto.email) data.email = dto.email;
     if (dto.role) data.role = this.normalizeRole(dto.role);
     if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.address !== undefined) data.address = dto.address;
+    if (dto.latitude !== undefined) data.latitude = dto.latitude;
+    if (dto.longitude !== undefined) data.longitude = dto.longitude;
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
 
     const changedFields = Object.keys(data).filter((k) => k !== 'password');

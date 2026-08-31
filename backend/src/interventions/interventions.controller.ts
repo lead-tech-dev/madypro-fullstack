@@ -229,6 +229,15 @@ export class InterventionsController {
     return this.service.listTemplates();
   }
 
+  // Doit être déclarée avant 'templates/:id' (sinon Express matche :id="agent-suggestions").
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  @Get('templates/agent-suggestions')
+  getTemplateAgentSuggestions(@Query('siteId') siteId: string, @Query('excludeAgentIds') excludeAgentIds?: string) {
+    const exclude = excludeAgentIds ? excludeAgentIds.split(',').filter(Boolean) : [];
+    return this.service.getTemplateAgentSuggestions(siteId, exclude);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPERVISOR')
   @Get('templates/:id')
