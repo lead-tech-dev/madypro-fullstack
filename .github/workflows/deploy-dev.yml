@@ -65,15 +65,20 @@ jobs:
           strip_components: 2
 
       - name: Deploy to VPS (dev)
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script_stop: true
-          script: |
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" "GHCR_TOKEN='$GHCR_TOKEN' bash -s" <<'REMOTE'
             set -e
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u lead-tech-dev --password-stdin
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u lead-tech-dev --password-stdin
             cd /srv/madypro/dev
             mv -f docker-compose.dev.yml docker-compose.yml
             if [ ! -s .env ]; then
@@ -114,3 +119,4 @@ jobs:
               exit 1
             fi
             echo "✓ Déploiement dev OK"
+          REMOTE
