@@ -3,7 +3,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { useAuthContext } from '../../context/AuthContext';
-import { AttendanceRules, CompanyInfo, SettingsSummary, AbsenceTypeConfig } from '../../types/settings';
+import { AttendanceRules, CompanyInfo, MonthlyQuota, SettingsSummary, AbsenceTypeConfig } from '../../types/settings';
 import {
   getSettings,
   updateAttendanceRules,
@@ -11,6 +11,7 @@ import {
   updateAbsenceType,
   getCompanyInfo,
   updateCompanyInfo,
+  updateMonthlyQuota,
 } from '../../services/api/settings.api';
 import { Save, Plus } from 'lucide-react';
 
@@ -28,6 +29,8 @@ export const SettingsPage: React.FC = () => {
   const [newType, setNewType] = useState({ code: '', name: '' });
   const [loading, setLoading] = useState(false);
   const [savingRules, setSavingRules] = useState(false);
+  const [monthlyQuotaForm, setMonthlyQuotaForm] = useState<MonthlyQuota | null>(null);
+  const [savingMonthlyQuota, setSavingMonthlyQuota] = useState(false);
   const [creatingType, setCreatingType] = useState(false);
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
   const [savingCompanyInfo, setSavingCompanyInfo] = useState(false);
@@ -40,6 +43,7 @@ export const SettingsPage: React.FC = () => {
         setData(settings);
         setAttendanceForm(settings.attendanceRules);
         setAbsenceTypes(settings.absenceTypes);
+        setMonthlyQuotaForm(settings.monthlyQuota);
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : 'Impossible de charger les paramètres';
@@ -76,6 +80,26 @@ export const SettingsPage: React.FC = () => {
       notify(message, 'error');
     } finally {
       setSavingCompanyInfo(false);
+    }
+  };
+
+  const handleMonthlyQuotaChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setMonthlyQuotaForm({ accomplishmentThresholdPercent: Number(value) });
+  };
+
+  const saveMonthlyQuota = async () => {
+    if (!token || !monthlyQuotaForm) return;
+    setSavingMonthlyQuota(true);
+    try {
+      const updated = await updateMonthlyQuota(token, monthlyQuotaForm);
+      notify('Seuil de quota mensuel mis à jour');
+      setMonthlyQuotaForm(updated);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Mise à jour impossible';
+      notify(message, 'error');
+    } finally {
+      setSavingMonthlyQuota(false);
     }
   };
 
@@ -226,6 +250,33 @@ export const SettingsPage: React.FC = () => {
             </Button>
           </div>
         </article>
+
+        {monthlyQuotaForm && (
+          <article className="settings-card">
+            <span className="card__meta">Paie</span>
+            <h3>Quota d'heures mensuel</h3>
+            <p style={{ color: 'var(--color-muted)' }}>
+              En dessous de ce pourcentage du quota planifié, une pénalité (heures manquantes) est calculée pour l'agent.
+            </p>
+            <div className="form-row">
+              <Input
+                id="accomplishmentThresholdPercent"
+                name="accomplishmentThresholdPercent"
+                label="Seuil d'accomplissement (%)"
+                type="number"
+                min={1}
+                max={100}
+                value={monthlyQuotaForm.accomplishmentThresholdPercent}
+                onChange={handleMonthlyQuotaChange}
+              />
+            </div>
+            <div className="form-actions" style={{ marginTop: '1rem' }}>
+              <Button type="button" icon={Save} onClick={saveMonthlyQuota} disabled={savingMonthlyQuota}>
+                {savingMonthlyQuota ? 'Enregistrement...' : 'Mettre à jour'}
+              </Button>
+            </div>
+          </article>
+        )}
 
         <article className="settings-card" style={{ gridColumn: 'span 2' }}>
           <span className="card__meta">Types d'absence</span>

@@ -17,10 +17,15 @@ export type RolePermission = {
   permissions: string[];
 };
 
+export type MonthlyQuota = {
+  accomplishmentThresholdPercent: number;
+};
+
 export type SettingsSummary = {
   attendanceRules: AttendanceRules;
   absenceTypes: AbsenceTypeConfig[];
   roles: RolePermission[];
+  monthlyQuota: MonthlyQuota;
 };
 
 export type CompanyInfo = {

@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Send } from 'lucide-react';
 import {
+  downloadHoursQuotaPdf,
   getBillingReport,
+  getHoursQuotaReport,
   getPayrollBreakdown,
   getPayrollCsv,
   getPeriodComparison,
@@ -10,7 +12,15 @@ import {
   pushPayrollBreakdown,
   sendReportByEmail,
 } from '../../services/api/reports.api';
-import { BillingReportRow, PayrollBreakdownRow, PeriodComparison, ReportsPerformance, SiteBenchmarkRow } from '../../types/report';
+import { listSites } from '../../services/api/sites.api';
+import {
+  BillingReportRow,
+  HoursQuotaReport,
+  PayrollBreakdownRow,
+  PeriodComparison,
+  ReportsPerformance,
+  SiteBenchmarkRow,
+} from '../../types/report';
 import { useAuthContext } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
 
@@ -48,6 +58,9 @@ export const ReportsPage: React.FC = () => {
   const [comparison, setComparison] = useState<PeriodComparison | null>(null);
   const [billing, setBilling] = useState<BillingReportRow[]>([]);
   const [benchmark, setBenchmark] = useState<SiteBenchmarkRow[]>([]);
+  const [siteId, setSiteId] = useState('all');
+  const [siteOptions, setSiteOptions] = useState<{ value: string; label: string }[]>([{ value: 'all', label: 'Tous les sites' }]);
+  const [hoursQuota, setHoursQuota] = useState<HoursQuotaReport | null>(null);
 
   const fetchPerformance = () => {
     if (!token) return;
@@ -88,10 +101,37 @@ export const ReportsPage: React.FC = () => {
 
   useEffect(() => {
     if (!token) return;
-    getSiteBenchmark(token)
+    getSiteBenchmark(token, filters)
       .then(setBenchmark)
       .catch(() => setBenchmark([]));
+  }, [token, filters.startDate, filters.endDate]);
+
+  useEffect(() => {
+    if (!token) return;
+    listSites(token)
+      .then((page) => {
+        const sites = Array.isArray((page as any)?.items) ? (page as any).items : Array.isArray(page as any) ? (page as any) : [];
+        setSiteOptions([{ value: 'all', label: 'Tous les sites' }].concat(sites.map((site: any) => ({ value: site.id, label: site.name }))));
+      })
+      .catch(() => setSiteOptions([{ value: 'all', label: 'Tous les sites' }]));
   }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    getHoursQuotaReport(token, { ...filters, siteId })
+      .then(setHoursQuota)
+      .catch(() => setHoursQuota(null));
+  }, [token, filters.startDate, filters.endDate, siteId]);
+
+  const handleDownloadHoursQuotaPdf = async () => {
+    if (!token) return;
+    try {
+      await downloadHoursQuotaPdf(token, { ...filters, siteId });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Impossible de générer le PDF';
+      notify(message, 'error');
+    }
+  };
 
   const handlePushPayroll = async () => {
     if (!token) return;
@@ -203,6 +243,16 @@ export const ReportsPage: React.FC = () => {
             <label className="filter-field filter-card">
               Au
               <input type="date" name="endDate" value={filters.endDate} onChange={handleFilterChange} />
+            </label>
+            <label className="filter-field filter-card">
+              Site
+              <select value={siteId} onChange={(event) => setSiteId(event.target.value)}>
+                {siteOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
         </div>
@@ -338,6 +388,64 @@ export const ReportsPage: React.FC = () => {
             </div>
           </section>
 
+          {hoursQuota && (
+            <section className="panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <div>
+                  <h3>Quota d'heures mensuel</h3>
+                  <p>
+                    Heures planifiées vs réalisées par agent. Seuil d'accomplissement : {hoursQuota.threshold}% — en dessous,
+                    les heures manquantes jusqu'au quota sont comptées en pénalité.
+                  </p>
+                </div>
+                <Button type="button" variant="ghost" icon={Download} onClick={handleDownloadHoursQuotaPdf}>
+                  Télécharger PDF
+                </Button>
+              </div>
+              <div className="table-wrapper">
+                <table className="table" aria-label="quota d'heures mensuel">
+                  <thead>
+                    <tr>
+                      <th>Site</th>
+                      <th>Agent</th>
+                      <th>Heures prévues</th>
+                      <th>Heures réalisées</th>
+                      <th>% accompli</th>
+                      <th>Pénalité</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hoursQuota.agentReports.map((agent) => (
+                      <tr key={`${agent.siteId}-${agent.userId}`}>
+                        <td>{agent.siteName}</td>
+                        <td>{agent.name}</td>
+                        <td>{minutesToHoursLabel(agent.plannedMinutes)}</td>
+                        <td>{minutesToHoursLabel(agent.realizedMinutes)}</td>
+                        <td>{agent.accomplishmentRate === null ? '—' : `${agent.accomplishmentRate}%`}</td>
+                        <td>
+                          {agent.meetsQuota ? (
+                            <span style={{ color: '#16a34a', fontWeight: 600 }}>Quota atteint</span>
+                          ) : (
+                            <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                              -{minutesToHoursLabel(agent.penaltyMinutes)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {hoursQuota.agentReports.length === 0 && (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                          Aucune donnée pour cette période.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
           {billing.length > 0 && (
             <section className="panel">
               <h3>Rapport de facturation</h3>
@@ -367,7 +475,7 @@ export const ReportsPage: React.FC = () => {
 
           {benchmark.length > 0 && (
             <section className="panel">
-              <h3>Benchmark inter-sites (90 derniers jours)</h3>
+              <h3>Benchmark inter-sites</h3>
               <p>Sites classés par taux de complétion.</p>
               <div className="table-wrapper">
                 <table className="table" aria-label="benchmark inter-sites">

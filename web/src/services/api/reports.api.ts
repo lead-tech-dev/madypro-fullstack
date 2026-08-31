@@ -1,10 +1,12 @@
-import { BillingReportRow, PayrollBreakdownRow, PeriodComparison, ReportsPerformance, SiteBenchmarkRow } from '../../types/report';
+import { BillingReportRow, HoursQuotaReport, PayrollBreakdownRow, PeriodComparison, ReportsPerformance, SiteBenchmarkRow } from '../../types/report';
 import { DashboardSummary } from '../../types/dashboard';
 import { InvoicingKpis } from '../../types/invoice';
 import { apiFetch, API_BASE_URL } from './client';
+import { openPdfInNewTab } from '../../utils/downloadPdf';
 
-export async function getDashboardSummary(token: string): Promise<DashboardSummary> {
-  return apiFetch<DashboardSummary>({ path: 'reports/summary', token });
+export async function getDashboardSummary(token: string, date?: string): Promise<DashboardSummary> {
+  const path = date ? `reports/summary?date=${encodeURIComponent(date)}` : 'reports/summary';
+  return apiFetch<DashboardSummary>({ path, token });
 }
 
 export async function getPerformanceReport(
@@ -101,8 +103,41 @@ export async function getInvoicingReport(token: string): Promise<InvoicingKpis> 
   return apiFetch<InvoicingKpis>({ path: 'reports/invoicing', token });
 }
 
-export async function getSiteBenchmark(token: string): Promise<SiteBenchmarkRow[]> {
-  return apiFetch<SiteBenchmarkRow[]>({ path: 'reports/site-benchmark', token });
+export async function getSiteBenchmark(
+  token: string,
+  filters: { startDate?: string; endDate?: string } = {},
+): Promise<SiteBenchmarkRow[]> {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  const query = params.toString();
+  const path = `reports/site-benchmark${query ? `?${query}` : ''}`;
+  return apiFetch<SiteBenchmarkRow[]>({ path, token });
+}
+
+export async function getHoursQuotaReport(
+  token: string,
+  filters: { startDate?: string; endDate?: string; siteId?: string } = {},
+): Promise<HoursQuotaReport> {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  if (filters.siteId && filters.siteId !== 'all') params.set('siteId', filters.siteId);
+  const query = params.toString();
+  const path = `reports/hours-quota${query ? `?${query}` : ''}`;
+  return apiFetch<HoursQuotaReport>({ path, token });
+}
+
+export async function downloadHoursQuotaPdf(
+  token: string,
+  filters: { startDate?: string; endDate?: string; siteId?: string } = {},
+): Promise<void> {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  if (filters.siteId && filters.siteId !== 'all') params.set('siteId', filters.siteId);
+  const query = params.toString();
+  await openPdfInNewTab(token, `reports/hours-quota/pdf${query ? `?${query}` : ''}`);
 }
 
 export type DashboardWidgetConfig = { id: string; visible: boolean; order: number };

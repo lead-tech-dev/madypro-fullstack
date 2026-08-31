@@ -1,4 +1,4 @@
-import { AttendanceRules, CompanyInfo, SettingsSummary } from '../../types/settings';
+import { AttendanceRules, CompanyInfo, MonthlyQuota, SettingsSummary } from '../../types/settings';
 import { apiFetch } from './client';
 
 export async function getSettings(token: string) {
@@ -20,6 +20,17 @@ export async function updateCompanyInfo(token: string, payload: Partial<CompanyI
 export async function updateAttendanceRules(token: string, payload: AttendanceRules) {
   return apiFetch<AttendanceRules>({
     path: 'settings/attendance-rules',
+    token,
+    options: {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  });
+}
+
+export async function updateMonthlyQuota(token: string, payload: MonthlyQuota) {
+  return apiFetch<MonthlyQuota>({
+    path: 'settings/monthly-quota',
     token,
     options: {
       method: 'PATCH',

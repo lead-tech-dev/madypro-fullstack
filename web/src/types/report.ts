@@ -33,6 +33,31 @@ export type ReportsPerformance = {
   };
 };
 
+export type HoursQuotaAgentReport = {
+  userId: string;
+  name: string;
+  siteId: string;
+  siteName: string;
+  plannedMinutes: number;
+  realizedMinutes: number;
+  accomplishmentRate: number | null;
+  meetsQuota: boolean;
+  penaltyMinutes: number;
+};
+
+export type HoursQuotaSiteReport = {
+  siteId: string;
+  siteName: string;
+  agents: HoursQuotaAgentReport[];
+};
+
+export type HoursQuotaReport = {
+  period: { startDate: string; endDate: string };
+  threshold: number;
+  agentReports: HoursQuotaAgentReport[];
+  siteReports: HoursQuotaSiteReport[];
+};
+
 export type PayrollBreakdownRow = {
   agentName: string;
   agentEmail: string;

@@ -6,14 +6,14 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'SUPERVISOR')
+@Roles('ADMIN')
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly service: ReportsService) {}
 
   @Get('summary')
-  summary() {
-    return this.service.summary();
+  summary(@Query('date') date?: string) {
+    return this.service.summary(date);
   }
 
   @Get('performance')
@@ -54,14 +54,51 @@ export class ReportsController {
     return this.service.pushPayrollToPayrollProvider(startDate, endDate);
   }
 
+  @Get('hours-quota')
+  @Roles('ADMIN', 'SUPERVISOR')
+  hoursQuota(
+    @Req() req: Request,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('siteId') siteId?: string,
+  ) {
+    const user = req.user as any;
+    return this.service.hoursQuota(startDate, endDate, {
+      siteId,
+      requesterId: user?.sub,
+      requesterRole: user?.role,
+    });
+  }
+
+  @Get('hours-quota/pdf')
+  @Roles('ADMIN', 'SUPERVISOR')
+  async hoursQuotaPdf(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('siteId') siteId?: string,
+  ) {
+    const user = req.user as any;
+    const report = await this.service.hoursQuota(startDate, endDate, {
+      siteId,
+      requesterId: user?.sub,
+      requesterRole: user?.role,
+    });
+    const buffer = await this.service.hoursQuotaPdf(report);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="quota-heures-${report.period.startDate}.pdf"`);
+    res.send(buffer);
+  }
+
   @Get('comparison')
   comparePeriods(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
     return this.service.comparePeriods(startDate, endDate);
   }
 
   @Get('site-benchmark')
-  getSiteBenchmark() {
-    return this.service.getSiteBenchmark();
+  getSiteBenchmark(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+    return this.service.getSiteBenchmark(startDate, endDate);
   }
 
   @Get('billing')

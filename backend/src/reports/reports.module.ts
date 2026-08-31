@@ -5,9 +5,10 @@ import { PrismaModule } from '../database/prisma.module';
 import { SettingsModule } from '../settings/settings.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
+import { DocumentsModule } from '../documents/documents.module';
 
 @Module({
-  imports: [PrismaModule, SettingsModule, NotificationsModule, WebhooksModule],
+  imports: [PrismaModule, SettingsModule, NotificationsModule, WebhooksModule, DocumentsModule],
   controllers: [ReportsController],
   providers: [ReportsService],
 })

@@ -8,6 +8,7 @@ import { UpdateAttendanceRulesDto } from './dto/update-attendance-rules.dto';
 import { CreateAbsenceTypeDto } from './dto/create-absence-type.dto';
 import { UpdateAbsenceTypeDto } from './dto/update-absence-type.dto';
 import { UpdateCompanyInfoDto } from './dto/update-company-info.dto';
+import { UpdateMonthlyQuotaDto } from './dto/update-monthly-quota.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @RequirePermission(PERMISSIONS.SETTINGS_MANAGE)
@@ -33,6 +34,11 @@ export class SettingsController {
   @Patch('absence-types/:code')
   updateAbsenceType(@Param('code') code: string, @Body() dto: UpdateAbsenceTypeDto) {
     return this.service.updateAbsenceType(code, dto);
+  }
+
+  @Patch('monthly-quota')
+  updateMonthlyQuota(@Body() dto: UpdateMonthlyQuotaDto) {
+    return this.service.updateMonthlyQuota(dto);
   }
 
   @Get('company-info')

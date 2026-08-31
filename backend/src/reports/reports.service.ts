@@ -1,9 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { MailerService } from '../notifications/mailer.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { computeTotals } from '../documents/line-items.util';
+import { DocumentPdfService } from '../documents/document-pdf.service';
 
 @Injectable()
 export class ReportsService implements OnModuleInit {
@@ -16,6 +17,7 @@ export class ReportsService implements OnModuleInit {
     private readonly settingsService: SettingsService,
     private readonly mailer: MailerService,
     private readonly webhooksService: WebhooksService,
+    private readonly documentPdfService: DocumentPdfService,
   ) {}
 
   onModuleInit() {
@@ -89,6 +91,14 @@ export class ReportsService implements OnModuleInit {
     return { recipients: admins.length, sent, failed: admins.length - sent };
   }
 
+  private parseDate(value: string, label: string): Date {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(`${label} invalide : "${value}"`);
+    }
+    return parsed;
+  }
+
   private startOfDay(date: Date) {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
   }
@@ -101,11 +111,12 @@ export class ReportsService implements OnModuleInit {
     return new Date(`${dateStr}T${time}:00`);
   }
 
-  async summary() {
+  async summary(date?: string) {
     const today = new Date();
-    const defaultDate = today.toISOString().substring(0, 10);
-    const start = this.startOfDay(today);
-    const end = this.endOfDay(today);
+    const target = date ? this.parseDate(date, 'date') : today;
+    const defaultDate = target.toISOString().substring(0, 10);
+    const start = this.startOfDay(target);
+    const end = this.endOfDay(target);
 
     const [interventions, attendance] = await Promise.all([
       this.prisma.intervention.findMany({
@@ -170,12 +181,14 @@ export class ReportsService implements OnModuleInit {
 
     const alerts = planning
       .filter((p) => p.status === 'ABSENT')
-      .slice(0, 3)
       .map((p, idx) => ({
         id: `alert-${idx}`,
         type: 'Absence',
         description: `${p.agent} · ${p.site}`,
-        severity: 'warning',
+        site: p.site,
+        supervisor: p.supervisor,
+        agent: p.agent,
+        severity: 'warning' as const,
       }));
 
     const metrics = [
@@ -208,8 +221,8 @@ export class ReportsService implements OnModuleInit {
       endDate: endDate ?? defaultEnd,
     };
 
-    const start = this.startOfDay(new Date(period.startDate));
-    const end = this.endOfDay(new Date(period.endDate));
+    const start = this.startOfDay(this.parseDate(period.startDate, 'startDate'));
+    const end = this.endOfDay(this.parseDate(period.endDate, 'endDate'));
 
     const [attendances, absences, interventions] = await Promise.all([
       this.prisma.attendance.findMany({
@@ -358,15 +371,165 @@ export class ReportsService implements OnModuleInit {
     };
   }
 
+  /**
+   * Quota d'heures mensuel par agent : heures planifiées (interventions assignées)
+   * vs heures réalisées (pointages), avec pénalité si le taux d'accomplissement
+   * passe sous le seuil configuré (settings.monthlyQuota).
+   */
+  async hoursQuota(
+    startDate: string | undefined,
+    endDate: string | undefined,
+    options: { siteId?: string; requesterId?: string; requesterRole?: string } = {},
+  ) {
+    const today = new Date();
+    const defaultEnd = today.toISOString().slice(0, 10);
+    const defaultStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+    const period = {
+      startDate: startDate ?? defaultStart,
+      endDate: endDate ?? defaultEnd,
+    };
+
+    const start = this.startOfDay(this.parseDate(period.startDate, 'startDate'));
+    const end = this.endOfDay(this.parseDate(period.endDate, 'endDate'));
+
+    let allowedSiteIds: string[] | null = null;
+    if (options.requesterRole === 'SUPERVISOR') {
+      const supervised = await this.prisma.siteSupervisor.findMany({
+        where: { userId: options.requesterId },
+        select: { siteId: true },
+      });
+      allowedSiteIds = supervised.map((row) => row.siteId);
+      if (options.siteId && !allowedSiteIds.includes(options.siteId)) {
+        throw new ForbiddenException("Vous n'avez pas la charge de ce site");
+      }
+    }
+
+    const siteFilter = options.siteId ? [options.siteId] : allowedSiteIds;
+
+    const [interventions, attendances] = await Promise.all([
+      this.prisma.intervention.findMany({
+        where: {
+          date: { gte: start, lte: end },
+          ...(siteFilter ? { siteId: { in: siteFilter } } : {}),
+        },
+        include: { site: true, assignments: { include: { user: true } } },
+      }),
+      this.prisma.attendance.findMany({
+        where: {
+          date: { gte: start, lte: end },
+          ...(siteFilter ? { intervention: { siteId: { in: siteFilter } } } : {}),
+        },
+        include: { user: true, intervention: { include: { site: true } } },
+      }),
+    ]);
+
+    const minutesBetween = (a: Date, b: Date) => Math.max(0, (b.getTime() - a.getTime()) / 60000);
+
+    type AgentSiteAgg = {
+      userId: string;
+      name: string;
+      siteId: string;
+      siteName: string;
+      plannedMinutes: number;
+      realizedMinutes: number;
+    };
+    const key = (userId: string, siteId: string) => `${userId}::${siteId}`;
+    const map = new Map<string, AgentSiteAgg>();
+    const ensure = (userId: string, name: string, siteId: string, siteName: string) => {
+      const k = key(userId, siteId);
+      let entry = map.get(k);
+      if (!entry) {
+        entry = { userId, name, siteId, siteName, plannedMinutes: 0, realizedMinutes: 0 };
+        map.set(k, entry);
+      }
+      return entry;
+    };
+
+    interventions.forEach((intervention) => {
+      const dateStr = intervention.date.toISOString().slice(0, 10);
+      const durationMinutes = minutesBetween(
+        this.combine(dateStr, intervention.startTime),
+        this.combine(dateStr, intervention.endTime),
+      );
+      intervention.assignments.forEach((assignment) => {
+        const entry = ensure(
+          assignment.userId,
+          `${assignment.user.firstName} ${assignment.user.lastName}`.trim(),
+          intervention.siteId,
+          intervention.site.name,
+        );
+        entry.plannedMinutes += durationMinutes;
+      });
+    });
+
+    attendances.forEach((att) => {
+      if (!att.checkInTime || !att.checkOutTime) return;
+      const entry = ensure(
+        att.userId,
+        `${att.user.firstName} ${att.user.lastName}`.trim(),
+        att.intervention.siteId,
+        att.intervention.site.name,
+      );
+      entry.realizedMinutes += minutesBetween(new Date(att.checkInTime), new Date(att.checkOutTime));
+    });
+
+    const threshold = this.settingsService.getSettings().monthlyQuota.accomplishmentThresholdPercent;
+
+    const agentReports = Array.from(map.values())
+      .map((entry) => {
+        const plannedMinutes = Math.round(entry.plannedMinutes);
+        const realizedMinutes = Math.round(entry.realizedMinutes);
+        const accomplishmentRate = plannedMinutes > 0 ? Math.round((realizedMinutes / plannedMinutes) * 1000) / 10 : null;
+        const meetsQuota = plannedMinutes === 0 || (accomplishmentRate ?? 0) >= threshold;
+        const penaltyMinutes = meetsQuota ? 0 : Math.max(0, plannedMinutes - realizedMinutes);
+        return {
+          userId: entry.userId,
+          name: entry.name,
+          siteId: entry.siteId,
+          siteName: entry.siteName,
+          plannedMinutes,
+          realizedMinutes,
+          accomplishmentRate,
+          meetsQuota,
+          penaltyMinutes,
+        };
+      })
+      .sort((a, b) => a.siteName.localeCompare(b.siteName) || a.name.localeCompare(b.name));
+
+    const siteReportsMap = new Map<string, { siteId: string; siteName: string; agents: typeof agentReports }>();
+    agentReports.forEach((agent) => {
+      let site = siteReportsMap.get(agent.siteId);
+      if (!site) {
+        site = { siteId: agent.siteId, siteName: agent.siteName, agents: [] };
+        siteReportsMap.set(agent.siteId, site);
+      }
+      site.agents.push(agent);
+    });
+
+    return {
+      period,
+      threshold,
+      agentReports,
+      siteReports: Array.from(siteReportsMap.values()),
+    };
+  }
+
+  async hoursQuotaPdf(report: Awaited<ReturnType<ReportsService['hoursQuota']>>): Promise<Buffer> {
+    const company = this.settingsService.getCompanyInfo();
+    return this.documentPdfService.generateHoursQuotaReport(report, company);
+  }
+
   async comparePeriods(startDate?: string, endDate?: string) {
     const today = new Date();
     const defaultEnd = today.toISOString().slice(0, 10);
     const defaultStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const currentStart = startDate ?? defaultStart;
     const currentEnd = endDate ?? defaultEnd;
+    const currentStartDate = this.parseDate(currentStart, 'startDate');
+    const currentEndDate = this.parseDate(currentEnd, 'endDate');
 
-    const durationMs = new Date(currentEnd).getTime() - new Date(currentStart).getTime();
-    const previousEnd = new Date(new Date(currentStart).getTime() - 24 * 60 * 60 * 1000);
+    const durationMs = currentEndDate.getTime() - currentStartDate.getTime();
+    const previousEnd = new Date(currentStartDate.getTime() - 24 * 60 * 60 * 1000);
     const previousStart = new Date(previousEnd.getTime() - durationMs);
 
     const [current, previous] = await Promise.all([
@@ -391,17 +554,26 @@ export class ReportsService implements OnModuleInit {
     };
   }
 
-  async getSiteBenchmark() {
+  async getSiteBenchmark(startDate?: string, endDate?: string) {
     const sites = await this.prisma.site.findMany({ where: { active: true } });
-    const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const defaultEnd = new Date().toISOString().slice(0, 10);
+    const defaultStart = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const since = this.startOfDay(this.parseDate(startDate ?? defaultStart, 'startDate'));
+    const until = this.endOfDay(this.parseDate(endDate ?? defaultEnd, 'endDate'));
     const results = await Promise.all(
       sites.map(async (site) => {
         const [interventions, anomalies] = await Promise.all([
           this.prisma.intervention.findMany({
-            where: { siteId: site.id, date: { gte: since }, status: { in: ['COMPLETED', 'NEEDS_REVIEW', 'NO_SHOW'] } },
+            where: {
+              siteId: site.id,
+              date: { gte: since, lte: until },
+              status: { in: ['COMPLETED', 'NEEDS_REVIEW', 'NO_SHOW'] },
+            },
             select: { status: true },
           }),
-          this.prisma.anomaly.count({ where: { intervention: { siteId: site.id }, createdAt: { gte: since } } }),
+          this.prisma.anomaly.count({
+            where: { intervention: { siteId: site.id }, createdAt: { gte: since, lte: until } },
+          }),
         ]);
         const total = interventions.length;
         const completed = interventions.filter((i) => i.status === 'COMPLETED').length;
@@ -424,8 +596,8 @@ export class ReportsService implements OnModuleInit {
     const today = new Date();
     const defaultEnd = today.toISOString().slice(0, 10);
     const defaultStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const start = this.startOfDay(new Date(startDate ?? defaultStart));
-    const end = this.endOfDay(new Date(endDate ?? defaultEnd));
+    const start = this.startOfDay(this.parseDate(startDate ?? defaultStart, 'startDate'));
+    const end = this.endOfDay(this.parseDate(endDate ?? defaultEnd, 'endDate'));
 
     const attendances = await this.prisma.attendance.findMany({
       where: { date: { gte: start, lte: end }, checkInTime: { not: null }, checkOutTime: { not: null } },
@@ -461,7 +633,9 @@ export class ReportsService implements OnModuleInit {
 
     const [invoicesThisMonth, sentInvoices, quotesThisMonth] = await Promise.all([
       this.prisma.invoice.findMany({
-        where: { issuedAt: { gte: monthStart } },
+        // Le CA facturé ne compte que les factures réellement émises au client : une facture
+        // encore en brouillon n'a jamais été facturée, une facture annulée a été voidée.
+        where: { issuedAt: { gte: monthStart }, status: { in: ['SENT', 'PAID'] } },
         include: { lineItems: true },
       }),
       this.prisma.invoice.findMany({
@@ -535,8 +709,8 @@ export class ReportsService implements OnModuleInit {
     const defaultEnd = today.toISOString().slice(0, 10);
     const defaultStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const period = { startDate: startDate ?? defaultStart, endDate: endDate ?? defaultEnd };
-    const start = this.startOfDay(new Date(period.startDate));
-    const end = this.endOfDay(new Date(period.endDate));
+    const start = this.startOfDay(this.parseDate(period.startDate, 'startDate'));
+    const end = this.endOfDay(this.parseDate(period.endDate, 'endDate'));
 
     const attendances = await this.prisma.attendance.findMany({
       where: { date: { gte: start, lte: end }, checkInTime: { not: null }, checkOutTime: { not: null } },
@@ -635,8 +809,8 @@ export class ReportsService implements OnModuleInit {
     const defaultEnd = today.toISOString().slice(0, 10);
     const defaultStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const period = { startDate: startDate ?? defaultStart, endDate: endDate ?? defaultEnd };
-    const start = this.startOfDay(new Date(period.startDate));
-    const end = this.endOfDay(new Date(period.endDate));
+    const start = this.startOfDay(this.parseDate(period.startDate, 'startDate'));
+    const end = this.endOfDay(this.parseDate(period.endDate, 'endDate'));
 
     const attendances = await this.prisma.attendance.findMany({
       where: { date: { gte: start, lte: end }, checkInTime: { not: null }, checkOutTime: { not: null } },

@@ -90,6 +90,7 @@ const SUPERVISOR_MENU: NavItem[] = [
   { type: 'link', to: '/supervision/planning', label: 'Planning équipes', icon: CalendarDays },
   { type: 'link', to: '/supervision/interventions', label: 'Interventions', icon: ClipboardList },
   { type: 'link', to: '/supervision/absences', label: 'Absences', icon: CalendarX },
+  { type: 'link', to: '/supervision/rapports', label: 'Rapports', icon: BarChart3 },
 ];
 
 type SidebarProps = {

@@ -3,6 +3,7 @@ import { UpdateAttendanceRulesDto } from './dto/update-attendance-rules.dto';
 import { CreateAbsenceTypeDto } from './dto/create-absence-type.dto';
 import { UpdateAbsenceTypeDto } from './dto/update-absence-type.dto';
 import { UpdateCompanyInfoDto } from './dto/update-company-info.dto';
+import { UpdateMonthlyQuotaDto } from './dto/update-monthly-quota.dto';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../database/prisma.service';
 
@@ -25,6 +26,10 @@ export type RolePermission = {
   permissions: string[];
 };
 
+export type MonthlyQuotaSettings = {
+  accomplishmentThresholdPercent: number;
+};
+
 export type CompanyInfo = {
   legalName: string;
   siret: string;
@@ -40,6 +45,7 @@ export type CompanyInfo = {
 const ATTENDANCE_RULES_KEY = 'attendanceRules';
 const ABSENCE_TYPES_KEY = 'absenceTypes';
 const COMPANY_INFO_KEY = 'companyInfo';
+const MONTHLY_QUOTA_KEY = 'monthlyQuota';
 
 const DEFAULT_COMPANY_INFO: CompanyInfo = {
   legalName: '',
@@ -59,6 +65,10 @@ const DEFAULT_ATTENDANCE_RULES: AttendanceRules = {
   minimumDurationMinutes: 15,
 };
 
+const DEFAULT_MONTHLY_QUOTA: MonthlyQuotaSettings = {
+  accomplishmentThresholdPercent: 90,
+};
+
 const DEFAULT_ABSENCE_TYPES: AbsenceTypeConfig[] = [
   { id: 'type-sick', code: 'SICK', name: 'Arrêt maladie', active: true },
   { id: 'type-paid', code: 'PAID_LEAVE', name: 'Congés payés', active: true },
@@ -71,6 +81,7 @@ export class SettingsService implements OnModuleInit {
   private attendanceRules: AttendanceRules = DEFAULT_ATTENDANCE_RULES;
   private absenceTypes: AbsenceTypeConfig[] = DEFAULT_ABSENCE_TYPES;
   private companyInfo: CompanyInfo = DEFAULT_COMPANY_INFO;
+  private monthlyQuota: MonthlyQuotaSettings = DEFAULT_MONTHLY_QUOTA;
 
   private readonly roles: RolePermission[] = [
     {
@@ -96,10 +107,11 @@ export class SettingsService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    const [rulesRow, typesRow, companyRow] = await Promise.all([
+    const [rulesRow, typesRow, companyRow, monthlyQuotaRow] = await Promise.all([
       this.prisma.setting.findUnique({ where: { key: ATTENDANCE_RULES_KEY } }),
       this.prisma.setting.findUnique({ where: { key: ABSENCE_TYPES_KEY } }),
       this.prisma.setting.findUnique({ where: { key: COMPANY_INFO_KEY } }),
+      this.prisma.setting.findUnique({ where: { key: MONTHLY_QUOTA_KEY } }),
     ]);
     if (rulesRow?.value) {
       this.attendanceRules = rulesRow.value as unknown as AttendanceRules;
@@ -109,6 +121,9 @@ export class SettingsService implements OnModuleInit {
     }
     if (companyRow?.value) {
       this.companyInfo = { ...DEFAULT_COMPANY_INFO, ...(companyRow.value as unknown as CompanyInfo) };
+    }
+    if (monthlyQuotaRow?.value) {
+      this.monthlyQuota = { ...DEFAULT_MONTHLY_QUOTA, ...(monthlyQuotaRow.value as unknown as MonthlyQuotaSettings) };
     }
   }
 
@@ -136,12 +151,33 @@ export class SettingsService implements OnModuleInit {
     });
   }
 
+  private async persistMonthlyQuota() {
+    await this.prisma.setting.upsert({
+      where: { key: MONTHLY_QUOTA_KEY },
+      update: { value: this.monthlyQuota as any },
+      create: { key: MONTHLY_QUOTA_KEY, value: this.monthlyQuota as any },
+    });
+  }
+
   getSettings() {
     return {
       attendanceRules: this.attendanceRules,
       absenceTypes: this.absenceTypes,
       roles: this.roles,
+      monthlyQuota: this.monthlyQuota,
     };
+  }
+
+  async updateMonthlyQuota(dto: UpdateMonthlyQuotaDto) {
+    this.monthlyQuota = { ...dto };
+    await this.persistMonthlyQuota();
+    this.auditService.record({
+      actorId: 'admin@madyproclean.com',
+      action: 'UPDATE_SETTINGS',
+      entityType: 'monthlyQuota',
+      details: JSON.stringify(dto),
+    });
+    return this.monthlyQuota;
   }
 
   async updateAttendanceRules(dto: UpdateAttendanceRulesDto) {
