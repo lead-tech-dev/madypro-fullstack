@@ -11,35 +11,33 @@ export class MailerService {
     html: string,
     attachment?: { filename: string; content: string; type?: string; encoding?: 'utf8' | 'base64' },
   ) {
-    const apiKey = process.env.SENDGRID_API_KEY;
-    const from = process.env.SENDGRID_FROM || 'Madypro Clean <no-reply@madyproclean.com>';
+    const apiKey = process.env.RESEND_API_KEY;
+    const from = process.env.RESEND_FROM || 'Madypro Clean <no-reply@madyproclean.com>';
 
     if (!apiKey) {
-      this.logger.warn('SENDGRID_API_KEY manquant, email non envoyé');
+      this.logger.warn('RESEND_API_KEY manquant, email non envoyé');
       return { skipped: true };
     }
 
-    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: from },
+        from,
+        to: [to],
         subject,
-        content: [{ type: 'text/html', value: html }],
+        html,
         attachments: attachment
           ? [
               {
+                filename: attachment.filename,
                 content:
                   attachment.encoding === 'base64'
                     ? attachment.content
                     : Buffer.from(attachment.content, 'utf-8').toString('base64'),
-                filename: attachment.filename,
-                type: attachment.type ?? 'text/csv',
-                disposition: 'attachment',
               },
             ]
           : undefined,
@@ -48,12 +46,12 @@ export class MailerService {
 
     if (!res.ok) {
       const text = await res.text();
-      const message = `SendGrid error: ${res.status} ${text}`;
+      const message = `Resend error: ${res.status} ${text}`;
       this.logger.error(message);
       throw new Error(message);
     }
 
-    this.logger.log(`Mail envoyé via SendGrid à ${to}`);
-    return { sent: true, provider: 'sendgrid' };
+    this.logger.log(`Mail envoyé via Resend à ${to}`);
+    return { sent: true, provider: 'resend' };
   }
 }
