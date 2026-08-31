@@ -20,12 +20,35 @@ export class ReportsService implements OnModuleInit {
     private readonly documentPdfService: DocumentPdfService,
   ) {}
 
-  onModuleInit() {
+  private static readonly SCHEDULE_STATE_KEY = 'reportScheduleState';
+
+  async onModuleInit() {
+    // Persisté (au lieu de rester en mémoire) : sinon chaque redémarrage du conteneur
+    // (déploiement) réinitialise ces garde-fous et peut renvoyer un rapport déjà envoyé
+    // le même jour (constaté : 3 "Rapport hebdomadaire" en double le même lundi, un par
+    // redéploiement survenu après plus d'une heure d'exécution du précédent).
+    const row = await this.prisma.setting.findUnique({ where: { key: ReportsService.SCHEDULE_STATE_KEY } });
+    if (row?.value) {
+      const state = row.value as unknown as { lastWeeklySent?: string; lastMonthlySent?: string };
+      this.lastWeeklySent = state.lastWeeklySent ?? null;
+      this.lastMonthlySent = state.lastMonthlySent ?? null;
+    }
     setInterval(() => {
       this.checkScheduledReports().catch((err) =>
         this.logger.warn(`Erreur envoi programmé des rapports: ${err?.message || err}`),
       );
     }, 60 * 60 * 1000); // toutes les heures
+  }
+
+  private async persistScheduleState() {
+    await this.prisma.setting.upsert({
+      where: { key: ReportsService.SCHEDULE_STATE_KEY },
+      update: { value: { lastWeeklySent: this.lastWeeklySent, lastMonthlySent: this.lastMonthlySent } },
+      create: {
+        key: ReportsService.SCHEDULE_STATE_KEY,
+        value: { lastWeeklySent: this.lastWeeklySent, lastMonthlySent: this.lastMonthlySent },
+      },
+    });
   }
 
   private async checkScheduledReports() {
@@ -36,6 +59,7 @@ export class ReportsService implements OnModuleInit {
     const isoWeek = this.isoWeekKey(now);
     if (now.getDay() === 1 && this.lastWeeklySent !== isoWeek) {
       this.lastWeeklySent = isoWeek;
+      await this.persistScheduleState();
       const end = now.toISOString().slice(0, 10);
       const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       await this.sendReportEmail(start, end, 'Rapport hebdomadaire');
@@ -44,6 +68,7 @@ export class ReportsService implements OnModuleInit {
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     if (now.getDate() === 1 && this.lastMonthlySent !== monthKey) {
       this.lastMonthlySent = monthKey;
+      await this.persistScheduleState();
       const end = now.toISOString().slice(0, 10);
       const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       await this.sendReportEmail(start, end, 'Rapport mensuel');
