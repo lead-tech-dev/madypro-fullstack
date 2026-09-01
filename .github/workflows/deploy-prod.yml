@@ -33,8 +33,8 @@ jobs:
           file: backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/lead-tech-dev/madypro-fullstack/api:prod-${{ github.sha }}
-            ghcr.io/lead-tech-dev/madypro-fullstack/api:prod-latest
+            ghcr.io/madyproclean/madypro-fullstack/api:prod-${{ github.sha }}
+            ghcr.io/madyproclean/madypro-fullstack/api:prod-latest
           cache-from: type=gha,scope=api-prod
           cache-to:   type=gha,scope=api-prod,mode=max
 
@@ -49,8 +49,8 @@ jobs:
           build-args: |
             VITE_API_URL=http://ec2-15-237-203-194.eu-west-3.compute.amazonaws.com
           tags: |
-            ghcr.io/lead-tech-dev/madypro-fullstack/web:prod-${{ github.sha }}
-            ghcr.io/lead-tech-dev/madypro-fullstack/web:prod-latest
+            ghcr.io/madyproclean/madypro-fullstack/web:prod-${{ github.sha }}
+            ghcr.io/madyproclean/madypro-fullstack/web:prod-latest
           cache-from: type=gha,scope=web-prod
           cache-to:   type=gha,scope=web-prod,mode=max
 

@@ -28,7 +28,7 @@ services:
       retries: 12
 
   api:
-    image: ghcr.io/lead-tech-dev/madypro-fullstack/api:dev-latest
+    image: ghcr.io/madyproclean/madypro-fullstack/api:dev-latest
     container_name: dev-api
     restart: unless-stopped
     depends_on:
@@ -54,7 +54,7 @@ services:
       - "traefik.http.routers.dev-api.middlewares=dev-api-headers@docker"
 
   web:
-    image: ghcr.io/lead-tech-dev/madypro-fullstack/web:dev-latest
+    image: ghcr.io/madyproclean/madypro-fullstack/web:dev-latest
     container_name: dev-web
     restart: unless-stopped
     ports:
