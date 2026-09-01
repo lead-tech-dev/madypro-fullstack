@@ -42,3 +42,10 @@ Env files
 .env.local
 .env.development
 .env.production
+
+Fichiers locaux uniquement (jamais commités)
+
+/apk/
+/Guide-utilisateur-Mady-Proclean.pdf
+/docs/onboarding-checklist.md
+/docs/Guide-integration-dev-senior-MadyProclean.pdf
