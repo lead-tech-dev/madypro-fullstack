@@ -1,0 +1,85 @@
+import { env } from '../../config/env';
+
+type FetchArgs = {
+  path: string;
+  token?: string;
+  options?: RequestInit;
+};
+
+/** Le serveur a répondu et a explicitement rejeté la requête (ex: règle métier, validation). */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
+const normalizeBaseUrl = () => {
+  if (!env.apiUrl) {
+    throw new Error('Missing EXPO_PUBLIC_API_URL');
+  }
+  return env.apiUrl.replace(/\/$/, '');
+};
+
+const buildUrl = (path: string) => {
+  const base = normalizeBaseUrl();
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${normalized}`;
+};
+
+// Assez généreux pour l'envoi d'une photo (checkIn/checkOut) sur une connexion mobile faible,
+// sans pour autant laisser l'utilisateur indéfiniment sans retour en cas de coupure réelle.
+const REQUEST_TIMEOUT_MS = 40000;
+
+export async function apiFetch<T>({ path, token, options = {} }: FetchArgs): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path), {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers ?? {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Le serveur ne répond pas. Vérifiez votre connexion et réessayez.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    let message = response.statusText;
+    const raw = await response.text();
+    try {
+      const data = JSON.parse(raw);
+      message = Array.isArray(data.message) ? data.message.join(', ') : data.message || message;
+    } catch {
+      if (raw) message = raw;
+    }
+    if (response.status === 401 && token) {
+      unauthorizedHandler?.();
+    }
+    throw new ApiError(message || 'API error', response.status);
+  }
+
+  if (response.status === 204) {
+    return null as T;
+  }
+
+  return response.json();
+}

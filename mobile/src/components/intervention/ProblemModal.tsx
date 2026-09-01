@@ -1,0 +1,166 @@
+import React from 'react';
+import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '@/config/theme';
+import { Button } from '@/components/ui/Button';
+import { PhotoGrid } from '@/components/ui/PhotoGrid';
+import { AnomalyType } from '@/types/anomaly';
+
+export const ANOMALY_OPTIONS: Array<{ value: AnomalyType; label: string }> = [
+  { value: 'CLEANLINESS', label: 'Propreté' },
+  { value: 'MISSING_SUPPLIES', label: 'Matériel manquant' },
+  { value: 'ACCESS', label: 'Accès impossible' },
+  { value: 'DAMAGE', label: 'Dégâts' },
+  { value: 'OTHER', label: 'Autre' },
+];
+
+type ProblemModalProps = {
+  visible: boolean;
+  onClose: () => void;
+  type: AnomalyType;
+  onTypeChange: (type: AnomalyType) => void;
+  description: string;
+  onDescriptionChange: (text: string) => void;
+  photos: string[];
+  onAddPhoto: () => Promise<void>;
+  onRemovePhoto: (uri: string) => void;
+  onSubmit: () => Promise<void>;
+  submitting: boolean;
+};
+
+export const ProblemModal: React.FC<ProblemModalProps> = ({
+  visible,
+  onClose,
+  type,
+  onTypeChange,
+  description,
+  onDescriptionChange,
+  photos,
+  onAddPhoto,
+  onRemovePhoto,
+  onSubmit,
+  submitting,
+}) => (
+  <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContent}>
+        <View style={styles.modalHeader}>
+          <View style={styles.modalTitleRow}>
+            <Ionicons name="warning-outline" size={20} color={theme.colors.danger} style={styles.modalTitleIcon} />
+            <Text style={styles.modalTitle}>Signaler un problème</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="close-circle-outline" size={20} color={theme.colors.ink} />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.modalLabel}>Type d'anomalie</Text>
+        <View style={styles.typeOptions}>
+          {ANOMALY_OPTIONS.map((option) => {
+            const active = option.value === type;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[styles.typePill, active && styles.typePillActive]}
+                onPress={() => onTypeChange(option.value)}
+              >
+                <Text style={[styles.typePillLabel, active && styles.typePillLabelActive]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={styles.modalLabel}>Description</Text>
+        <TextInput
+          style={styles.textArea}
+          placeholder="Décrivez le problème rencontré…"
+          placeholderTextColor={theme.colors.muted}
+          multiline
+          value={description}
+          onChangeText={onDescriptionChange}
+        />
+        <Text style={styles.modalLabel}>Photos</Text>
+        <PhotoGrid photos={photos} onAddPhoto={onAddPhoto} onRemovePhoto={onRemovePhoto} />
+        <Button
+          title={submitting ? 'Envoi…' : 'Envoyer'}
+          icon="checkmark-circle-outline"
+          onPress={onSubmit}
+          disabled={submitting}
+        />
+      </View>
+    </View>
+  </Modal>
+);
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: theme.spacing.xl,
+    gap: theme.spacing.md,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalTitleIcon: {
+    marginRight: 6,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: theme.fonts.bodyBold,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.clay,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalLabel: {
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.ink,
+  },
+  typeOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  typePill: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.clay,
+  },
+  typePillActive: {
+    backgroundColor: theme.colors.primarySoft,
+  },
+  typePillLabel: {
+    color: theme.colors.muted,
+    fontFamily: theme.fonts.bodySemiBold,
+  },
+  typePillLabelActive: {
+    color: theme.colors.primary,
+  },
+  textArea: {
+    minHeight: 120,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.clay,
+    padding: theme.spacing.md,
+    textAlignVertical: 'top',
+    color: theme.colors.ink,
+  },
+});

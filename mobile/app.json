@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "MadyPro Clean",
+    "slug": "mj-planning-mobile",
+    "icon": "./assets/icon.png",
+    "android": {
+      "package": "com.maximan81.mjplanningmobile",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a2041"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.maximan81.mjplanningmobile",
+      "supportsTablet": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "17de6227-dae4-4b36-b6c2-88433b7e1a0a"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MadyPro Clean utilise l'appareil photo pour scanner les codes-barres de l'inventaire."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MadyPro Clean utilise vos photos pour joindre un justificatif.",
+          "cameraPermission": "MadyPro Clean utilise l'appareil photo pour prendre une photo de présence ou de justificatif.",
+          "microphonePermission": false
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-asset",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 260,
+          "resizeMode": "contain",
+          "backgroundColor": "#0a2041"
+        }
+      ]
+    ]
+  }
+}
